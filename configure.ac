@@ -917,6 +917,11 @@ case "${target}" in
 esac
 
 case "${target}" in
+  spc700-*-coff)
+    noconfigdirs="$noconfigdirs gdb gprof ld"
+esac
+
+case "${target}" in
   *-*-chorusos)
     ;;
   aarch64-*-darwin*)
