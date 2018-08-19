@@ -6268,6 +6268,15 @@ assembler and not (currently) written to any object files.  */
 /* wdc65c816 relocations.  */
   BFD_RELOC_WDC65816_BANK,
   BFD_RELOC_WDC65816_DIR,
+
+  /* SPC700 relocations. */
+  BFD_RELOC_SPC700_ABS16,
+  BFD_RELOC_SPC700_DPLO8,
+  BFD_RELOC_SPC700_DPHI8,
+  BFD_RELOC_SPC700_IMM8,
+  BFD_RELOC_SPC700_PC8,
+  BFD_RELOC_SPC700_PCALL8,
+
   BFD_RELOC_UNUSED };
 
 typedef enum bfd_reloc_code_real bfd_reloc_code_real_type;

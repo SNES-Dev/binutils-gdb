@@ -106,9 +106,22 @@ typedef enum spc700_optype {
   SPC700_Optype_Immediate_Symbol
 } spc700_optype;
 
+int find_symbol_by_address(struct disassemble_info* info, uint32_t address_value, char* out, int outlen){
+  int i;
+  int n = info->symtab_size;
+
+  for(i = 0; i < n; i++){
+    if(info->symtab[i]->value == address_value){
+      strncpy(out, info->symtab[i]->name, outlen);
+      return 0;
+    }
+  }
+  return 1;
+}
 
 static int get_operand(char* buf, int buflen, bfd_vma address, struct disassemble_info* info, spc700_opcode* insn, int argindex){
   int status;
+  int is_address = 1;
   uint32_t imm;
   uint32_t mem_rel;
   uint32_t mem_dp;
@@ -117,8 +130,10 @@ static int get_operand(char* buf, int buflen, bfd_vma address, struct disassembl
   uint32_t mem_pcall;
   uint32_t data = 0;
   uint8_t buffer[3];
+  char symbol_buf[256];
 
   memset(buf, 0, buflen);
+  memset(symbol_buf, 0, 256);
 
   //bruk tabellen for å finne ut antall bytes vi må lese
   status = info->read_memory_func(address, buffer, insn->size, info);
@@ -139,7 +154,9 @@ static int get_operand(char* buf, int buflen, bfd_vma address, struct disassembl
   }
   /* Note: when disassembling, we assume that the CPU direct page flag is 0, so that DP=!0x0000
     TODO: lookup info->symbols or info->symtab to replace values with symbols */
+
   switch(insn->argtypes[argindex]){
+
     case SPC700_Argtype_Immediate:{
       imm = (data&insn->argmasks[argindex])>>insn->argshifts[argindex];
       snprintf(buf, buflen, "#%d", imm);
@@ -152,47 +169,76 @@ static int get_operand(char* buf, int buflen, bfd_vma address, struct disassembl
     case SPC700_Argtype_DP_Indirect_Plus_Y:
     {
       mem_dp = (data&insn->argmasks[argindex])>>insn->argshifts[argindex];
-      snprintf(buf, buflen, "0x%02X", mem_dp);
+      //try to find a symbol for this address
+      if(!find_symbol_by_address(info, mem_dp, symbol_buf, 256)){
+        snprintf(buf, buflen, "%s", symbol_buf);
+      } else {
+        snprintf(buf, buflen, "0x%02X", mem_dp);
+      }
     }
     break;
     case SPC700_Argtype_AbsAddr:
     case SPC700_Argtype_AbsAddr_Plus_X:
     case SPC700_Argtype_AbsAddr_Plus_Y:{
       mem_abs = (data&insn->argmasks[argindex])>>insn->argshifts[argindex];
-      snprintf(buf, buflen, "!0x%04X", mem_abs);
+      //try to find a symbol for this address
+      if(!find_symbol_by_address(info, mem_abs, symbol_buf, 256)){
+        snprintf(buf, buflen, "!%s", symbol_buf);
+      } else {
+        snprintf(buf, buflen, "!0x%04X", mem_abs);
+      }
     }
     break;
     case SPC700_Argtype_PcRelAddr:{
       mem_rel = (int)address + (int8_t)((data&insn->argmasks[argindex])>>insn->argshifts[argindex]);
-      snprintf(buf, buflen, "!0x%04X", mem_rel);
+      //try to find a symbol for this address
+      if(!find_symbol_by_address(info, mem_rel, symbol_buf, 256)){
+        snprintf(buf, buflen, "%s", symbol_buf);
+      } else {
+        snprintf(buf, buflen, "!0x%04X", mem_rel);
+      }
     }
     break;
     case SPC700_Argtype_PCallAddr:{
       mem_pcall = (data&insn->argmasks[argindex])>>insn->argshifts[argindex];
-      snprintf(buf, buflen, "#%d", mem_pcall);
+      //try to find a symbol for this address
+      if(!find_symbol_by_address(info, mem_pcall, symbol_buf, 256)){
+        snprintf(buf, buflen, "%s", symbol_buf);
+      } else {
+        snprintf(buf, buflen, "%d", mem_pcall);
+      }
     }
     break;
     case SPC700_Argtype_TCallAddr:{
       mem_tcall = (data&insn->argmasks[argindex])>>insn->argshifts[argindex];
-      snprintf(buf, buflen, "#%X", mem_tcall);
+      //try to find a symbol for this address
+      if(!find_symbol_by_address(info, mem_tcall, symbol_buf, 256)){
+        snprintf(buf, buflen, "%s", symbol_buf);
+      } else {
+        snprintf(buf, buflen, "%d", mem_tcall);
+      }
     }
     break;
     default:
     assert(!"invalid operand type in get_operand() !!");
     abort();
   }
+
+  //printf("argindex: %d, address: %u\n", argindex, address);
+  //printf("buf ptr: %p\n", buf);
+  //printf("buf: %s\n", buf);
   return 0;
 }
 
 static int is_argument_implicit(spc700_opcode* insn, int idx){
-  return  ((insn->argtypes[i] == SPC700_Argtype_A) ||
-          (insn->argtypes[i] == SPC700_Argtype_X) ||
-          (insn->argtypes[i] == SPC700_Argtype_Y) ||
-          (insn->argtypes[i] == SPC700_Argtype_SP) ||
-          (insn->argtypes[i] == SPC700_Argtype_YA) ||
-          (insn->argtypes[i] == SPC700_Argtype_X_Indirect) ||
-          (insn->argtypes[i] == SPC700_Argtype_Y_Indirect) ||
-          (insn->argtypes[i] == SPC700_Argtype_X_Indirect_AutoIncr));
+  return  ((insn->argtypes[idx] == SPC700_Argtype_A) ||
+          (insn->argtypes[idx] == SPC700_Argtype_X) ||
+          (insn->argtypes[idx] == SPC700_Argtype_Y) ||
+          (insn->argtypes[idx] == SPC700_Argtype_SP) ||
+          (insn->argtypes[idx] == SPC700_Argtype_YA) ||
+          (insn->argtypes[idx] == SPC700_Argtype_X_Indirect) ||
+          (insn->argtypes[idx] == SPC700_Argtype_Y_Indirect) ||
+          (insn->argtypes[idx] == SPC700_Argtype_X_Indirect_AutoIncr));
 }
 
 int print_insn_spc700(bfd_vma address, struct disassemble_info* info){
@@ -200,8 +246,12 @@ int print_insn_spc700(bfd_vma address, struct disassemble_info* info){
   spc700_opcode* insn;
   int status;
   unsigned int i,j,argidx;
-  char args[8][3] = {0};
-  char insn_line[256];
+  char args[3][256] = {0};
+  char insn_line[800] = {0};
+
+  memset(args[0], 0, 256);
+  memset(args[1], 0, 256);
+  memset(args[2], 0, 256);
 
   status = info->read_memory_func(address, &opcode, 1, info);
   if(status){
@@ -232,8 +282,8 @@ int print_insn_spc700(bfd_vma address, struct disassemble_info* info){
 
   /* parse our explicit operands if we have some */
   for(argidx = 0,j=0; argidx < insn->numargs; argidx++){
-    if(is_argument_implicit(insn, argidx) || insn->argtypes[i] == SPC700_Argtype_None) continue;
-    if(0 != (status = get_operand(args[j], 8, address, info, insn, argidx))){
+    if(is_argument_implicit(insn, argidx) || insn->argtypes[argidx] == SPC700_Argtype_None) continue;
+    if(0 != (status = get_operand(args[j], 256, address, info, insn, argidx))){
       info->memory_error_func(status, address, info);
     }
     j++;
@@ -246,16 +296,16 @@ int print_insn_spc700(bfd_vma address, struct disassemble_info* info){
   */
   switch(insn->numargs_noimplied){
     case 0:
-      snprintf(insn_line, 256, "%s", insn->args);
+      snprintf(insn_line, 800, "%s", insn->args);
       break;
     case 1:
-      snprintf(insn_line, 256, insn->args, args[0]);
+      snprintf(insn_line, 800, insn->args, args[0]);
       break;
     case 2:
-      snprintf(insn_line, 256, insn->args, args[0], args[1]);
+      snprintf(insn_line, 800, insn->args, args[0], args[1]);
       break;
     case 3:
-      snprintf(insn_line, 256, insn->args, args[0], args[1], args[2]);
+      snprintf(insn_line, 800, insn->args, args[0], args[1], args[2]);
       break;
   }
   info->fprintf_func (info->stream,"%s", insn_line);

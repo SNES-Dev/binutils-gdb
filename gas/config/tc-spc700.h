@@ -48,20 +48,11 @@
    nonstandard escape sequences in a string.  */
 #define ONLY_STANDARD_ESCAPES
 
-/* GAS will call this function for any expression that can not be
-   recognized.  When the function is called, `input_line_pointer'
-   will point to the start of the expression.  */
-//#define md_operand(x)
+
+/* don't need this */
+#define md_operand(x)
 
 
-
-/* You may define this macro to generate a fixup for a data
-   allocation pseudo-op.  */
-/*
-#define TC_CONS_FIX_NEW avr_cons_fix_new
-extern void avr_cons_fix_new (fragS *,int, int, expressionS *,
-			      const exp_mod_data_t *);
-*/
 
 /* This should just call either `number_to_chars_bigendian' or
    `number_to_chars_littleendian', whichever is appropriate.  On
@@ -69,6 +60,16 @@ extern void avr_cons_fix_new (fragS *,int, int, expressionS *,
    endianness, which function to call is a runtime decision.  On
    other targets, `md_number_to_chars' can be a simple macro.  */
 #define md_number_to_chars number_to_chars_littleendian
+
+
+
+#define TC_COUNT_RELOC(x) 1
+#define TC_COFF_FIX2RTYPE(fixP) tc_coff_fix2rtype (fixP)
+#define md_convert_frag(b,s,f)   as_fatal ("convert_frag called\n")
+#define md_estimate_size_before_relax(f,s) \
+  (as_fatal (_("estimate_size_before_relax called")), 1)
+
+#define md_end               spc700_md_end
 
 /* `md_short_jump_size'
    `md_long_jump_size'
@@ -108,6 +109,7 @@ extern void avr_cons_fix_new (fragS *,int, int, expressionS *,
    would print `12 34 56 78'.  The default value is 4.  */
 #define LISTING_WORD_SIZE 2
 
+#if 0
 /* SPC700 instructions are 1 to 3 bytes long.  */
 #define DWARF2_LINE_MIN_INSN_LENGTH 	1
 
@@ -122,5 +124,10 @@ extern void avr_cons_fix_new (fragS *,int, int, expressionS *,
 
 /* Define the column that represents the PC.  */
 #define DWARF2_DEFAULT_RETURN_COLUMN  36
+#endif
+
+#define md_register_arithmetic 0
+
+
 
 #endif

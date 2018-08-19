@@ -2,6 +2,7 @@
 #include "safe-ctype.h"
 #include "subsegs.h"
 #include "opcode/spc700.h"
+#include <assert.h>
 
 const char comment_chars[] = ";\0";
 const char line_comment_chars[] = "/;\0";
@@ -20,6 +21,46 @@ struct option md_longopts[] =
 {
   { NULL, no_argument, NULL, 0 }
 } ;
+
+#define MAX_TOK 5 //max number of tokens to match
+#define TEXTTOKENLEN 256 //max length of symbols
+
+typedef enum OperandTerminal {
+  OpTerminal_End = 0, // '\0'
+  OpTerminal_Symbol = 1,
+  OpTerminal_Abs = 2, //!1234
+  OpTerminal_Imm = 3, //#1234
+  OpTerminal_Value = 4,  //255
+  OpTerminal_Dp = 4,  //255
+  OpTerminal_RegA = 5,
+  OpTerminal_RegX = 6,
+  OpTerminal_RegY = 7,
+  OpTerminal_RegYA = 8,
+  OpTerminal_RegSP = 9,
+  OpTerminal_RegPSW = 10,
+  OpTerminal_RegIndirectOpen = 11, // (
+  OpTerminal_RegIndirectClose = 12 , // )
+  OpTerminal_DPIndirectOpen = 13, // [
+  OpTerminal_DPIndirectClose = 14, // ]
+  OpTerminal_Plus = 15,
+  OpTerminal_Unreckognized = 256,
+  OpTerminal_None = 256
+} OperandTerminal;
+
+typedef struct OperandInfo {
+  OperandTerminal terminals[5];
+  int immediate_or_addr;
+  int numTerminals;
+  //1 if the value is a symbol with name 'symbolname'
+  //0 if the value is a constant with value 'immediate_or_addr'
+  int value_is_symbol;
+  spc700_argtype argtype;
+  char symbolname[TEXTTOKENLEN + 1];
+} OperandInfo;
+
+static void emit_byte(OperandInfo* opinfo, bfd_reloc_code_real_type r_type);
+static void emit_word(OperandInfo* opinfo);
+static void assemble(spc700_opcode* insn, OperandInfo* opinfo);
 
 size_t md_longopts_size = sizeof (md_longopts);
 
@@ -63,12 +104,12 @@ static void s_dpoffs(int arg ATTRIBUTE_UNUSED){
 
 
 /* parsing of architecture-specific options. Currently we have none */
-int md_parse_option (int c, const char* arg ATTRIBUTE_UNUSED){
+int md_parse_option (int c ATTRIBUTE_UNUSED, const char* arg ATTRIBUTE_UNUSED){
   return 1;
 }
 
 /* display usage of architecture-specific options. Currently we have none */
-void md_show_usage (FILE * f){
+void md_show_usage (FILE * f ATTRIBUTE_UNUSED){
 
 }
 
@@ -111,11 +152,11 @@ valueT md_section_align (segT seg ATTRIBUTE_UNUSED, valueT size){
     Some architectures like ARM evaluates PC to the address of the current instruction + 8 bytes.
     On the SPC700, pc-relative addresses are directly relative to the address of the executed instruction.
     We subtract 1 from fr_address because it points to one past the opcode byte */
-#if 0
+
 long md_pcrel_from (fixS * fixp){
-  return fixp->fx_where + fixp->fx_frag->fr_address - 1; //0 or +1 ? Assume that fr_address points to the first operand, so PC will be one byte back
+  return fixp->fx_where + fixp->fx_frag->fr_address; //0 or +1 ? Assume that fr_address points to the first operand, so PC will be one byte back
 }
-#endif
+
 
 
 
@@ -216,42 +257,8 @@ void md_operand(expressionS * exp){
 
 
 
-#define MAX_TOK 5 //max number of tokens to match
-#define TEXTTOKENLEN 256 //max length of symbols
 
-typedef enum OperandTerminal {
-  OpTerminal_End = 0, // '\0'
-  OpTerminal_Symbol = 1,
-  OpTerminal_Abs = 2, //!1234
-  OpTerminal_Imm = 3, //#1234
-  OpTerminal_Value = 4,  //255
-  OpTerminal_Dp = 4,  //255
-  OpTerminal_RegA = 5,
-  OpTerminal_RegX = 6,
-  OpTerminal_RegY = 7,
-  OpTerminal_RegYA = 8,
-  OpTerminal_RegSP = 9,
-  OpTerminal_RegPSW = 10,
-  OpTerminal_RegIndirectOpen = 11, // (
-  OpTerminal_RegIndirectClose = 12 , // )
-  OpTerminal_DPIndirectOpen = 13, // [
-  OpTerminal_DPIndirectClose = 14, // ]
-  OpTerminal_Plus = 15,
-  OpTerminal_Unreckognized = 256,
-  OpTerminal_None = 256
-} OperandTerminal;
-
-typedef struct OperandInfo {
-  OperandTerminal terminals[5];
-  int immediate_or_addr;
-  int numTerminals;
-  //1 if the value is a symbol with name 'symbolname'
-  //0 if the value is a constant with value 'immediate_or_addr'
-  int value_is_symbol;
-  spc700_argtype argtype;
-  char symbolname[TEXTTOKENLEN + 1];
-} OperandInfo;
-
+/* The index of this table matches the index of spc700_argtype in opcode/spc700.h */
 OperandTerminal op2argtype_table[23][7] = {
   {OpTerminal_None,             OpTerminal_None,  OpTerminal_None,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //Dummy
   {OpTerminal_RegA,             OpTerminal_None,  OpTerminal_None,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //A
@@ -261,7 +268,7 @@ OperandTerminal op2argtype_table[23][7] = {
   {OpTerminal_RegSP,            OpTerminal_None,  OpTerminal_None,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //SP
   {OpTerminal_RegPSW,           OpTerminal_None,  OpTerminal_None,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //PSW
   {OpTerminal_Imm,              OpTerminal_None,  OpTerminal_None,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //#imm
-  {OpTerminal_Value,               OpTerminal_None,  OpTerminal_None,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //dp
+  {OpTerminal_Value,            OpTerminal_None,  OpTerminal_None,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //dp
   {OpTerminal_Abs,              OpTerminal_None,  OpTerminal_None,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //!abs
   {OpTerminal_None,             OpTerminal_None,  OpTerminal_None,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //PCRel, (special case)
   {OpTerminal_None,             OpTerminal_None,  OpTerminal_None,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //PCALL page (special case)
@@ -269,19 +276,19 @@ OperandTerminal op2argtype_table[23][7] = {
   {OpTerminal_RegIndirectOpen,  OpTerminal_RegX,  OpTerminal_RegIndirectClose,  OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //(X)
   {OpTerminal_RegIndirectOpen,  OpTerminal_RegY,  OpTerminal_RegIndirectClose,  OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //(Y)
   {OpTerminal_RegIndirectOpen,  OpTerminal_RegX,  OpTerminal_RegIndirectClose,  OpTerminal_Plus,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //(X)+
-  {OpTerminal_Value,               OpTerminal_Plus,  OpTerminal_RegX,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //dp+X
-  {OpTerminal_Value,               OpTerminal_Plus,  OpTerminal_RegY,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //dp+Y
+  {OpTerminal_Value,            OpTerminal_Plus,  OpTerminal_RegX,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //dp+X
+  {OpTerminal_Value,            OpTerminal_Plus,  OpTerminal_RegY,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //dp+Y
   {OpTerminal_Abs,              OpTerminal_Plus,  OpTerminal_RegX,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //abs+X
   {OpTerminal_Abs,              OpTerminal_Plus,  OpTerminal_RegY,              OpTerminal_None,            OpTerminal_None,            OpTerminal_None,  OpTerminal_None},         //abs+Y
-  {OpTerminal_DPIndirectOpen,   OpTerminal_Value,    OpTerminal_Plus,              OpTerminal_RegX,            OpTerminal_DPIndirectClose, OpTerminal_None,  OpTerminal_None},         //[dp+X]
-  {OpTerminal_DPIndirectOpen,   OpTerminal_Value,    OpTerminal_DPIndirectClose,   OpTerminal_Plus,            OpTerminal_RegY,            OpTerminal_None,  OpTerminal_None},         //[dp]+Y
+  {OpTerminal_DPIndirectOpen,   OpTerminal_Value, OpTerminal_Plus,              OpTerminal_RegX,            OpTerminal_DPIndirectClose, OpTerminal_None,  OpTerminal_None},         //[dp+X]
+  {OpTerminal_DPIndirectOpen,   OpTerminal_Value, OpTerminal_DPIndirectClose,   OpTerminal_Plus,            OpTerminal_RegY,            OpTerminal_None,  OpTerminal_None},         //[dp]+Y
   {OpTerminal_DPIndirectOpen,   OpTerminal_Abs,   OpTerminal_Plus,              OpTerminal_RegX,            OpTerminal_DPIndirectClose, OpTerminal_None,  OpTerminal_None}          //JMP [!abs+X]
 };
 
 #define CASESTR(x) case x: return #x
 
 
-const char* Terminal2Str(OperandTerminal terminal){
+static const char* Terminal2Str(OperandTerminal terminal){
     switch(terminal){
         CASESTR(OpTerminal_End);
         CASESTR(OpTerminal_Symbol);
@@ -303,7 +310,7 @@ const char* Terminal2Str(OperandTerminal terminal){
     }
 }
 
-const char* ArgType2Str(spc700_argtype argtype){
+static const char* ArgType2Str(spc700_argtype argtype){
     switch(argtype){
         CASESTR(SPC700_Argtype_None);
         CASESTR(SPC700_Argtype_A);
@@ -351,7 +358,6 @@ static OperandTerminal get_spc700_token(char* stream, int* consumed, int* value_
   *value_is_symbol = 0;
 
   char* p = 0;
-  int textTokenLen = 0;
   memset(textToken, 0, TEXTTOKENLEN+1);
 
   if(*stream == '\0'){
@@ -455,7 +461,7 @@ static OperandTerminal get_spc700_token(char* stream, int* consumed, int* value_
 }
 
 
-int parse_operand(char* line, OperandInfo* opinfo, int* fin){
+static int parse_operand(char* line, OperandInfo* opinfo, int* fin){
   int consumed = 0;
   int i = 0;
   int value_is_symbol = 0;
@@ -528,9 +534,9 @@ static int get_operand(char* line, OperandInfo* opinfo, int* finished){
   return -1;
 }
 
-spc700_opcode* get_insn(char* mnemonic, spc700_argtype argtypes[3]){
+static spc700_opcode* get_insn(char* mnemonic, spc700_argtype argtypes[3]){
     int i;
-    for(i = 0; i < spc700_opcode_table_len; i++){
+    for(i = 0; i < (int)spc700_opcode_table_len; i++){
         spc700_opcode* op = &spc700_opcodes[i];
         if(!strcmp(op->name, mnemonic) && (op->argtypes[0] == argtypes[0]) && (op->argtypes[1] == argtypes[1]) && (op->argtypes[2] == argtypes[2])){
             return op;
@@ -544,7 +550,7 @@ void md_assemble (char* str){
     OperandInfo opinfo[3] = {0};
     spc700_argtype argtypes[3] = {SPC700_Argtype_None, SPC700_Argtype_None, SPC700_Argtype_None};
     char mnemonic[8] = {0};
-    int c,i,j,f,n;
+    int c,i,f,n;
     char* p;
 
 
@@ -599,7 +605,8 @@ void md_assemble (char* str){
 }
 
 
-void assemble(spc700_opcode* insn, OperandInfo* opinfo){
+
+static void assemble(spc700_opcode* insn, OperandInfo* opinfo){
 
 
   /*
@@ -633,12 +640,14 @@ void assemble(spc700_opcode* insn, OperandInfo* opinfo){
   * Implement md_apply_fix() in this file, which does local fixups.
   * Implement tc_gen_reloc() in this file, which creates/emits external relocs (local fixups that fail)
   * Add the remaining instructions to the instruction table.
+
   * Add the missing reloc types. Needs to be done in libopcode and libbfd. Both the reloc_real_type types and the internal reloc types.
     Of the special reloc types we need, what I can remember from the top of my head is two different reloc types for DP (high/low baseaddr),
     as well as reloc types for 4-bit immediates used by PCALL/TCALL, and some other instructions that store data inside the opcode itself.
     We also need reloc types for CALL, BRA, Bxx and JMP. Some of these are PC-relative and signedness can differ. That is, some displacements
-    are allowed to be negative.
-  * Finish the reloc fixup code and reloc type conversion code in libbfd used by the linker.
+    are allowed to be negative. (COMMON RELOCS FIXED, READY FOR TESTING)
+
+  * Finish the reloc fixup code and reloc type conversion code in libbfd used by the linker. (FIXUP CODE DONE, READY FOR TESTING)
   * Add the missing argument types to spc700_argtype.
   * Add patterns matching the new argtypes to op2argtype_table.
   * Trivially add the missing argument types tp ArgType2Str() if we want to easily print the enum
@@ -646,13 +655,13 @@ void assemble(spc700_opcode* insn, OperandInfo* opinfo){
   */
   char* out;
   int i;
-
-  out = out = frag_more(insn->size);
+/* insn->size */
+  out = frag_more(1);
 
   *out++ = (insn->opcode&0xFF);
 
-  for(int i = 0; i < insn->numargs; i++){
-    int addrmode = opinfo->argtype;
+  for(i = 0; i < (int)insn->numargs; i++){
+    int addrmode = opinfo[i].argtype;
     switch(addrmode){
       /* Implied arguments, so do nothing. Fallthrough to a break*/
       case SPC700_Argtype_A:
@@ -664,17 +673,28 @@ void assemble(spc700_opcode* insn, OperandInfo* opinfo){
       case SPC700_Argtype_X_Indirect:
       case SPC700_Argtype_Y_Indirect:
       case SPC700_Argtype_X_Indirect_AutoIncr:
-      break;
+        break;
 
-      /* Both immediates and direct page offsets are 8-bits */
+      /* rel, immediates and direct page offsets are 8-bits */
+      case SPC700_Argtype_PcRelAddr:
+      emit_byte(&opinfo[i], BFD_RELOC_SPC700_PC8);
+      break;
       case SPC700_Argtype_Immediate:
+      emit_byte(&opinfo[i], BFD_RELOC_SPC700_IMM8);
+      break;
       case SPC700_Argtype_DP:
       case SPC700_Argtype_DP_Plus_X:
       case SPC700_Argtype_DP_Plus_Y:
       case SPC700_Argtype_DP_Plus_X_Indirect:
       case SPC700_Argtype_DP_Indirect_Plus_Y:
-      *out++ = opinfo->immediate_or_addr&0xFF;
-      break;
+        /* Thanks to our custom .dpmode directive,
+        we can emit the correct relocation depending on the current direct page base */
+        if(g_dpmode == 0){
+          emit_byte(&opinfo[i], BFD_RELOC_SPC700_DPLO8);
+        } else if(g_dpmode == 1){
+          emit_byte(&opinfo[i], BFD_RELOC_SPC700_DPHI8);
+        }
+        break;
 
       /* SPC700 is little endian, so LSB first.
          TODO: Use one of GAS' protable conversion functions */
@@ -682,13 +702,8 @@ void assemble(spc700_opcode* insn, OperandInfo* opinfo){
       case SPC700_Argtype_AbsAddr_Plus_X:
       case SPC700_Argtype_AbsAddr_Plus_Y:
       case SPC700_Argtype_JMP_ABS_Plus_X_Indirect:
-      *out++ = opinfo->immediate_or_addr&0xFF;
-      *out++ = (opinfo->immediate_or_addr>>8)&0xFF;
-      break;
-
-      case SPC700_Argtype_PcRelAddr:
-      *out++ = opinfo->immediate_or_addr&0xFF;
-      break;
+        emit_word(&opinfo[i]);
+        break;
 
       case SPC700_Argtype_PCallAddr:
       case SPC700_Argtype_TCallAddr:
@@ -703,17 +718,135 @@ void assemble(spc700_opcode* insn, OperandInfo* opinfo){
 }
 
 
+static void emit_byte(OperandInfo* opinfo, bfd_reloc_code_real_type r_type)
+{
+  expressionS val = {0};
+  symbolS* s = NULL;
+  char *p;
+
+  //we should never call emit_byte with a 16-bit reloc
+  assert(r_type != BFD_RELOC_SPC700_ABS16);
+
+  p = frag_more (1);
+  *p = 0;
+
+  if (!opinfo->value_is_symbol){
+      *p = opinfo->immediate_or_addr&0xFF;
+  } else {
+      s = symbol_find_or_make(opinfo->symbolname);
+      //symbol_set_value_expression(val, &ex);
+      val.X_op = O_symbol;
+      val.X_add_symbol = s;
+      /* TODO: Add support for addends :) */
+      val.X_add_number = 0;
+      fix_new_exp (frag_now, p - frag_now->fr_literal, 1, &val, (r_type == BFD_RELOC_SPC700_PC8) ? TRUE : FALSE, r_type);
+  }
+}
+
+static void emit_word(OperandInfo* opinfo)
+{
+  expressionS val = {0};
+  symbolS* s = NULL;
+  char *p;
+
+  p = frag_more (2);
+  p[0] = 0;
+  p[1] = 0;
+
+  if (!opinfo->value_is_symbol){
+      p[0] = opinfo->immediate_or_addr&0xFF;
+      p[1] = (opinfo->immediate_or_addr>>8)&0xFF;
+  } else {
+      s = symbol_find_or_make(opinfo->symbolname);
+      //symbol_set_value_expression(val, &ex);
+      val.X_op = O_symbol;
+      val.X_add_symbol = s;
+      /* TODO: Add support for addends :) */
+      val.X_add_number = 0;
+      fix_new_exp (frag_now, p - frag_now->fr_literal, 2, &val, FALSE, BFD_RELOC_SPC700_ABS16);
+  }
+}
 
 
 
 
+/*Note: If we define RELOC_EXPANSION_POSSIBLE in tc_spc700.h, then we can
+  Process multiple fixups at once for a section here.
+  Just traverse the linked list in fixP->fx_next until it's NULL
+*/
 void md_apply_fix (fixS * fixP, valueT* valP, segT seg ATTRIBUTE_UNUSED){
+  long val = * (long *) valP;
+  char *p_lit = fixP->fx_where + fixP->fx_frag->fr_literal;
 
+  fixP->fx_no_overflow = 1;
+  fixP->fx_done = 0;
+  fixP->fx_pcrel = 0;
+
+  if(fixP->fx_r_type == BFD_RELOC_SPC700_PC8){
+    fixP->fx_pcrel = 1;
+  }
+  /* always create relocs if we have symbols */
+  if(fixP->fx_addsy){
+    return;
+  }
+
+  fixP->fx_done = 1;
+
+  switch (fixP->fx_r_type){
+    case BFD_RELOC_SPC700_ABS16:
+      *p_lit++ = val&0xFF;
+      *p_lit++ = (val>>8)&0xFF;
+      break;
+    case BFD_RELOC_SPC700_DPLO8:
+      *p_lit++ = val&0xFF;
+      break;
+    case BFD_RELOC_SPC700_DPHI8:
+      *p_lit++ = val&0xFF;
+      break;
+    case BFD_RELOC_SPC700_IMM8:
+      if (val > 255 || val < -128){
+        as_warn_where (fixP->fx_file, fixP->fx_line, _("overflow"));
+      }
+      *p_lit++ = val;
+      break;
+    case BFD_RELOC_SPC700_PC8:
+      fixP->fx_no_overflow = (-128 <= val && val < 128);
+      if (!fixP->fx_no_overflow){
+          as_bad_where (fixP->fx_file, fixP->fx_line, _("relative jump out of range"));
+      }
+      *p_lit++ = val;
+      break;
+    case BFD_RELOC_SPC700_PCALL8:
+      printf (_("md_apply_fix: BFD_RELOC_SPC700_PCALL8 not supported yet\n"));
+      abort();
+      break;
+    default:
+      printf (_("md_apply_fix: unknown r_type 0x%x\n"), fixP->fx_r_type);
+      abort ();
+  }
+  printf(_("md_apply_fix: %s:%d : fixup of r_type 0x%x, constant with value %lu\n"), fixP->fx_file, fixP->fx_line, fixP->fx_r_type, val);
 }
 
 /* find workaround, this function is buggy in the z80 port */
 arelent* tc_gen_reloc (asection *seg ATTRIBUTE_UNUSED , fixS *fixp){
-    return NULL;
+  arelent *reloc;
+
+  if (! bfd_reloc_type_lookup (stdoutput, fixp->fx_r_type))
+    {
+      as_bad_where (fixp->fx_file, fixp->fx_line,
+        _("reloc %d not supported by object file format"),
+        (int) fixp->fx_r_type);
+      return NULL;
+    }
+
+  reloc               = XNEW (arelent);
+  reloc->sym_ptr_ptr  = XNEW (asymbol *);
+  *reloc->sym_ptr_ptr = symbol_get_bfdsym (fixp->fx_addsy);
+  reloc->address      = fixp->fx_frag->fr_address + fixp->fx_where;
+  reloc->howto        = bfd_reloc_type_lookup (stdoutput, fixp->fx_r_type);
+  reloc->addend       = fixp->fx_offset;
+
+  return reloc;
 }
 
 

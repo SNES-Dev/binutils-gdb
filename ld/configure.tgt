@@ -1027,6 +1027,8 @@ z8k-*-coff)		targ_emul=z8002
 			targ_extra_emuls=z8001
 			targ_extra_ofiles=
 			;;
+spc700-*-coff)		targ_emul=spc700
+			;;
 *-*-ieee*)		targ_emul=vanilla
 			targ_extra_ofiles=
 			;;
