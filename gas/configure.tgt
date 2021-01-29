@@ -233,6 +233,9 @@ case ${generic_target} in
       x86_64*-linux-gnux32)		arch=x86_64:32 ;;
     esac ;;
   i386-*-lynxos*)			fmt=elf em=lynx ;;
+  i386-*-phantom*)
+     fmt=elf 
+     ;;
   i386-*-redox*)			fmt=elf ;;
   i386-*-solaris*)			fmt=elf em=solaris ;;
   i386-*-freebsd* \
@@ -419,6 +422,7 @@ case ${generic_target} in
 
   z8k-*-coff | z8k-*-sim)		fmt=coff ;;
 
+  *-*-phantom*) fmt=elf ;;
   *-*-aout | *-*-scout)			fmt=aout ;;
   *-*-cloudabi*)			fmt=elf em=cloudabi ;;
   *-*-dragonfly*)			fmt=elf em=dragonfly ;;
