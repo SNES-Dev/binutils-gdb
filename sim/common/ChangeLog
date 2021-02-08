@@ -1,3 +1,25 @@
+2021-02-04  Mike Frysinger  <vapier@gentoo.org>
+
+	* gennltvals.py (TARGETS): Add riscv.
+	(TARGET_DIRS): Likewise.
+	* nltvals.def: Regenerate from the latest libgloss sources.
+
+2021-01-31  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-trace.c (cgen_trace_insn): Add "%s" argument.
+
+2021-01-31  Stafford Horne  <shorne@gmail.com>
+
+	* cgen-accfp.c (fixsfsi): Change res from unsigned32 to signed32.
+	(fixdfsi): Change res from unsigned32 to signed32.
+	(fixdfdi): Change res from unsigned64 to signed64.
+
+2021-01-30  Mike Frysinger  <vapier@gentoo.org>
+
+	* gennltvals.sh: Replace shell script with ...
+	* gennltvals.py: ... this Python script.
+	* nltvals.def: Regenerate.
+
 2021-01-30  Mike Frysinger  <vapier@gentoo.org>
 
 	* sim-watch.c (schedule_watchpoint): Change sizeof_pc to sizeof

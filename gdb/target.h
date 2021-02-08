@@ -470,8 +470,15 @@ struct target_ops
     virtual void attach (const char *, int);
     virtual void post_attach (int)
       TARGET_DEFAULT_IGNORE ();
+
+    /* Detaches from the inferior.  Note that on targets that support
+       async execution (i.e., targets where it is possible to detach
+       from programs with threads running), the target is responsible
+       for removing breakpoints from the program before the actual
+       detach, otherwise the program dies when it hits one.  */
     virtual void detach (inferior *, int)
       TARGET_DEFAULT_IGNORE ();
+
     virtual void disconnect (const char *, int)
       TARGET_DEFAULT_NORETURN (tcomplain ());
     virtual void resume (ptid_t,
@@ -1866,7 +1873,7 @@ extern enum auto_boolean target_non_stop_enabled;
 /* Is the target in non-stop mode?  Some targets control the inferior
    in non-stop mode even with "set non-stop off".  Always true if "set
    non-stop" is on.  */
-extern int target_is_non_stop_p (void);
+extern bool target_is_non_stop_p ();
 
 /* Return true if at least one inferior has a non-stop target.  */
 extern bool exists_non_stop_target ();

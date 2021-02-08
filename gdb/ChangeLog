@@ -1,3 +1,282 @@
+2021-02-05  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* symmisc.c (std_in, std_out, std_err): Remove.
+	(_initialize_symmisc): Don't set std_in, std_out and std_err.
+
+2021-02-05  Tom de Vries  <tdevries@suse.de>
+
+	PR breakpoints/27330
+	* breakpoint.c (create_exception_master_breakpoint): Handle case that
+	glibc object file has debug info.
+
+2021-02-05  Tom de Vries  <tdevries@suse.de>
+
+	PR symtab/27333
+	* dwarf2/read.c (process_psymtab_comp_unit): Handle DW_TAG_type_unit.
+
+2021-02-05  Tom de Vries  <tdevries@suse.de>
+
+	PR breakpoints/27313
+	* break-catch-syscall.c (catch_syscall_split_args): Reject negative
+	syscall numbers.
+
+2021-02-05  Tom Tromey  <tom@tromey.com>
+
+	* compile/compile-c-support.c (get_compile_context)
+	(c_get_compile_context, cplus_get_compile_context): Change return
+	type.
+	* language.c (language_defn::get_compile_instance): New method.
+	* language.h (language_defn::get_compile_instance): Change return
+	type.  No longer inline.
+	* c-lang.c (c_language::get_compile_instance): Change return type.
+	(cplus_language::get_compile_instance): Change return type.
+	* c-lang.h (c_get_compile_context, cplus_get_compile_context):
+	Change return type.
+	* compile/compile.c (compile_to_object): Update.
+
+2021-02-05  Tom Tromey  <tom@tromey.com>
+
+	* parser-defs.h (write_exp_symbol_reference): Declare.
+	* parse.c (write_exp_symbol_reference): New function.
+	* p-exp.y (variable): Use write_exp_symbol_reference.
+	* m2-exp.y (variable): Use write_exp_symbol_reference.
+	* f-exp.y (variable): Use write_exp_symbol_reference.
+	* d-exp.y (PrimaryExpression): Use write_exp_symbol_reference.
+	* c-exp.y (variable): Use write_exp_symbol_reference.
+
+2021-02-05  Tom de Vries  <tdevries@suse.de>
+
+	PR exp/27265
+	* valarith.c (complex_binop): Throw an error if complex type can't
+	be created.
+
+2021-02-05  Tom de Vries  <tdevries@suse.de>
+
+	PR symtab/27307
+	* dwarf2/read.c (create_cus_from_debug_names_list): Add missing
+	return.
+
+2021-02-05  Tom de Vries  <tdevries@suse.de>
+
+	* dwarf2/read.c (create_cus_from_debug_names_list): Fix indentation.
+
+2021-02-04  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.tgt (riscv*-*-*): Set gdb_sim.
+
+2021-02-04  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* target.c (target_is_non_stop_p): Return bool.
+	* target.h (target_is_non_stop_p): Return bool.
+
+2021-02-04  Simon Marchi  <simon.marchi@efficios.com>
+
+	* record-full.c (record_full_async_inferior_event_handler):
+	Don't clear async event handler.
+	(record_full_base_target::wait): Clear async event handler at
+	beginning.
+
+2021-02-04  Simon Marchi  <simon.marchi@efficios.com>
+
+	* record-btrace.c (record_btrace_handle_async_inferior_event):
+	Don't clear async event handler.
+	(record_btrace_target::wait): Clear async event handler at
+	beginning.
+
+2021-02-04  Simon Marchi  <simon.marchi@efficios.com>
+
+	* remote.c (remote_target::wait): Clear async event handler at
+	beginning, mark if needed at the end.
+	(remote_async_inferior_event_handler): Don't set or clear async
+	event handler.
+
+2021-02-04  Simon Marchi  <simon.marchi@efficios.com>
+
+	* async-event.h (async_event_handler_func):  Add documentation.
+	* async-event.c (check_async_event_handlers): Don't clear
+	async_event_handler ready flag.
+	* infrun.c (infrun_async_inferior_event_handler): Clear ready
+	flag.
+	* record-btrace.c (record_btrace_handle_async_inferior_event):
+	Likewise.
+	* record-full.c (record_full_async_inferior_event_handler):
+	Likewise.
+	* remote-notif.c (remote_async_get_pending_events_handler):
+	Likewise.
+	* remote.c (remote_async_inferior_event_handler): Likewise.
+
+2021-02-03  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* infrun.c (handle_inferior_event): Move stop_soon variable to
+	inner scope.
+
+2021-02-03  Pedro Alves  <pedro@palves.net>
+
+	* infcmd.c (detach_command): Hold strong reference to target, and
+	if all-stop on entry, restart threads on exit.
+	* infrun.c (switch_back_to_stepped_thread): Factor out bits to ...
+	(restart_stepped_thread): ... this new function.  Also handle
+	trap_expected.
+	(restart_after_all_stop_detach): New function.
+	* infrun.h (restart_after_all_stop_detach): Declare.
+
+2021-02-03  Pedro Alves  <pedro@palves.net>
+
+	* infrun.c (struct step_over_info): Initialize fields.
+	(prepare_for_detach): Handle ongoing in-line step over.
+
+2021-02-03  Pedro Alves  <pedro@palves.net>
+
+	* linux-nat.c (linux_nat_target::detach): Remove breakpoints
+	here...
+	* remote.c (remote_target::remote_detach_1): ... and here ...
+	* target.c (target_detach): ... instead of here.
+	* target.h (target_ops::detach): Add comment.
+
+2021-02-03  Pedro Alves  <pedro@palves.net>
+
+	* infrun.c (struct wait_one_event): Move higher up.
+	(prepare_for_detach): Abort in-progress displaced steps instead of
+	letting them complete.
+	(handle_one): If the inferior is detaching, don't add the thread
+	back to the global step-over chain.
+	(restart_threads): Don't restart threads if detaching.
+	(handle_signal_stop): Remove inferior::detaching reference.
+
+2021-02-03  Pedro Alves  <pedro@palves.net>
+
+	* infrun.c (prepare_for_detach): Don't release scoped_restore
+	before returning.
+
+2021-02-03  Pedro Alves  <pedro@palves.net>
+
+	* infrun.c (handle_one): New function, factored out from ...
+	(stop_all_threads): ... here.
+
+2021-02-03  Pedro Alves  <pedro@palves.net>
+
+	* remote.c (remote_notif_stop_ack): Don't error out on
+	TARGET_WAITKIND_IGNORE; instead, just ignore the notification.
+	(remote_target::discard_pending_stop_replies): Don't delete
+	in-flight notification; instead, clear its contents.
+
+2021-02-03  Pedro Alves  <pedro@palves.net>
+
+	* remote.c (extended_remote_target::attach): Set target async in
+	the target-non-stop path too.
+
+2021-02-03  Pedro Alves  <pedro@palves.net>
+
+	PR gdb/27055
+	* infrun.c (handle_signal_stop): Move main context_switch call
+	earlier, before STOP_QUIETLY_NO_SIGSTOP.
+
+2021-02-02  Lancelot SIX  <lsix@lancelotsix.com>
+
+	* NEWS (Changed commands): Add entry for the behavior change of
+	the inferior command.
+	* inferior.c (inferior_command): When no argument is given to the
+	inferior command, display info about the currently selected
+	inferior.
+
+2021-02-02  Simon Marchi  <simon.marchi@efficios.com>
+
+	* dwarf2/read.c (read_loclist_index, read_rnglist_index): Return
+	a sect_offset.
+	(read_attribute_reprocess): Adjust.
+
+2021-02-02  Simon Marchi  <simon.marchi@efficios.com>
+
+	* dwarf2/die.h (struct die_info) <ranges_base>: Split in...
+	<gnu_ranges_base>: ... this...
+	<rnglists_base>: ... and this.
+	* dwarf2/read.c (struct dwarf2_cu) <ranges_base>: Split in...
+	<gnu_ranges_base>: ... this...
+	<rnglists_base>: ... and this.
+	(read_cutu_die_from_dwo): Adjust
+	(dwarf2_get_pc_bounds): Adjust
+	(dwarf2_record_block_ranges): Adjust.
+	(read_full_die_1): Adjust
+	(partial_die_info::read): Adjust.
+	(read_rnglist_index): Adjust.
+
+2021-02-02  Simon Marchi  <simon.marchi@efficios.com>
+
+	PR gdb/26813
+	* dwarf2/read.c (read_loclists_rnglists_header): Add
+	header_offset parameter and use it.
+	(read_loclist_index): Read header of the current contribution,
+	not the one at the beginning of the section.
+	(read_rnglist_index): Likewise.
+
+2021-02-02  Simon Marchi  <simon.marchi@efficios.com>
+
+	PR gdb/26813
+	* dwarf2/attribute.h (struct attribute) <set_unsigned>: Clear
+	requires_reprocessing flag.
+	* dwarf2/attribute.c (attribute::form_is_unsigned): Handle
+	DW_FORM_loclistx.
+	(attribute::form_requires_reprocessing): Handle DW_FORM_rnglistx
+	and DW_FORM_loclistx.
+	* dwarf2/read.c (read_attribute_reprocess): Use set_unsigned
+	instead of set_address for DW_FORM_loclistx and
+	DW_FORM_rnglistx.
+
+2021-02-02  Simon Marchi  <simon.marchi@efficios.com>
+
+	* dwarf2/read.c (read_loclist_index): Remove bound check for
+	start of offset.
+	(read_rnglist_index): Likewise.
+
+2021-02-02  Simon Marchi  <simon.marchi@efficios.com>
+
+	* dwarf2/read.c (read_loclist_index): Add bound check for the end
+	of the offset.
+
+2021-02-02  Simon Marchi  <simon.marchi@efficios.com>
+
+	* dwarf2/read.c (read_rnglist_index): Fix bound check.
+
+2021-02-02  Simon Marchi  <simon.marchi@efficios.com>
+
+	* dwarf2/read.c (read_loclist_index): Change complaints into
+	errors.
+
+2021-02-02  Tom de Vries  <tdevries@suse.de>
+
+	PR symtab/24620
+	* dwarf2/index-write.c (write_one_signatured_type): Skip if
+	psymtab == nullptr.
+
+2021-02-01  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* Makefile.in (HFILES_NO_SRCDIR): Add corefile.h.
+	* gcore.c (struct gcore_collect_regset_section_cb_data): Moved
+	here from linux-tdep.c and given a new name.  Minor cleanups.
+	(gcore_collect_regset_section_cb): Likewise.
+	(gcore_collect_thread_registers): Likewise.
+	(gcore_build_thread_register_notes): Likewise.
+	(gcore_find_signalled_thread): Likewise.
+	* gcore.h (gcore_build_thread_register_notes): Declare.
+	(gcore_find_signalled_thread): Declare.
+	* fbsd-tdep.c: Add 'gcore.h' include.
+	(struct fbsd_collect_regset_section_cb_data): Delete.
+	(fbsd_collect_regset_section_cb): Delete.
+	(fbsd_collect_thread_registers): Delete.
+	(struct fbsd_corefile_thread_data): Delete.
+	(fbsd_corefile_thread): Delete.
+	(fbsd_make_corefile_notes): Call
+	gcore_build_thread_register_notes instead of the now deleted
+	FreeBSD code.
+	* linux-tdep.c: Add 'gcore.h' include.
+	(struct linux_collect_regset_section_cb_data): Delete.
+	(linux_collect_regset_section_cb): Delete.
+	(linux_collect_thread_registers): Delete.
+	(linux_corefile_thread): Call
+	gcore_build_thread_register_notes.
+	(find_signalled_thread): Delete.
+	(linux_make_corefile_notes): Call gcore_find_signalled_thread.
+
 2021-01-29  Tom de Vries  <tdevries@suse.de>
 
 	PR breakpoints/26063
