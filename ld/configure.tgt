@@ -324,6 +324,11 @@ i[3-7]86-*-linux-*)	targ_emul=elf_i386
 			targ64_extra_emuls="elf_x86_64 elf32_x86_64 elf_l1om elf_k1om"
 			targ64_extra_libpath="elf_x86_64 elf32_x86_64"
 			;;
+i[3-7]86-*-phantom-*)	targ_emul=elf_i386
+			targ_extra_emuls="elf_iamcu"
+			targ64_extra_emuls="elf_x86_64 elf32_x86_64 elf_l1om elf_k1om"
+			targ64_extra_libpath="elf_x86_64 elf32_x86_64"
+			;;
 i[3-7]86-*-redox*)	targ_emul=elf_i386
 			targ_extra_emuls=elf_x86_64
 			;;
