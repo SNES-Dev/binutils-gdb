@@ -32,6 +32,7 @@
 #include "elf/riscv.h"
 #include "opcode/riscv.h"
 #include "objalloc.h"
+#include "cpu-riscv.h"
 
 #ifdef HAVE_LIMITS_H
 #include <limits.h>
@@ -1645,27 +1646,27 @@ perform_relocation (const reloc_howto_type *howto,
       break;
 
     case R_RISCV_JAL:
-      if (!VALID_UJTYPE_IMM (value))
+      if (!VALID_JTYPE_IMM (value))
 	return bfd_reloc_overflow;
-      value = ENCODE_UJTYPE_IMM (value);
+      value = ENCODE_JTYPE_IMM (value);
       break;
 
     case R_RISCV_BRANCH:
-      if (!VALID_SBTYPE_IMM (value))
+      if (!VALID_BTYPE_IMM (value))
 	return bfd_reloc_overflow;
-      value = ENCODE_SBTYPE_IMM (value);
+      value = ENCODE_BTYPE_IMM (value);
       break;
 
     case R_RISCV_RVC_BRANCH:
-      if (!VALID_RVC_B_IMM (value))
+      if (!VALID_CBTYPE_IMM (value))
 	return bfd_reloc_overflow;
-      value = ENCODE_RVC_B_IMM (value);
+      value = ENCODE_CBTYPE_IMM (value);
       break;
 
     case R_RISCV_RVC_JUMP:
-      if (!VALID_RVC_J_IMM (value))
+      if (!VALID_CJTYPE_IMM (value))
 	return bfd_reloc_overflow;
-      value = ENCODE_RVC_J_IMM (value);
+      value = ENCODE_CJTYPE_IMM (value);
       break;
 
     case R_RISCV_RVC_LUI:
@@ -1678,12 +1679,12 @@ perform_relocation (const reloc_howto_type *howto,
 					 contents + rel->r_offset);
 	  insn = (insn & ~MATCH_C_LUI) | MATCH_C_LI;
 	  riscv_put_insn (howto->bitsize, insn, contents + rel->r_offset);
-	  value = ENCODE_RVC_IMM (0);
+	  value = ENCODE_CITYPE_IMM (0);
 	}
-      else if (!VALID_RVC_LUI_IMM (RISCV_CONST_HIGH_PART (value)))
+      else if (!VALID_CITYPE_LUI_IMM (RISCV_CONST_HIGH_PART (value)))
 	return bfd_reloc_overflow;
       else
-	value = ENCODE_RVC_LUI_IMM (RISCV_CONST_HIGH_PART (value));
+	value = ENCODE_CITYPE_LUI_IMM (RISCV_CONST_HIGH_PART (value));
       break;
 
     case R_RISCV_32:
@@ -3679,8 +3680,8 @@ riscv_merge_attributes (bfd *ibfd, struct bfd_link_info *info)
 	    unsigned int Tag_a = Tag_RISCV_priv_spec;
 	    unsigned int Tag_b = Tag_RISCV_priv_spec_minor;
 	    unsigned int Tag_c = Tag_RISCV_priv_spec_revision;
-	    enum riscv_priv_spec_class in_priv_spec;
-	    enum riscv_priv_spec_class out_priv_spec;
+	    enum riscv_spec_class in_priv_spec = PRIV_SPEC_CLASS_NONE;
+	    enum riscv_spec_class out_priv_spec = PRIV_SPEC_CLASS_NONE;
 
 	    /* Get the privileged spec class from elf attributes.  */
 	    riscv_get_priv_spec_class_from_numbers (in_attr[Tag_a].i,
@@ -3801,16 +3802,6 @@ _bfd_riscv_elf_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
   if (!riscv_merge_attributes (ibfd, info))
     return FALSE;
 
-  new_flags = elf_elfheader (ibfd)->e_flags;
-  old_flags = elf_elfheader (obfd)->e_flags;
-
-  if (! elf_flags_init (obfd))
-    {
-      elf_flags_init (obfd) = TRUE;
-      elf_elfheader (obfd)->e_flags = new_flags;
-      return TRUE;
-    }
-
   /* Check to see if the input BFD actually contains any sections.  If not,
      its flags may not have been initialized either, but it cannot actually
      cause any incompatibility.  Do not short-circuit dynamic objects; their
@@ -3826,17 +3817,29 @@ _bfd_riscv_elf_merge_private_bfd_data (bfd *ibfd, struct bfd_link_info *info)
 
       for (sec = ibfd->sections; sec != NULL; sec = sec->next)
 	{
+	  null_input_bfd = FALSE;
+
 	  if ((bfd_section_flags (sec)
 	       & (SEC_LOAD | SEC_CODE | SEC_HAS_CONTENTS))
 	      == (SEC_LOAD | SEC_CODE | SEC_HAS_CONTENTS))
-	    only_data_sections = FALSE;
-
-	  null_input_bfd = FALSE;
-	  break;
+	    {
+	      only_data_sections = FALSE;
+	      break;
+	    }
 	}
 
       if (null_input_bfd || only_data_sections)
 	return TRUE;
+    }
+
+  new_flags = elf_elfheader (ibfd)->e_flags;
+  old_flags = elf_elfheader (obfd)->e_flags;
+
+  if (!elf_flags_init (obfd))
+    {
+      elf_flags_init (obfd) = TRUE;
+      elf_elfheader (obfd)->e_flags = new_flags;
+      return TRUE;
     }
 
   /* Disallow linking different float ABIs.  */
@@ -4136,7 +4139,7 @@ _bfd_riscv_relax_call (bfd *abfd, asection *sec, asection *sym_sec,
      cause the PC-relative offset to later increase, so we need to add in the
      max alignment of any section inclusive from the call to the target.
      Otherwise, we only need to use the alignment of the current section.  */
-  if (VALID_UJTYPE_IMM (foff))
+  if (VALID_JTYPE_IMM (foff))
     {
       if (sym_sec->output_section == sec->output_section
 	  && sym_sec->output_section != bfd_abs_section_ptr)
@@ -4145,7 +4148,7 @@ _bfd_riscv_relax_call (bfd *abfd, asection *sec, asection *sym_sec,
     }
 
   /* See if this function call can be shortened.  */
-  if (!VALID_UJTYPE_IMM (foff) && !(!bfd_link_pic (link_info) && near_zero))
+  if (!VALID_JTYPE_IMM (foff) && !(!bfd_link_pic (link_info) && near_zero))
     return TRUE;
 
   /* Shorten the function call.  */
@@ -4154,7 +4157,7 @@ _bfd_riscv_relax_call (bfd *abfd, asection *sec, asection *sym_sec,
   auipc = bfd_getl32 (contents + rel->r_offset);
   jalr = bfd_getl32 (contents + rel->r_offset + 4);
   rd = (jalr >> OP_SH_RD) & OP_MASK_RD;
-  rvc = rvc && VALID_RVC_J_IMM (foff);
+  rvc = rvc && VALID_CJTYPE_IMM (foff);
 
   /* C.J exists on RV32 and RV64, but C.JAL is RV32-only.  */
   rvc = rvc && (rd == 0 || (rd == X_RA && ARCH_SIZE == 32));
@@ -4166,7 +4169,7 @@ _bfd_riscv_relax_call (bfd *abfd, asection *sec, asection *sym_sec,
       auipc = rd == 0 ? MATCH_C_J : MATCH_C_JAL;
       len = 2;
     }
-  else if (VALID_UJTYPE_IMM (foff))
+  else if (VALID_JTYPE_IMM (foff))
     {
       /* Relax to JAL rd, addr.  */
       r_type = R_RISCV_JAL;
@@ -4295,8 +4298,8 @@ _bfd_riscv_relax_lui (bfd *abfd,
 
   if (use_rvc
       && ELFNN_R_TYPE (rel->r_info) == R_RISCV_HI20
-      && VALID_RVC_LUI_IMM (RISCV_CONST_HIGH_PART (symval))
-      && VALID_RVC_LUI_IMM (RISCV_CONST_HIGH_PART (symval)
+      && VALID_CITYPE_LUI_IMM (RISCV_CONST_HIGH_PART (symval))
+      && VALID_CITYPE_LUI_IMM (RISCV_CONST_HIGH_PART (symval)
 			    + (link_info->relro ? 2 * ELF_MAXPAGESIZE
 			       : ELF_MAXPAGESIZE)))
     {

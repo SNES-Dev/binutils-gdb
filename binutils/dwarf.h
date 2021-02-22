@@ -143,8 +143,6 @@ struct dwarf_section
   /* Used by clients to help them implement the reloc_at callback.  */
   void *                           reloc_info;
   unsigned long                    num_relocs;
-  /* A spare field for random use.  */
-  void *                           user_data;
 };
 
 /* A structure containing the name of a debug section
@@ -169,7 +167,7 @@ typedef struct
   dwarf_vma	 cu_offset;
   dwarf_vma	 base_address;
   /* This field is filled in when reading the attribute DW_AT_GNU_addr_base and
-     is used with the form DW_AT_GNU_FORM_addr_index.  */
+     is used with the form DW_FORM_GNU_addr_index.  */
   dwarf_vma	 addr_base;
   /* This field is filled in when reading the attribute DW_AT_GNU_ranges_base and
      is used when calculating ranges.  */

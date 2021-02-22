@@ -162,7 +162,6 @@ if ![string match "" $got] then {
     }
 }
 
-setup_xfail "nds32*-*-*"
 set testname "objdump compress debug sections"
 set got [remote_exec host "$OBJDUMP -W ${compressedfile}.o" "" "/dev/null" "objdump.out"]
 if { [lindex $got 0] != 0 || ![string match "" [lindex $got 1]] } then {
@@ -175,7 +174,6 @@ if { [regexp_diff objdump.out $srcdir/$subdir/dw2-1.W] } then {
     pass "$testname"
 }
 
-setup_xfail "nds32*-*-*"
 set testname "objdump compress debug sections 3"
 set got [remote_exec host "$OBJDUMP -W ${compressedfile3}.o" "" "/dev/null" "objdump.out"]
 if { [lindex $got 0] != 0 || ![string match "" [lindex $got 1]] } then {
@@ -546,7 +544,6 @@ if ![string match "" $got] then {
     }
 }
 
-setup_xfail "nds32*-*-*"
 set testname "objcopy compress debug sections in archive with zlib-gabi"
 set got [binutils_run $OBJCOPY "--compress-debug-sections=zlib-gabi ${copyfile}gabi.a ${compressedcopyfile}gabi.a"]
 if ![string match "" $got] then {
@@ -567,7 +564,6 @@ if ![string match "" $got] then {
     }
 }
 
-setup_xfail "nds32*-*-*"
 set testname "objdump compress debug sections 3 with zlib-gabi"
 set got [remote_exec host "$OBJDUMP -W ${compressedfile3}gabi.o" "" "/dev/null" "objdump.out"]
 if { [lindex $got 0] != 0 || ![string match "" [lindex $got 1]] } then {
@@ -589,7 +585,7 @@ proc convert_test { testname  as_flags  objcop_flags } {
     global OBJDUMP
 
     if { ![binutils_assemble_flags $srcdir/$subdir/dw2-3.S ${testfile3}.o "$as_flags"] } then {
-       unresolved "$testname"
+       unsupported "$testname"
        return
     }
 
@@ -717,7 +713,7 @@ proc test_gnu_debuglink {} {
 	fail "$test (objcopy link decompress)"
 	return
     }
-    set got [remote_exec host "$OBJDUMP -S tmpdir/testprog" "" "/dev/null" "tmpdir/testprog.decompress.dump"]
+    set got [remote_exec host "$OBJDUMP -S -WN tmpdir/testprog" "" "/dev/null" "tmpdir/testprog.decompress.dump"]
     if { [lindex $got 0] != 0 || ![string match "" [lindex $got 1]] } then {
 	fail "$test (objcopy dump decompress)"
 	return
@@ -726,7 +722,7 @@ proc test_gnu_debuglink {} {
 	fail "$test (objcopy link compress)"
 	return
     }
-    set got [remote_exec host "$OBJDUMP -S tmpdir/testprog" "" "/dev/null" "tmpdir/testprog.compress.dump"]
+    set got [remote_exec host "$OBJDUMP -S -WN tmpdir/testprog" "" "/dev/null" "tmpdir/testprog.compress.dump"]
     if { [lindex $got 0] != 0 || ![string match "" [lindex $got 1]] } then {
 	fail "$test (objcopy dump compress)"
 	return

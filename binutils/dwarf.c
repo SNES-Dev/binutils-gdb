@@ -36,6 +36,13 @@
 #include <elfutils/debuginfod.h>
 #endif
 
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
+#ifndef CHAR_BIT
+#define CHAR_BIT 8
+#endif
+
 #undef MAX
 #undef MIN
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -99,7 +106,7 @@ int do_debug_addr;
 int do_debug_cu_index;
 int do_wide;
 int do_debug_links;
-int do_follow_links;
+int do_follow_links = DEFAULT_FOR_FOLLOW_LINKS;
 bfd_boolean do_checks;
 
 int dwarf_cutoff_level = -1;
@@ -326,7 +333,7 @@ dwarf_vmatoa64 (dwarf_vma hvalue, dwarf_vma lvalue, char *buf,
 /* Read in a LEB128 encoded value starting at address DATA.
    If SIGN is true, return a signed LEB128 value.
    If LENGTH_RETURN is not NULL, return in it the number of bytes read.
-   If STATUS_RETURN in not NULL, return with bit 0 (LSB) set if the
+   If STATUS_RETURN is not NULL, return with bit 0 (LSB) set if the
    terminating byte was not found and with bit 1 set if the value
    overflows a dwarf_vma.
    No bytes will be read at address END or beyond.  */
@@ -346,37 +353,31 @@ read_leb128 (unsigned char *data,
   while (data < end)
     {
       unsigned char byte = *data++;
-      bfd_boolean cont = (byte & 0x80) ? TRUE : FALSE;
+      unsigned char lost, mask;
 
-      byte &= 0x7f;
       num_read++;
 
-      if (shift < sizeof (result) * 8)
+      if (shift < CHAR_BIT * sizeof (result))
 	{
-	  result |= ((dwarf_vma) byte) << shift;
-	  if (sign)
-	    {
-	      if ((((dwarf_signed_vma) result >> shift) & 0x7f) != byte)
-		/* Overflow.  */
-		status |= 2;
-	    }
-	  else if ((result >> shift) != byte)
-	    {
-	      /* Overflow.  */
-	      status |= 2;
-	    }
-
+	  result |= ((dwarf_vma) (byte & 0x7f)) << shift;
+	  /* These bits overflowed.  */
+	  lost = byte ^ (result >> shift);
+	  /* And this is the mask of possible overflow bits.  */
+	  mask = 0x7f ^ ((dwarf_vma) 0x7f << shift >> shift);
 	  shift += 7;
 	}
-      else if (byte != 0)
+      else
 	{
-	  status |= 2;
+	  lost = byte;
+	  mask = 0x7f;
 	}
+      if ((lost & mask) != (sign && (dwarf_signed_vma) result < 0 ? mask : 0))
+	status |= 2;
 
-      if (!cont)
+      if ((byte & 0x80) == 0)
 	{
 	  status &= ~1;
-	  if (sign && (shift < 8 * sizeof (result)) && (byte & 0x40))
+	  if (sign && shift < CHAR_BIT * sizeof (result) && (byte & 0x40))
 	    result |= -((dwarf_vma) 1 << shift);
 	  break;
 	}
@@ -3692,11 +3693,13 @@ process_debug_info (struct dwarf_section *           section,
       if (compunit.cu_version < 5)
 	SAFE_BYTE_GET_AND_INC (compunit.cu_pointer_size, hdrptr, 1, end);
 
+      bfd_boolean do_dwo_id = FALSE;
+      uint64_t dwo_id = 0;
       if (compunit.cu_unit_type == DW_UT_split_compile
 	  || compunit.cu_unit_type == DW_UT_skeleton)
 	{
-	  uint64_t dwo_id;
 	  SAFE_BYTE_GET_AND_INC (dwo_id, hdrptr, 8, end);
+	  do_dwo_id = TRUE;
 	}
 
       /* PR 17512: file: 001-108546-0.001:0.1.  */
@@ -3769,6 +3772,8 @@ process_debug_info (struct dwarf_section *           section,
 	      printf (_("   Type Offset:   0x%s\n"),
 		      dwarf_vmatoa ("x", type_offset));
 	    }
+	  if (do_dwo_id)
+	    printf (_("   DWO ID:        0x%s\n"), dwarf_vmatoa ("x", dwo_id));
 	  if (this_set != NULL)
 	    {
 	      dwarf_vma *offsets = this_set->section_offsets;
@@ -7375,18 +7380,22 @@ display_debug_str_offsets (struct dwarf_section *section,
       else
 	entry_length = 4;
 
+      unsigned char *entries_end;
       if (length == 0)
 	{
 	  /* This is probably an old style .debug_str_offset section which
 	     just contains offsets and no header (and the first offset is 0).  */
 	  length = section->size;
 	  curr   = section->start;
+	  entries_end = end;
 
 	  printf (_("    Length: %#lx\n"), (unsigned long) length);
 	  printf (_("       Index   Offset [String]\n"));
 	}
       else
 	{
+	  entries_end = curr + length;
+
 	  int version;
 	  SAFE_BYTE_GET_AND_INC (version, curr, 2, end);
 	  if (version != 5)
@@ -7402,10 +7411,14 @@ display_debug_str_offsets (struct dwarf_section *section,
 	  printf (_("       Index   Offset [String]\n"));
 	}
 
-      for (idx = 0; length >= entry_length && curr < end; idx++)
+      for (idx = 0; curr < entries_end; idx++)
 	{
 	  dwarf_vma offset;
 	  const unsigned char * string;
+
+	  if (curr + entry_length > entries_end)
+	    /* Not enough space to read one entry_length, give up.  */
+	    return 0;
 
 	  SAFE_BYTE_GET_AND_INC (offset, curr, entry_length, end);
 	  if (dwo)
@@ -7673,7 +7686,15 @@ display_debug_ranges (struct dwarf_section *section,
 
   num_range_list = 0;
   for (i = 0; i < num_debug_info_entries; i++)
-    num_range_list += debug_information [i].num_range_lists;
+    {
+      if (debug_information [i].dwarf_version < 5 && is_rnglists)
+	/* Skip .debug_rnglists reference.  */
+	continue;
+      if (debug_information [i].dwarf_version >= 5 && !is_rnglists)
+	/* Skip .debug_range reference.  */
+	continue;
+      num_range_list += debug_information [i].num_range_lists;
+    }
 
   if (num_range_list == 0)
     {
@@ -7691,6 +7712,13 @@ display_debug_ranges (struct dwarf_section *section,
     {
       debug_info *debug_info_p = &debug_information[i];
       unsigned int j;
+
+      if (debug_information [i].dwarf_version < 5 && is_rnglists)
+	/* Skip .debug_rnglists reference.  */
+	continue;
+      if (debug_information [i].dwarf_version >= 5 && !is_rnglists)
+	/* Skip .debug_range reference.  */
+	continue;
 
       for (j = 0; j < debug_info_p->num_range_lists; j++)
 	{
@@ -11077,8 +11105,11 @@ load_dwo_file (const char * main_filename, const char * name, const char * dir, 
   char * separate_filename;
   void * separate_handle;
 
-  /* FIXME: Skip adding / if dwo_dir ends in /.  */
-  separate_filename = concat (dir, "/", name, NULL);
+  if (IS_ABSOLUTE_PATH (name))
+    separate_filename = strdup (name);
+  else
+    /* FIXME: Skip adding / if dwo_dir ends in /.  */
+    separate_filename = concat (dir, "/", name, NULL);
   if (separate_filename == NULL)
     {
       warn (_("Out of memory allocating dwo filename\n"));
@@ -11343,6 +11374,7 @@ dwarf_select_sections_by_names (const char *names)
       { "links", & do_debug_links, 1 },
       { "loc",  & do_debug_loc, 1 },
       { "macro", & do_debug_macinfo, 1 },
+      { "no-follow-links", & do_follow_links, 0 },
       { "pubnames", & do_debug_pubnames, 1 },
       { "pubtypes", & do_debug_pubtypes, 1 },
       /* This entry is for compatibility
@@ -11372,7 +11404,7 @@ dwarf_select_sections_by_names (const char *names)
 	  if (strncmp (p, entry->option, len) == 0
 	      && (p[len] == ',' || p[len] == '\0'))
 	    {
-	      * entry->variable |= entry->val;
+	      * entry->variable = entry->val;
 
 	      /* The --debug-dump=frames-interp option also
 		 enables the --debug-dump=frames option.  */
@@ -11413,6 +11445,7 @@ dwarf_select_sections_by_letters (const char *letters)
       case 'g':	do_gdb_index = 1; break;
       case 'i':	do_debug_info = 1; break;
       case 'K': do_follow_links = 1; break;
+      case 'N': do_follow_links = 0; break;
       case 'k':	do_debug_links = 1; break;
       case 'l':	do_debug_lines |= FLAG_DEBUG_LINES_RAW;	break;
       case 'L':	do_debug_lines |= FLAG_DEBUG_LINES_DECODED; break;
@@ -11459,8 +11492,8 @@ dwarf_select_sections_all (void)
   do_debug_str_offsets = 1;
 }
 
-#define NO_ABBREVS   NULL, NULL, NULL, 0, 0, 0, NULL, 0, NULL
-#define ABBREV(N)    NULL, NULL, NULL, 0, 0, N, NULL, 0, NULL
+#define NO_ABBREVS   NULL, NULL, NULL, 0, 0, 0, NULL, 0
+#define ABBREV(N)    NULL, NULL, NULL, 0, 0, N, NULL, 0
 
 /* N.B. The order here must match the order in section_display_enum.  */
 

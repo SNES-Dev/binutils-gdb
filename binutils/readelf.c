@@ -4624,12 +4624,23 @@ usage (FILE * stream)
   -R --relocated-dump=<number|name>\n\
                          Dump the contents of section <number|name> as relocated bytes\n\
   -z --decompress        Decompress section before dumping it\n\
-  -w[lLiaprmfFsoORtUuTgAckK] or\n\
+  -w[lLiaprmfFsoORtUuTgAck] or\n\
   --debug-dump[=rawline,=decodedline,=info,=abbrev,=pubnames,=aranges,=macro,=frames,\n\
                =frames-interp,=str,=str-offsets,=loc,=Ranges,=pubtypes,\n\
                =gdb_index,=trace_info,=trace_abbrev,=trace_aranges,\n\
-               =addr,=cu_index,=links,=follow-links]\n\
+               =addr,=cu_index,=links]\n\
                          Display the contents of DWARF debug sections\n"));
+#if DEFAULT_FOR_FOLLOW_LINKS
+  fprintf (stream, _("\
+  -wK,--debug-dump=follow-links     Follow links to separate debug info files (default)\n\
+  -wN,--debug-dump=no-follow-links  Do not follow links to separate debug info files\n\
+"));
+#else
+  fprintf (stream, _("\
+  -wK,--debug-dump=follow-links     Follow links to separate debug info files\n\
+  -wN,--debug-dump=no-follow-links  Do not follow links to separate debug info files (default)\n\
+"));
+#endif
   fprintf (stream, _("\
   --dwarf-depth=N        Do not display DIEs at depth N or greater\n\
   --dwarf-start=N        Display DIEs starting with N, at the same depth\n\
@@ -14887,7 +14898,6 @@ load_specific_debug_section (enum dwarf_section_display_enum  debug,
 
   snprintf (buf, sizeof (buf), _("%s section data"), section->name);
   section->address = sec->sh_addr;
-  section->user_data = NULL;
   section->filename = filedata->file_name;
   section->start = (unsigned char *) get_data (NULL, filedata,
                                                sec->sh_offset, 1,
@@ -19067,7 +19077,7 @@ print_gnu_property_note (Filedata * filedata, Elf_Internal_Note * pnote)
       if (type < GNU_PROPERTY_LOPROC)
 	printf (_("<unknown type %#x data: "), type);
       else if (type < GNU_PROPERTY_LOUSER)
-	printf (_("<procesor-specific type %#x data: "), type);
+	printf (_("<processor-specific type %#x data: "), type);
       else
 	printf (_("<application-specific type %#x data: "), type);
       for (j = 0; j < datasz; ++j)

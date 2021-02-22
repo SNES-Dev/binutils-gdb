@@ -20619,22 +20619,25 @@ command @code{help target} lists all possible targets rather than
 current ones.
 
 @kindex maint info sections
-@item maint info sections
+@item maint info sections @r{[}-all-objects@r{]} @r{[}@var{filter-list}@r{]}
 Another command that can give you extra information about program sections
 is @code{maint info sections}.  In addition to the section information
 displayed by @code{info files}, this command displays the flags and file
-offset of each section in the executable and core dump files.  In addition,
-@code{maint info sections} provides the following command options (which
-may be arbitrarily combined):
+offset of each section in the executable and core dump files.
+
+When @samp{-all-objects} is passed then sections from all loaded object
+files, including shared libraries, are printed.
+
+The optional @var{filter-list} is a space separated list of filter
+keywords.  Sections that match any one of the filter criteria will be
+printed.  There are two types of filter:
 
 @table @code
-@item ALLOBJ
-Display sections for all loaded object files, including shared libraries.
-@item @var{sections}
-Display info only for named @var{sections}.
-@item @var{section-flags}
-Display info only for sections for which @var{section-flags} are true.
-The section flags that @value{GDBN} currently knows about are:
+@item @var{section-name}
+Display information about any section named @var{section-name}.
+@item @var{section-flag}
+Display information for any section with @var{section-flag}.  The
+section flags that @value{GDBN} currently knows about are:
 @table @code
 @item ALLOC
 Section will have space allocated in the process when loaded.
@@ -20850,8 +20853,8 @@ to specify a local system root using a directory that happens to be
 named @file{target:} or @file{remote:}, you need to use some
 equivalent variant of the name like @file{./target:}.
 
-For targets with an MS-DOS based filesystem, such as MS-Windows and
-SymbianOS, @value{GDBN} tries prefixing a few variants of the target
+For targets with an MS-DOS based filesystem, such as MS-Windows,
+@value{GDBN} tries prefixing a few variants of the target
 absolute file name with @var{path}.  But first, on Unix hosts,
 @value{GDBN} converts all backslash directory separators into forward
 slashes, because the backslash is not a directory separator on Unix:
@@ -22902,7 +22905,7 @@ is high level of serial line for some certain time.
 Linux kernel prefers @samp{BREAK-g}, a.k.a Magic SysRq g.
 It is @code{BREAK} signal followed by character @code{g}.
 
-@item show interrupt-sequence
+@item show remote interrupt-sequence
 Show which of @samp{Ctrl-C}, @code{BREAK} or @code{BREAK-g}
 is sent by @value{GDBN} to interrupt the remote program.
 @code{BREAK-g} is BREAK signal followed by @code{g} and
@@ -22915,7 +22918,7 @@ Specify whether interrupt-sequence is sent to remote target when
 Linux kernel.  Linux kernel expects @code{BREAK} followed by @code{g}
 which is known as Magic SysRq g in order to connect @value{GDBN}.
 
-@item show interrupt-on-connect
+@item show remote interrupt-on-connect
 Show whether interrupt-sequence is sent
 to remote target when @value{GDBN} connects to it.
 

@@ -1,3 +1,36 @@
+2021-02-21  Mike Frysinger  <vapier@gentoo.org>
+
+	* m4/sim_ac_common.m4, m4/sim_ac_option_alignment.m4,
+	m4/sim_ac_option_assert.m4, m4/sim_ac_option_bitsize.m4,
+	m4/sim_ac_option_cgen_maint.m4, m4/sim_ac_option_default_model.m4,
+	m4/sim_ac_option_endian.m4, m4/sim_ac_option_environment.m4,
+	m4/sim_ac_option_float.m4, m4/sim_ac_option_hardware.m4,
+	m4/sim_ac_option_inline.m4, m4/sim_ac_option_reserved_bits.m4,
+	m4/sim_ac_option_scache.m4, m4/sim_ac_option_smp.m4,
+	m4/sim_ac_option_warnings.m4, m4/sim_ac_option_xor_endian.m4,
+	m4/sim_ac_output.m4: New files.
+
+2021-02-20  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.tgt: Move arch list ...
+	* configure.ac: ... here.
+	* configure: Regenerate.
+
+2021-02-19  Nelson Chu  <nelson.chu@sifive.com>
+
+	PR 27158
+	* riscv/sim-main.c (execute_i): Updated encoding macros.
+
+2021-02-13  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.tgt: Delete call to AC_SUBST(sim_arch).
+	* configure: Regenerate.
+
+2021-02-13  Mike Frysinger  <vapier@gentoo.org>
+
+	* README-HACKING: Replace sinclude with AC_CONFIG_MACRO_DIRS in
+	configure.ac skeleton.
+
 2021-02-06  Mike Frysinger  <vapier@gentoo.org>
 
 	* README-HACKING: Replace STATE_WATCHPOINTS with CPU_PC_FETCH.

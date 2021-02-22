@@ -1,3 +1,53 @@
+2021-02-18  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.arch/i386-biarch-core.exp: Add target check.
+
+2021-02-16  Alok Kumar Sharma  <AlokKumar.Sharma@amd.com>
+
+	* gdb.dwarf2/pr13961.S: Corrected invalid DIE references.
+
+2021-02-12  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.fortran/allocated.exp: New file.
+	* gdb.fortran/allocated.f90: New file.
+
+2021-02-11  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.fortran/lbound-ubound.exp: Remove old comment.
+
+2021-02-11  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.base/maint-info-sections.exp: Update expected output, and
+	add additional tests. Again.
+
+2021-02-11  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.base/maint-info-sections.exp: Update expected output, and
+	add additional tests.
+
+2021-02-11  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.base/maint-info-sections.exp: New file, content is moved
+	from gdb.base/maint.exp and cleaned up to use latest testsuite
+	techniques.
+	* gdb.base/maint.exp: Tests moved out to
+	gdb.base/maint-info-sections.exp.
+
+2021-02-10  Simon Marchi  <simon.marchi@efficios.com>
+
+	* gdb.multi/multi-target.exp.tcl (setup): Add "set sysroot" to
+	GDBFLAGS.
+
+2021-02-10  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.fortran/lbound-ubound.F90: New file.
+	* gdb.fortran/lbound-ubound.exp: New file.
+
+2021-02-10  Tom de Vries  <tdevries@suse.de>
+
+	* lib/gdb.exp (gdb_load_no_complaints): Remove unnecessary
+	"Restore saved setting of complaints".
+
 2021-02-09  Tom de Vries  <tdevries@suse.de>
 
 	PR symtab/27341
