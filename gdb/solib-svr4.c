@@ -610,7 +610,8 @@ scan_dyntag (const int desired_dyntag, bfd *abfd, CORE_ADDR *ptr,
     return 0;
 
   bool found = false;
-  for (target_section &target_section : current_program_space->target_sections)
+  for (const target_section &target_section
+	 : current_program_space->target_sections ())
     if (sect == target_section.the_bfd_section)
       {
 	dyn_addr = target_section.addr;
@@ -2333,9 +2334,8 @@ enable_break (struct svr4_info *info, int from_tty)
 	goto bkpt_at_symbol;
 
       /* Now convert the TMP_BFD into a target.  That way target, as
-	 well as BFD operations can be used.  target_bfd_reopen
-	 acquires its own reference.  */
-      tmp_bfd_target = target_bfd_reopen (tmp_bfd.get ());
+	 well as BFD operations can be used.  */
+      tmp_bfd_target = target_bfd_reopen (tmp_bfd);
 
       /* On a running target, we can get the dynamic linker's base
 	 address from the shared library table.  */

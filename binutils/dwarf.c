@@ -2002,16 +2002,27 @@ skip_attr_bytes (unsigned long          form,
     case DW_FORM_ref1:
     case DW_FORM_flag:
     case DW_FORM_data1:
+    case DW_FORM_strx1:
+    case DW_FORM_addrx1:
       SAFE_BYTE_GET_AND_INC (uvalue, data, 1, end);
+      break;
+
+    case DW_FORM_strx3:
+    case DW_FORM_addrx3:
+      SAFE_BYTE_GET_AND_INC (uvalue, data, 3, end);
       break;
 
     case DW_FORM_ref2:
     case DW_FORM_data2:
+    case DW_FORM_strx2:
+    case DW_FORM_addrx2:
       SAFE_BYTE_GET_AND_INC (uvalue, data, 2, end);
       break;
 
     case DW_FORM_ref4:
     case DW_FORM_data4:
+    case DW_FORM_strx4:
+    case DW_FORM_addrx4:
       SAFE_BYTE_GET_AND_INC (uvalue, data, 4, end);
       break;
 
@@ -2023,7 +2034,9 @@ skip_attr_bytes (unsigned long          form,
     case DW_FORM_ref_udata:
     case DW_FORM_udata:
     case DW_FORM_GNU_str_index:
+    case DW_FORM_strx:
     case DW_FORM_GNU_addr_index:
+    case DW_FORM_addrx:
       READ_ULEB (uvalue, data, end);
       break;
 
@@ -2129,6 +2142,10 @@ get_type_abbrev_from_form (unsigned long                 form,
 		uvalue, (long) section->size, section->name);
 	  return NULL;
 	}
+      break;
+
+    case DW_FORM_ref_sup4:
+    case DW_FORM_ref_sup8:
       break;
 
     case DW_FORM_ref1:
@@ -2387,7 +2404,7 @@ display_discr_list (unsigned long          form,
 
 	default:
 	  printf ("<corrupt>\n");
-	  warn (_("corrupt discr_list - unrecognised discriminant byte %#x\n"),
+	  warn (_("corrupt discr_list - unrecognized discriminant byte %#x\n"),
 		discriminant);
 	  return;
 	}
@@ -2460,6 +2477,7 @@ read_and_display_attr_value (unsigned long           attribute,
       SAFE_BYTE_GET_AND_INC (uvalue, data, pointer_size, end);
       break;
 
+    case DW_FORM_strp_sup:
     case DW_FORM_strp:
     case DW_FORM_line_strp:
     case DW_FORM_sec_offset:
@@ -2475,16 +2493,28 @@ read_and_display_attr_value (unsigned long           attribute,
     case DW_FORM_ref1:
     case DW_FORM_flag:
     case DW_FORM_data1:
+    case DW_FORM_strx1:
+    case DW_FORM_addrx1:
       SAFE_BYTE_GET_AND_INC (uvalue, data, 1, end);
       break;
 
     case DW_FORM_ref2:
     case DW_FORM_data2:
+    case DW_FORM_strx2:
+    case DW_FORM_addrx2:
       SAFE_BYTE_GET_AND_INC (uvalue, data, 2, end);
       break;
 
+    case DW_FORM_strx3:
+    case DW_FORM_addrx3:
+      SAFE_BYTE_GET_AND_INC (uvalue, data, 3, end);
+      break;
+
+    case DW_FORM_ref_sup4:
     case DW_FORM_ref4:
     case DW_FORM_data4:
+    case DW_FORM_strx4:
+    case DW_FORM_addrx4:
       SAFE_BYTE_GET_AND_INC (uvalue, data, 4, end);
       break;
 
@@ -2494,9 +2524,11 @@ read_and_display_attr_value (unsigned long           attribute,
       break;
 
     case DW_FORM_GNU_str_index:
+    case DW_FORM_strx:
     case DW_FORM_ref_udata:
     case DW_FORM_udata:
     case DW_FORM_GNU_addr_index:
+    case DW_FORM_addrx:
       READ_ULEB (uvalue, data, end);
       break;
 
@@ -2536,6 +2568,7 @@ read_and_display_attr_value (unsigned long           attribute,
     case DW_FORM_ref1:
     case DW_FORM_ref2:
     case DW_FORM_ref4:
+    case DW_FORM_ref_sup4:
     case DW_FORM_ref_udata:
       if (!do_loc)
 	printf ("%c<0x%s>", delimiter, dwarf_vmatoa ("x", uvalue + cu_offset));
@@ -2563,6 +2596,7 @@ read_and_display_attr_value (unsigned long           attribute,
 	printf ("%c%s", delimiter, dwarf_vmatoa ("d", implicit_const));
       break;
 
+    case DW_FORM_ref_sup8:
     case DW_FORM_ref8:
     case DW_FORM_data8:
       if (!do_loc)
@@ -2686,6 +2720,11 @@ read_and_display_attr_value (unsigned long           attribute,
       break;
 
     case DW_FORM_GNU_str_index:
+    case DW_FORM_strx:
+    case DW_FORM_strx1:
+    case DW_FORM_strx2:
+    case DW_FORM_strx3:
+    case DW_FORM_strx4:
       if (!do_loc)
 	{
 	  const char * suffix = strrchr (section->name, '.');
@@ -2741,22 +2780,44 @@ read_and_display_attr_value (unsigned long           attribute,
       break;
 
     case DW_FORM_GNU_addr_index:
+    case DW_FORM_addrx:
+    case DW_FORM_addrx1:
+    case DW_FORM_addrx2:
+    case DW_FORM_addrx3:
+    case DW_FORM_addrx4:
       if (!do_loc)
 	{
+	  dwarf_vma base;
+	  dwarf_vma offset;
+
+	  if (debug_info_p == NULL)
+	    base = 0;
+	  else if (debug_info_p->addr_base == DEBUG_INFO_UNAVAILABLE)
+	    base = 0;
+	  else
+	    base = debug_info_p->addr_base;
+
+	  offset = base + uvalue * pointer_size;
+
 	  if (do_wide)
 	    /* We have already displayed the form name.  */
 	    printf (_("%c(index: 0x%s): %s"), delimiter,
 		    dwarf_vmatoa ("x", uvalue),
-		    fetch_indexed_value (uvalue * pointer_size, pointer_size));
+		    fetch_indexed_value (offset, pointer_size));
 	  else
 	    printf (_("%c(addr_index: 0x%s): %s"), delimiter,
 		    dwarf_vmatoa ("x", uvalue),
-		    fetch_indexed_value (uvalue * pointer_size, pointer_size));
+		    fetch_indexed_value (offset, pointer_size));
 	}
       break;
 
+    case DW_FORM_strp_sup:
+      if (!do_loc)
+	printf ("%c<0x%s>", delimiter, dwarf_vmatoa ("x", uvalue + cu_offset));
+      break;
+      
     default:
-      warn (_("Unrecognized form: %lu\n"), form);
+      warn (_("Unrecognized form: 0x%lx\n"), form);
       break;
     }
 
@@ -2845,6 +2906,7 @@ read_and_display_attr_value (unsigned long           attribute,
 	  break;
 
 	case DW_AT_GNU_addr_base:
+	case DW_AT_addr_base:
 	  debug_info_p->addr_base = uvalue;
 	  break;
 
@@ -2886,6 +2948,11 @@ read_and_display_attr_value (unsigned long           attribute,
 		add_dwo_name ((const char *) fetch_alt_indirect_string (uvalue), cu_offset);
 		break;
 	      case DW_FORM_GNU_str_index:
+	      case DW_FORM_strx:
+	      case DW_FORM_strx1:
+	      case DW_FORM_strx2:
+	      case DW_FORM_strx3:
+	      case DW_FORM_strx4:
 		add_dwo_name (fetch_indexed_string (uvalue, this_set, offset_size, FALSE), cu_offset);
 		break;
 	      case DW_FORM_string:
@@ -2913,6 +2980,11 @@ read_and_display_attr_value (unsigned long           attribute,
 		add_dwo_dir ((const char *) fetch_indirect_line_string (uvalue), cu_offset);
 		break;
 	      case DW_FORM_GNU_str_index:
+	      case DW_FORM_strx:
+	      case DW_FORM_strx1:
+	      case DW_FORM_strx2:
+	      case DW_FORM_strx3:
+	      case DW_FORM_strx4:
 		add_dwo_dir (fetch_indexed_string (uvalue, this_set, offset_size, FALSE), cu_offset);
 		break;
 	      case DW_FORM_string:
@@ -4332,6 +4404,81 @@ display_formatted_table (unsigned char *                   data,
       putchar ('\n');
     }
   return data;
+}
+
+static int
+display_debug_sup (struct dwarf_section *  section,
+		   void *                  file ATTRIBUTE_UNUSED)
+{
+  unsigned char * start = section->start;
+  unsigned char * end = section->start + section->size;
+  unsigned int version;
+  char is_supplementary;
+  const unsigned char * sup_filename;
+  size_t sup_filename_len;
+  unsigned int num_read;
+  int status;
+  dwarf_vma checksum_len;
+
+
+  introduce (section, TRUE);
+  if (section->size < 4)
+    {
+      error (_("corrupt .debug_sup section: size is too small\n"));
+      return 0;
+    }
+
+  /* Read the data.  */
+  SAFE_BYTE_GET_AND_INC (version, start, 2, end);
+  if (version < 5)
+    warn (_("corrupt .debug_sup section: version < 5"));
+
+  SAFE_BYTE_GET_AND_INC (is_supplementary, start, 1, end);
+  if (is_supplementary != 0 && is_supplementary != 1)
+    warn (_("corrupt .debug_sup section: is_supplementary not 0 or 1\n"));    
+
+  sup_filename = start;
+  if (is_supplementary && sup_filename[0] != 0)
+    warn (_("corrupt .debug_sup section: filename not empty in supplementary section\n"));
+
+  sup_filename_len = strnlen ((const char *) start, end - start);
+  if (sup_filename_len == (size_t) (end - start))
+    {
+      error (_("corrupt .debug_sup section: filename is not NUL terminated\n"));
+      return 0;
+    }
+  start += sup_filename_len + 1;
+
+  checksum_len = read_leb128 (start, end, FALSE /* unsigned */, & num_read, & status);
+  if (status)
+    {
+      error (_("corrupt .debug_sup section: bad LEB128 field for checksum length\n"));
+      checksum_len = 0;
+    }
+  start += num_read;
+  if (checksum_len > (dwarf_vma) (end - start))
+    {
+      error (_("corrupt .debug_sup section: checksum length is longer than the remaining section length\n"));
+      checksum_len = end - start;
+    }
+  else if (checksum_len < (dwarf_vma) (end - start))
+    {
+      warn (_("corrupt .debug_sup section: there are 0x%lx extra, unused bytes at the end of the section\n"),
+	    (long) ((end - start) - checksum_len));
+    }
+
+  printf (_("  Version:      %u\n"), version);
+  printf (_("  Is Supp:      %u\n"), is_supplementary);
+  printf (_("  Filename:     %s\n"), sup_filename);
+  printf (_("  Checksum Len: %lu\n"), (long) checksum_len);
+  if (checksum_len > 0)
+    {
+      printf (_("  Checksum:     "));
+      while (checksum_len--)
+	printf ("0x%x ", * start++ );
+      printf ("\n");
+    }
+  return 1;
 }
 
 static int
@@ -5916,8 +6063,8 @@ display_debug_macro (struct dwarf_section *section,
       SAFE_BYTE_GET_AND_INC (version, curr, 2, end);
       if (version != 4 && version != 5)
 	{
-	  error (_("Only GNU extension to DWARF 4 or 5 of %s is currently supported.\n"),
-		 section->name);
+	  error (_("Expected to find a version number of 4 or 5 in section %s but found %d instead\n"),
+		 section->name, version);
 	  return 0;
 	}
 
@@ -7269,6 +7416,7 @@ display_debug_addr (struct dwarf_section *section,
   unsigned char *end;
   unsigned int i;
   unsigned int count;
+  unsigned char * header;
 
   if (section->size == 0)
     {
@@ -7309,6 +7457,7 @@ display_debug_addr (struct dwarf_section *section,
   debug_addr_info [count]->addr_base = section->size;
   qsort (debug_addr_info, count, sizeof (debug_info *), comp_addr_base);
 
+  header = section->start;
   for (i = 0; i < count; i++)
     {
       unsigned int idx;
@@ -7319,7 +7468,38 @@ display_debug_addr (struct dwarf_section *section,
 
       printf (_("\tIndex\tAddress\n"));
       entry = section->start + debug_addr_info [i]->addr_base;
-      end = section->start + debug_addr_info [i + 1]->addr_base;
+      if (debug_addr_info [i]->dwarf_version >= 5)
+	{
+	  size_t           header_size = entry - header;
+	  unsigned char *  curr_header = header;
+	  dwarf_vma        length;
+	  int              version;
+	  int              segment_selector_size;
+
+	  if (header_size != 8 && header_size != 16)
+	    {
+	      warn (_("Corrupt %s section: expecting header size of 8 or 16, but found %ld instead\n"),
+		    section->name, (long) header_size);
+	      return 0;
+	    }
+
+	  SAFE_BYTE_GET_AND_INC (length, curr_header, 4, entry);
+	  if (length == 0xffffffff)
+	    SAFE_BYTE_GET (length, curr_header, 8, entry);
+	  end = curr_header + length;
+
+	  SAFE_BYTE_GET_AND_INC (version, curr_header, 2, entry);
+	  if (version != 5)
+	    warn (_("Corrupt %s section: expecting version number 5 in header but found %d instead\n"),
+		  section->name, version);
+
+	  SAFE_BYTE_GET_AND_INC (address_size, curr_header, 1, entry);
+	  SAFE_BYTE_GET_AND_INC (segment_selector_size, curr_header, 1, entry);
+	  address_size += segment_selector_size;
+	}
+      else
+	end = section->start + debug_addr_info [i + 1]->addr_base;
+      header = end;
       idx = 0;
       while (entry < end)
 	{
@@ -11131,9 +11311,62 @@ load_dwo_file (const char * main_filename, const char * name, const char * dir, 
   return separate_handle;
 }
 
+static void
+load_debug_sup_file (const char * main_filename, void * file)
+{
+  if (! load_debug_section (debug_sup, file))
+    return; /* No .debug_sup section.  */
+
+  struct dwarf_section * section;
+  section = & debug_displays [debug_sup].section;
+  assert (section != NULL);
+
+  if (section->start == NULL || section->size < 5)
+    {
+      warn (_(".debug_sup section is corrupt/empty\n"));
+      return;
+    }
+
+  if (section->start[2] != 0)
+    return; /* This is a supplementary file.  */
+
+  const char * filename = (const char *) section->start + 3;
+  if (strnlen (filename, section->size - 3) == section->size - 3)
+    {
+      warn (_("filename in .debug_sup section is corrupt\n"));
+      return;
+    }
+
+  if (filename[0] != '/' && strchr (main_filename, '/'))
+    {
+      char * new_name;
+      if (asprintf (& new_name, "%.*s/%s",
+		    (int) (strrchr (main_filename, '/') - main_filename),
+		    main_filename,
+		    filename) < 3)
+	warn (_("unable to construct path for supplementary debug file"));
+      else
+	filename = new_name;
+    }
+
+  void * handle;
+  handle = open_debug_file (filename);
+  if (handle == NULL)
+    {
+      warn (_("unable to open file '%s' referenced from .debug_sup section\n"), filename);
+      return;
+    }
+
+  printf (_("%s: Found supplementary debug file: %s\n\n"), main_filename, filename);
+
+  /* FIXME: Compare the checksums, if present.  */
+  add_separate_debug_file (filename, handle);
+}
+
 /* Load a debuglink section and/or a debugaltlink section, if either are present.
    Recursively check the loaded files for more of these sections.
-   FIXME: Should also check for DWO_* entries in the newlu loaded files.  */
+   Also follow any links in .debug_sup sections.
+   FIXME: Should also check for DWO_* entries in the newly loaded files.  */
 
 static void
 check_for_and_load_links (void * file, const char * filename)
@@ -11175,6 +11408,8 @@ check_for_and_load_links (void * file, const char * filename)
 				    first_separate_info->filename);
 	}
     }
+
+  load_debug_sup_file (filename, file);
 }
 
 /* Load the separate debug info file(s) attached to FILE, if any exist.
@@ -11541,6 +11776,7 @@ struct dwarf_section_display debug_displays[] =
   { { ".debug_tu_index",    "",			NO_ABBREVS },      display_cu_index,       &do_debug_cu_index,	FALSE },
   { { ".gnu_debuglink",     "",                 NO_ABBREVS },      display_debug_links,    &do_debug_links,     FALSE },
   { { ".gnu_debugaltlink",  "",                 NO_ABBREVS },      display_debug_links,    &do_debug_links,     FALSE },
+  { { ".debug_sup",         "",			NO_ABBREVS },      display_debug_sup,      &do_debug_links,	FALSE },
   /* Separate debug info files can containt their own .debug_str section,
      and this might be in *addition* to a .debug_str section already present
      in the main file.  Hence we need to have two entries for .debug_str.  */

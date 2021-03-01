@@ -1,3 +1,84 @@
+2021-02-26  Fangrui Song  <maskray@google.com>
+
+	PR 27408
+	* readelf.c (quiet): New option flag.
+	(enum long_option_values): New enum to hold long option value.
+	(long_options): Add --quiet.
+	(usage): Mention --quiet.
+	(display_rel_file): If quiet is enabled, suppress "no symbols".
+	(main): Handle the new option.
+	* NEWS: Mention --quiet.
+	* docs/binutils.texi: Document --quiet.
+
+2021-02-26  Tom de Vries  <tdevries@suse.de>
+
+	* dwarf.c (display_debug_addr): Handle dwarf-5 .debug_addr bits.
+
+2021-02-26  Tom de Vries  <tdevries@suse.de>
+
+	PR 27390
+	* dwarf.c: (skip_attr_bytes): Add support for DW_FORM_str* and
+	DW_FORM_addrx*.
+	(read_and_display_attr_value): Likewise.
+
+2021-02-25  Nick Clifton  <nickc@redhat.com>
+
+	* dwarf.c (get_type_abbrev_from_form): Accept but ignore sup
+	forms.
+	(read_and_display_attr_value): Handle sup forms.
+	(display_debug_sup): New function.  Displays the contents of a
+	.debug_sup section.
+	(load_debug_sup_file): New function.  Loads the contents of a file
+	referenced by a .debug_sup section.
+	(check_for_and_load_links): Call load_debug_sup_file.
+	(debug_displays): Add entry for .debug_sup.
+	* dwarf.h (enum dwarf_section_display_enum): Add debug_sup.
+	* readelf.c (process_section_headers): Add support for debug_sup.
+	* doc/debug.options.texi: Note that the =links option will display
+	the contents of .debug_sup sections.
+	* NEWS: Mention the new support.
+
+2021-02-25  Alan Modra  <amodra@gmail.com>
+
+	PR 27456
+	* rename.c (simple_copy): Mark target_stat ATTRIBUTE_UNUSED.
+
+2021-02-24  Nick Clifton  <nickc@redhat.com>
+
+	PR 27285
+	* od-elf32_avr.c (elf32_avr_get_memory_usage): Check for overflows
+	when adding together the section sizes.
+
+2021-02-24  Nick Clifton  <nickc@redhat.com>
+
+	* objcopy.c (merge_gnu_build_notes): Remove support for v1/v2 GNU
+	build notes.
+	* readelf.c (print_gnu_build_attribute_description): Likewise.
+
+2021-02-24  Alan Modra  <amodra@gmail.com>
+	    Siddhesh Poyarekar  <siddhesh@gotplt.org>
+
+	PR 27456
+	* bucomm.h (smart_rename): Update prototype.
+	* rename.c (smart_rename): Add fromfd and preserve_dates params.
+	Pass fromfd and target_stat to simple_copy.  Call set_times
+	when preserve_dates.
+	(simple_copy): Accept fromfd rather than from filename.  Add
+	target_stat param.  Rewind fromfd rather than opening.  Open
+	"to" file without O_CREAT.  Try to preserve S_ISUID and S_ISGID.
+	* ar.c (write_archive): Rename ofd to tmpfd.  Dup tmpfd before
+	closing output temp file, and pass tmpfd to smart_rename.
+	* arsup.c (temp_fd): Rename from real_fd.
+	(ar_save): Dup temp_fd and pass to smart_rename.
+	* objcopy.c (strip_main, copy_main): Likewise, and pass
+	preserve_dates.
+
+2021-02-24  Alan Modra  <amodra@gmail.com>
+
+	PR 27456
+	* rename.c: Tidy throughout.
+	(smart_rename): Always copy.  Remove windows specific code.
+
 2021-02-20  Alan Modra  <amodra@gmail.com>
 
 	* testsuite/lib/binutils-common.exp: Whitespace fixes throughout.
