@@ -545,7 +545,7 @@ pe_dll_add_excludes (const char *new_excludes, const exclude_type type)
 static bfd_boolean
 is_import (const char* n)
 {
-  return (CONST_STRNEQ (n, "__imp_"));
+  return (startswith (n, "__imp_"));
 }
 
 /* abfd is a bfd containing n (or NULL)
@@ -1579,13 +1579,13 @@ generate_reloc (bfd *abfd, struct bfd_link_info *info)
 		  && relocs[i]->howto->type != pe_details->imagebase_reloc)
 		{
 		  struct bfd_symbol *sym = *relocs[i]->sym_ptr_ptr;
+		  const struct bfd_link_hash_entry *blhe
+		    = bfd_wrapped_link_hash_lookup (abfd, info, sym->name,
+						    FALSE, FALSE, FALSE);
 
 		  /* Don't create relocs for undefined weak symbols.  */
 		  if (sym->flags == BSF_WEAK)
 		    {
-		      struct bfd_link_hash_entry *blhe
-			= bfd_wrapped_link_hash_lookup (abfd, info, sym->name,
-						FALSE, FALSE, FALSE);
 		      if (blhe && blhe->type == bfd_link_hash_undefweak)
 			{
 			  /* Check aux sym and see if it is defined or not. */
@@ -1617,6 +1617,12 @@ generate_reloc (bfd *abfd, struct bfd_link_info *info)
 		      if (!strcmp (s->name, ".eh_frame"))
 			continue;
 		    }
+		  /* Nor for absolute symbols.  */
+		  else if (blhe && ldexp_is_final_sym_absolute (blhe)
+			   && (!blhe->linker_def
+			       || (strcmp (sym->name, "__image_base__")
+				   && strcmp (sym->name, U ("__ImageBase")))))
+		    continue;
 
 		  reloc_data[total_relocs].vma = sec_vma + relocs[i]->address;
 		  reloc_data[total_relocs].idx = total_relocs;
@@ -1746,9 +1752,6 @@ generate_reloc (bfd *abfd, struct bfd_link_info *info)
 
   if (page_ptr != (bfd_vma) -1)
     bfd_put_32 (abfd, reloc_sz - page_ptr, reloc_d + page_ptr + 4);
-
-  while (reloc_sz < reloc_s->size)
-    reloc_d[reloc_sz++] = 0;
 }
 
 /* Given the exiting def_file structure, print out a .DEF file that
@@ -3036,7 +3039,9 @@ pe_find_cdecl_alias_match (struct bfd_link_info *linfo, char *name)
 	  if (pe_details->underscored)
 	    lname[0] = '_';
 	  else
-	    strcpy (lname, lname + 1);
+	    /* Use memmove rather than strcpy as that
+	       can handle overlapping buffers.  */
+	    memmove (lname, lname + 1, strlen (lname));
 	  key.key = lname;
 	  kv = bsearch (&key, udef_table, undef_count,
 			sizeof (struct key_value), undef_sort_cmp);
@@ -3526,7 +3531,7 @@ pe_implied_import_dll (const char *filename)
 
       /* Skip unwanted symbols, which are
 	 exported in buggy auto-import releases.  */
-      if (! CONST_STRNEQ (erva + name_rva, "__nm_"))
+      if (! startswith (erva + name_rva, "__nm_"))
 	{
 	  int is_dup = 0;
 	  /* is_data is true if the address is in the data, rdata or bss

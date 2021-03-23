@@ -30,7 +30,6 @@ exec_prefix = @exec_prefix@
 
 host_alias = @host_alias@
 target_alias = @target_alias@
-program_transform_name = @program_transform_name@
 bindir = @bindir@
 libdir = @libdir@
 tooldir = $(libdir)/$(target_alias)
@@ -56,16 +55,12 @@ INSTALL = @INSTALL@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
 
-AR = @AR@
 CC = @CC@
 CFLAGS = @CFLAGS@
-RANLIB = @RANLIB@
 
-AR_FOR_BUILD = @AR_FOR_BUILD@
-AR_FLAGS_FOR_BUILD = @AR_FLAGS_FOR_BUILD@
 CC_FOR_BUILD = @CC_FOR_BUILD@
 CFLAGS_FOR_BUILD = @CFLAGS_FOR_BUILD@
-RANLIB_FOR_BUILD = @RANLIB_FOR_BUILD@
+LDFLAGS_FOR_BUILD = @LDFLAGS_FOR_BUILD@
 
 WARN_CFLAGS = @WARN_CFLAGS@
 WERROR_CFLAGS = @WERROR_CFLAGS@
@@ -86,16 +81,15 @@ BUILD_CFLAGS = \
 	$(IGEN_WARN_CFLAGS) \
 	$(IGEN_WERROR_CFLAGS) \
 	$(INCLUDES)
-BUILD_LDFLAGS = 
+
+COMPILE_FOR_BUILD = $(CC_FOR_BUILD) $(BUILD_CFLAGS)
+LINK_FOR_BUILD = $(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) $(LDFLAGS_FOR_BUILD) -o $@
 
 all:	igen
 #all:	tmp-filter tmp-table tmp-ld-insn tmp-ld-cache tmp-ld-decode tmp-gen
 
 .c.o:
-	$(CC_FOR_BUILD) -c $(BUILD_CFLAGS) $<
-
-
-filter_filename.o: filter_filename.c filter_filename.h config.h ppc-config.h
+	$(COMPILE_FOR_BUILD) -c $<
 
 IGEN_OBJS=\
 	table.o \
@@ -115,28 +109,28 @@ IGEN_OBJS=\
 	gen.o
 
 igen: igen.o $(IGEN_OBJS)
-	$(CC_FOR_BUILD) $(BUILD_CFLAGS) $(BUILD_LDFLAGS) -o igen igen.o $(IGEN_OBJS)
+	$(LINK_FOR_BUILD) igen.o $(IGEN_OBJS)
 
 igen.o: igen.c misc.h filter_host.h lf.h table.h ld-decode.h ld-cache.h ld-insn.h filter.h gen-model.h gen-itable.h gen-icache.h gen-idecode.h gen-engine.h gen-semantics.h gen-support.h gen.h igen.h 
-	$(CC_FOR_BUILD) $(BUILD_CFLAGS) -c $(srcdir)/igen.c
+	$(COMPILE_FOR_BUILD) -c $(srcdir)/igen.c
 
 tmp-table: table.c table.h misc.o lf.o filter_host.o 
-	$(CC_FOR_BUILD) $(BUILD_CFLAGS) $(BUILD_LDFLAGS) -o tmp-table -DMAIN $(srcdir)/table.c misc.o lf.o  filter_host.o $(BUILD_LIBS)
+	$(LINK_FOR_BUILD) -DMAIN $(srcdir)/table.c misc.o lf.o  filter_host.o
 
 tmp-filter: filter.c filter.h lf.o misc.o filter_host.o
-	$(CC_FOR_BUILD) $(BUILD_CFLAGS) $(BUILD_LDFLAGS) -o tmp-filter -DMAIN $(srcdir)/filter.c lf.o misc.o filter_host.o $(BUILD_LIBS)
+	$(LINK_FOR_BUILD) -DMAIN $(srcdir)/filter.c lf.o misc.o filter_host.o
 
 tmp-ld-decode: ld-decode.h ld-decode.c filter.o misc.o lf.o table.o filter_host.o gen.h igen.h
-	$(CC_FOR_BUILD) $(BUILD_CFLAGS) $(BUILD_LDFLAGS) -o tmp-ld-decode -DMAIN $(srcdir)/ld-decode.c filter.o misc.o lf.o table.o filter_host.o $(BUILD_LIBS)
+	$(LINK_FOR_BUILD) -DMAIN $(srcdir)/ld-decode.c filter.o misc.o lf.o table.o filter_host.o
 
 tmp-ld-cache: ld-cache.c ld-cache.h ld-insn.o misc.o lf.o table.o filter_host.o gen.h igen.h
-	$(CC_FOR_BUILD) $(BUILD_CFLAGS) $(BUILD_LDFLAGS) -o tmp-ld-cache -DMAIN $(srcdir)/ld-cache.c ld-insn.o filter.o misc.o lf.o table.o filter_host.o $(BUILD_LIBS)
+	$(LINK_FOR_BUILD) -DMAIN $(srcdir)/ld-cache.c ld-insn.o filter.o misc.o lf.o table.o filter_host.o
 
 tmp-ld-insn: ld-insn.c ld-insn.h misc.o lf.o table.o filter_host.o filter.o gen.h igen.h
-	$(CC_FOR_BUILD) $(BUILD_CFLAGS) $(BUILD_LDFLAGS) -o tmp-ld-insn -DMAIN $(srcdir)/ld-insn.c misc.o lf.o table.o filter_host.o filter.o $(BUILD_LIBS)
+	$(LINK_FOR_BUILD) -DMAIN $(srcdir)/ld-insn.c misc.o lf.o table.o filter_host.o filter.o
 
 tmp-gen: gen.c gen.h ld-insn.o ld-decode.o misc.o lf.o table.o filter_host.o filter.o gen.h igen.h
-	$(CC_FOR_BUILD) $(BUILD_CFLAGS) $(BUILD_LDFLAGS) -o tmp-gen -DMAIN $(srcdir)/gen.c misc.o ld-insn.o ld-decode.o lf.o table.o filter_host.o filter.o $(BUILD_LIBS)
+	$(LINK_FOR_BUILD) -DMAIN $(srcdir)/gen.c misc.o ld-insn.o ld-decode.o lf.o table.o filter_host.o filter.o
 
 filter_host.o: filter_host.c filter_host.h
 table.o: table.c misc.h filter_host.h lf.h table.h
@@ -165,7 +159,7 @@ clean mostlyclean:
 	rm -f tmp-* *.[oasi] core igen
 
 distclean realclean: clean
-	rm -f TAGS Makefile config.cache config.status config.h defines.h stamp-h config.log
+	rm -f TAGS Makefile config.cache config.status defines.h config.log
 
 maintainer-clean: distclean
 	rm -f *~ *.log ppc-config.h core *.core
@@ -173,13 +167,10 @@ maintainer-clean: distclean
 Makefile: Makefile.in config.status
 	CONFIG_FILES=Makefile CONFIG_HEADERS= $(SHELL) ./config.status
 
-config.h: stamp-h ; @true
-stamp-h: config.in config.status
-	CONFIG_FILES= CONFIG_HEADERS=config.h:config.in $(SHELL) ./config.status
-
 config.status: configure
 	$(SHELL) ./config.status --recheck
 
+check:
 install:
 install-strip:
 #

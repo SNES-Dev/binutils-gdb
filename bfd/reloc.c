@@ -51,7 +51,7 @@ SECTION
 #include "bfdlink.h"
 #include "libbfd.h"
 #include "bfdver.h"
-#include "coff/internal.h"
+
 /*
 DOCDD
 INODE
@@ -903,30 +903,6 @@ space consuming.  For each target:
 	    {
 	      reloc_entry->addend = relocation;
 	    }
-	}
-    }
-  else if (abfd->xvec->flavour == bfd_target_coff_flavour
-	   && (input_section->output_section->owner->xvec->flavour
-	       == bfd_target_elf_flavour)
-	   && strcmp (abfd->xvec->name, "pe-x86-64") == 0
-	   && strcmp (input_section->output_section->owner->xvec->name,
-		      "elf64-x86-64") == 0)
-    {
-      /* NB: bfd_perform_relocation isn't called to generate PE binary.
-	 _bfd_relocate_contents is called instead.  When linking PE
-	 object files to generate ELF output, _bfd_relocate_contents
-	 isn't called and bfd_perform_relocation is used.  We need to
-	 adjust relocation here.  */
-      relocation -= reloc_entry->addend;
-      if (howto->type >= R_AMD64_PCRLONG_1
-	  && howto->type <= R_AMD64_PCRLONG_5)
-	relocation -= (bfd_vma)(howto->type - R_AMD64_PCRLONG);
-      else if (howto->type == R_AMD64_DIR64
-	       || howto->type == R_AMD64_DIR32)
-	{
-	  bfd_vma val = read_reloc (abfd, (bfd_byte *) data + octets,
-				    howto);
-	  relocation -= val & howto->src_mask;
 	}
     }
 
@@ -2761,6 +2737,10 @@ ENUMX
 ENUMX
   BFD_RELOC_PPC_TOC16
 ENUMX
+  BFD_RELOC_PPC_TOC16_LO
+ENUMX
+  BFD_RELOC_PPC_TOC16_HI
+ENUMX
   BFD_RELOC_PPC_B16
 ENUMX
   BFD_RELOC_PPC_B16_BRTAKEN
@@ -2964,6 +2944,14 @@ ENUMX
 ENUMX
   BFD_RELOC_PPC_TLSLD
 ENUMX
+  BFD_RELOC_PPC_TLSLE
+ENUMX
+  BFD_RELOC_PPC_TLSIE
+ENUMX
+  BFD_RELOC_PPC_TLSM
+ENUMX
+  BFD_RELOC_PPC_TLSML
+ENUMX
   BFD_RELOC_PPC_DTPMOD
 ENUMX
   BFD_RELOC_PPC_TPREL16
@@ -3017,6 +3005,18 @@ ENUMX
   BFD_RELOC_PPC_GOT_DTPREL16_HI
 ENUMX
   BFD_RELOC_PPC_GOT_DTPREL16_HA
+ENUMX
+  BFD_RELOC_PPC64_TLSGD
+ENUMX
+  BFD_RELOC_PPC64_TLSLD
+ENUMX
+  BFD_RELOC_PPC64_TLSLE
+ENUMX
+  BFD_RELOC_PPC64_TLSIE
+ENUMX
+  BFD_RELOC_PPC64_TLSM
+ENUMX
+  BFD_RELOC_PPC64_TLSML
 ENUMX
   BFD_RELOC_PPC64_TPREL16_DS
 ENUMX

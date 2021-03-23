@@ -1,3 +1,44 @@
+2021-03-08  Tom Tromey  <tromey@adacore.com>
+
+	* aclocal.m4, configure, Makefile.in: Rebuild.
+	* configure.ac: Use AM_MAINTAINER_MODE.
+
+2021-03-07  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.ac (AC_CONFIG_FILES): Delete testsuite/Makefile.
+	* Makefile.am: Include testsuite/local.mk.
+	(AUTOMAKE_OPTIONS): Add dejagnu.
+	* configure, Makefile.in: Regenerated.
+
+2021-03-07  Mike Frysinger  <vapier@gentoo.org>
+
+	* Makefile.am: New file.
+	* configure.ac: Update AC_INIT call.  Move AC_CANONICAL_SYSTEM after
+	it.  Call AM_INIT_AUTOMAKE.  Delete AC_CONFIG_MACRO_DIRS.
+	* aclocal.m4, configure, Makefile.in: Regenerated.
+
+2021-02-28  Mike Frysinger  <vapier@gentoo.org>
+
+	* m4/sim_ac_common.m4 (SIM_AC_COMMON): Delete CC_FOR_BUILD test.
+	Change CC_FOR_BUILD assignment.  Define CFLAGS_FOR_BUILD.
+
+2021-02-28  Mike Frysinger  <vapier@gentoo.org>
+
+	* m4/sim_ac_common.m4 (SIM_AC_COMMON): Replace AR assignment and
+	AC_SUBST(AR) with call to AC_CHECK_TOOL(AR, ar).
+
+2021-02-28  Mike Frysinger  <vapier@gentoo.org>
+
+	* m4/sim_ac_common.m4 (SIM_AC_COMMON): Require AC_PROG_CPP.
+
+2021-02-28  Mike Frysinger  <vapier@gentoo.org>
+
+	* README-HACKING: Delete SIM_EXTRA_LIBDEPS.
+
+2021-02-27  Mike Frysinger  <vapier@gentoo.org>
+
+	* README-HACKING: Delete SIM_EXTRA_ALL.
+
 2021-02-21  Mike Frysinger  <vapier@gentoo.org>
 
 	* m4/sim_ac_common.m4, m4/sim_ac_option_alignment.m4,

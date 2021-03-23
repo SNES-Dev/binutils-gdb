@@ -904,6 +904,8 @@ extern bfd_vma _bfd_safe_read_leb128
 extern bfd_byte * _bfd_write_unsigned_leb128
   (bfd_byte *, bfd_byte *, bfd_vma) ATTRIBUTE_HIDDEN;
 
+extern struct bfd_link_info *_bfd_get_link_info (bfd *);
+
 #if GCC_VERSION >= 7000
 #define _bfd_mul_overflow(a, b, res) __builtin_mul_overflow (a, b, res)
 #else
@@ -1460,6 +1462,8 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_PPC_B26",
   "BFD_RELOC_PPC_BA26",
   "BFD_RELOC_PPC_TOC16",
+  "BFD_RELOC_PPC_TOC16_LO",
+  "BFD_RELOC_PPC_TOC16_HI",
   "BFD_RELOC_PPC_B16",
   "BFD_RELOC_PPC_B16_BRTAKEN",
   "BFD_RELOC_PPC_B16_BRNTAKEN",
@@ -1560,6 +1564,10 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_PPC_TLS",
   "BFD_RELOC_PPC_TLSGD",
   "BFD_RELOC_PPC_TLSLD",
+  "BFD_RELOC_PPC_TLSLE",
+  "BFD_RELOC_PPC_TLSIE",
+  "BFD_RELOC_PPC_TLSM",
+  "BFD_RELOC_PPC_TLSML",
   "BFD_RELOC_PPC_DTPMOD",
   "BFD_RELOC_PPC_TPREL16",
   "BFD_RELOC_PPC_TPREL16_LO",
@@ -1587,6 +1595,12 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_PPC_GOT_DTPREL16_LO",
   "BFD_RELOC_PPC_GOT_DTPREL16_HI",
   "BFD_RELOC_PPC_GOT_DTPREL16_HA",
+  "BFD_RELOC_PPC64_TLSGD",
+  "BFD_RELOC_PPC64_TLSLD",
+  "BFD_RELOC_PPC64_TLSLE",
+  "BFD_RELOC_PPC64_TLSIE",
+  "BFD_RELOC_PPC64_TLSM",
+  "BFD_RELOC_PPC64_TLSML",
   "BFD_RELOC_PPC64_TPREL16_DS",
   "BFD_RELOC_PPC64_TPREL16_LO_DS",
   "BFD_RELOC_PPC64_TPREL16_HIGH",

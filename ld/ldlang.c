@@ -1186,7 +1186,7 @@ lang_add_input_file (const char *name,
 		     const char *target)
 {
   if (name != NULL
-      && (*name == '=' || CONST_STRNEQ (name, "$SYSROOT")))
+      && (*name == '=' || startswith (name, "$SYSROOT")))
     {
       lang_input_statement_type *ret;
       char *sysrooted_name
@@ -3986,8 +3986,6 @@ insert_undefined (const char *name)
       h->type = bfd_link_hash_undefined;
       h->u.undef.abfd = NULL;
       h->non_ir_ref_regular = TRUE;
-      if (is_elf_hash_table (link_info.hash))
-	((struct elf_link_hash_entry *) h)->mark = 1;
       bfd_link_add_undef (link_info.hash, h);
     }
 }
@@ -4003,6 +4001,23 @@ lang_place_undefineds (void)
 
   for (ptr = ldlang_undef_chain_list_head; ptr != NULL; ptr = ptr->next)
     insert_undefined (ptr->name);
+}
+
+/* Mark -u symbols against garbage collection.  */
+
+static void
+lang_mark_undefineds (void)
+{
+  ldlang_undef_chain_list_type *ptr;
+
+  if (bfd_get_flavour (link_info.output_bfd) == bfd_target_elf_flavour)
+    for (ptr = ldlang_undef_chain_list_head; ptr != NULL; ptr = ptr->next)
+      {
+	struct elf_link_hash_entry *h = (struct elf_link_hash_entry *)
+	  bfd_link_hash_lookup (link_info.hash, ptr->name, FALSE, FALSE, TRUE);
+	if (h != NULL)
+	  h->mark = 1;
+      }
 }
 
 /* Structure used to build the list of symbols that the user has required
@@ -6808,6 +6823,19 @@ undef_start_stop (struct bfd_link_hash_entry *h)
 	}
       h->type = bfd_link_hash_undefined;
       h->u.undef.abfd = NULL;
+      if (bfd_get_flavour (link_info.output_bfd) == bfd_target_elf_flavour)
+	{
+	  const struct elf_backend_data *bed;
+	  struct elf_link_hash_entry *eh = (struct elf_link_hash_entry *) h;
+	  unsigned int was_forced = eh->forced_local;
+
+	  bed = get_elf_backend_data (link_info.output_bfd);
+	  (*bed->elf_backend_hide_symbol) (&link_info, eh, TRUE);
+	  if (!eh->ref_regular_nonweak)
+	    h->type = bfd_link_hash_undefweak;
+	  eh->def_regular = 0;
+	  eh->forced_local = was_forced;
+	}
     }
 }
 
@@ -7537,7 +7565,7 @@ lang_gc_sections (void)
   lang_gc_sections_1 (statement_list.head);
 
   /* SEC_EXCLUDE is ignored when doing a relocatable link, except in
-     the special case of debug info.  (See bfd/stabs.c)
+     the special case of .stabstr debug info.  (See bfd/stabs.c)
      Twiddle the flag here, to simplify later linker code.  */
   if (bfd_link_relocatable (&link_info))
     {
@@ -7549,7 +7577,8 @@ lang_gc_sections (void)
 	    continue;
 #endif
 	  for (sec = f->the_bfd->sections; sec != NULL; sec = sec->next)
-	    if ((sec->flags & SEC_DEBUGGING) == 0)
+	    if ((sec->flags & SEC_DEBUGGING) == 0
+		|| strcmp (sec->name, ".stabstr") != 0)
 	      sec->flags &= ~SEC_EXCLUDE;
 	}
     }
@@ -8102,6 +8131,8 @@ lang_process (void)
 
   /* Remove unreferenced sections if asked to.  */
   lang_gc_sections ();
+
+  lang_mark_undefineds ();
 
   /* Check relocations.  */
   lang_check_relocs ();

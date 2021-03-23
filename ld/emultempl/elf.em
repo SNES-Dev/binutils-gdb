@@ -712,7 +712,7 @@ fragment <<EOF
 	link_info.unresolved_syms_in_objects = RM_IGNORE;
       else if (strcmp (optarg, "muldefs") == 0)
 	link_info.allow_multiple_definition = TRUE;
-      else if (CONST_STRNEQ (optarg, "max-page-size="))
+      else if (startswith (optarg, "max-page-size="))
 	{
 	  char *end;
 
@@ -722,7 +722,7 @@ fragment <<EOF
 	    einfo (_("%F%P: invalid maximum page size \`%s'\n"),
 		   optarg + 14);
 	}
-      else if (CONST_STRNEQ (optarg, "common-page-size="))
+      else if (startswith (optarg, "common-page-size="))
 	{
 	  char *end;
 	  link_info.commonpagesize = strtoul (optarg + 17, &end, 0);
@@ -731,7 +731,7 @@ fragment <<EOF
 	    einfo (_("%F%P: invalid common page size \`%s'\n"),
 		   optarg + 17);
 	}
-      else if (CONST_STRNEQ (optarg, "stack-size="))
+      else if (startswith (optarg, "stack-size="))
 	{
 	  char *end;
 	  link_info.stacksize = strtoul (optarg + 11, &end, 0);
@@ -760,7 +760,11 @@ fragment <<EOF
 	{
 	  link_info.flags_1 |= DF_1_GLOBAUDIT;
 	}
-      else if (CONST_STRNEQ (optarg, "start-stop-visibility="))
+      else if (startswith (optarg, "start-stop-gc"))
+	link_info.start_stop_gc = TRUE;
+      else if (startswith (optarg, "nostart-stop-gc"))
+	link_info.start_stop_gc = FALSE;
+      else if (startswith (optarg, "start-stop-visibility="))
 	{
 	  if (strcmp (optarg, "start-stop-visibility=default") == 0)
 	    link_info.start_stop_visibility = STV_DEFAULT;
@@ -915,7 +919,7 @@ struct ld_emulation_xfer_struct ld_${EMULATION_NAME}_emulation =
   ${LDEMUL_AFTER_CHECK_RELOCS-after_check_relocs_default},
   ${LDEMUL_BEFORE_PLACE_ORPHANS-ldelf_before_place_orphans},
   ${LDEMUL_AFTER_ALLOCATION-gld${EMULATION_NAME}_after_allocation},
-  ${LDEMUL_SET_OUTPUT_ARCH-set_output_arch_default},
+  ${LDEMUL_SET_OUTPUT_ARCH-ldelf_set_output_arch},
   ${LDEMUL_CHOOSE_TARGET-ldemul_default_target},
   ${LDEMUL_BEFORE_ALLOCATION-gld${EMULATION_NAME}_before_allocation},
   ${LDEMUL_GET_SCRIPT-gld${EMULATION_NAME}_get_script},

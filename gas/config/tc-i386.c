@@ -4038,22 +4038,25 @@ process_immext (void)
 static int
 check_hle (void)
 {
-  switch (i.tm.opcode_modifier.hleprefixok)
+  switch (i.tm.opcode_modifier.prefixok)
     {
     default:
       abort ();
-    case HLEPrefixNone:
+    case PrefixLock:
+    case PrefixNone:
+    case PrefixNoTrack:
+    case PrefixRep:
       as_bad (_("invalid instruction `%s' after `%s'"),
 	      i.tm.name, i.hle_prefix);
       return 0;
-    case HLEPrefixLock:
+    case PrefixHLELock:
       if (i.prefix[LOCK_PREFIX])
 	return 1;
       as_bad (_("missing `lock' with `%s'"), i.hle_prefix);
       return 0;
-    case HLEPrefixAny:
+    case PrefixHLEAny:
       return 1;
-    case HLEPrefixRelease:
+    case PrefixHLERelease:
       if (i.prefix[HLE_PREFIX] != XRELEASE_PREFIX_OPCODE)
 	{
 	  as_bad (_("instruction `%s' after `xacquire' not allowed"),
@@ -4792,7 +4795,7 @@ md_assemble (char *line)
       return;
 
   /* Check if REP prefix is OK.  */
-  if (i.rep_prefix && !i.tm.opcode_modifier.repprefixok)
+  if (i.rep_prefix && i.tm.opcode_modifier.prefixok != PrefixRep)
     {
       as_bad (_("invalid instruction `%s' after `%s'"),
 		i.tm.name, i.rep_prefix);
@@ -4802,7 +4805,7 @@ md_assemble (char *line)
   /* Check for lock without a lockable instruction.  Destination operand
      must be memory unless it is xchg (0x86).  */
   if (i.prefix[LOCK_PREFIX]
-      && (!i.tm.opcode_modifier.islockable
+      && (i.tm.opcode_modifier.prefixok < PrefixLock
 	  || i.mem_operands == 0
 	  || (i.tm.base_opcode != 0x86
 	      && !(i.flags[i.operands - 1] & Operand_Mem))))
@@ -4830,7 +4833,7 @@ md_assemble (char *line)
     as_bad (_("expecting valid branch instruction after `bnd'"));
 
   /* Check NOTRACK prefix.  */
-  if (i.notrack_prefix && !i.tm.opcode_modifier.notrackprefixok)
+  if (i.notrack_prefix && i.tm.opcode_modifier.prefixok != PrefixNoTrack)
     as_bad (_("expecting indirect branch instruction after `notrack'"));
 
   if (i.tm.cpu_flags.bitfield.cpumpx)
@@ -11047,7 +11050,7 @@ i386_index_check (const char *operand_string)
 
       kind = "string address";
 
-      if (current_templates->start->opcode_modifier.repprefixok)
+      if (current_templates->start->opcode_modifier.prefixok == PrefixRep)
 	{
 	  int es_op = current_templates->end[-1].opcode_modifier.isstring
 		      - IS_STRING_ES_OP0;
@@ -13013,7 +13016,7 @@ md_parse_option (int c, const char *arg)
 
 	list = bfd_target_list ();
 	for (l = list; *l != NULL; l++)
-	  if (CONST_STRNEQ (*l, "elf64-x86-64")
+	  if (startswith (*l, "elf64-x86-64")
 	      || strcmp (*l, "coff-x86-64") == 0
 	      || strcmp (*l, "pe-x86-64") == 0
 	      || strcmp (*l, "pei-x86-64") == 0
@@ -13037,7 +13040,7 @@ md_parse_option (int c, const char *arg)
 
 	  list = bfd_target_list ();
 	  for (l = list; *l != NULL; l++)
-	    if (CONST_STRNEQ (*l, "elf32-x86-64"))
+	    if (startswith (*l, "elf32-x86-64"))
 	      {
 		default_arch = "x86_64:32";
 		break;
@@ -14363,7 +14366,7 @@ x86_64_section_letter (int letter, const char **ptr_msg)
 bfd_vma
 x86_64_section_word (char *str, size_t len)
 {
-  if (len == 5 && flag_code == CODE_64BIT && CONST_STRNEQ (str, "large"))
+  if (len == 5 && flag_code == CODE_64BIT && startswith (str, "large"))
     return SHF_X86_64_LARGE;
 
   return -1;

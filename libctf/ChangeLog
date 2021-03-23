@@ -1,3 +1,328 @@
+2021-03-21  Alan Modra  <amodra@gmail.com>
+
+	* ctf-impl.h: Include string.h.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-types.c (ctf_type_encoding): Support, after a fashion, for enums.
+	* ctf-dump.c (ctf_dump_format_type): Do not report enums' degenerate
+	encoding.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-dedup.c (ctf_dedup_rhash_type): Report errors on the input
+	dict properly.
+	* ctf-open.c (ctf_bufopen_internal): Report errors initializing
+	the atoms table.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-impl.h (ctf_next_t) <ctn_tp>: New.
+	<u.ctn_mp>: Remove.
+	<u.ctn_lmp>: Remove.
+	<u.ctn_vlen>: New.
+	* ctf-types.c (ctf_struct_member): New.
+	(ctf_member_next): Use it, dropping separate large/small code paths.
+	(ctf_type_align): Likewise.
+	(ctf_member_info): Likewise.
+	(ctf_type_rvisit): Likewise.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-impl.h (ctf_dtdef_t) <dtu_members>: Remove.
+	<dtd_u>: Likewise.
+	(ctf_dmdef_t): Remove.
+	(struct ctf_next) <u.ctn_dmd>: Remove.
+	* ctf-create.c (INITIAL_VLEN): New, more-or-less arbitrary initial
+	vlen size.
+	(ctf_add_enum): Use it.
+	(ctf_dtd_delete): Do not free the (removed) dmd; remove string
+	refs from the vlen on struct deletion.
+	(ctf_add_struct_sized): Populate the vlen: do it by hand if
+	promoting forwards.  Always populate the full-size
+	lsizehi/lsizelo members.
+	(ctf_add_union_sized): Likewise.
+	(ctf_add_member_offset): Set up the vlen rather than the dmd.
+	Expand it as needed, repointing string refs via
+	ctf_str_move_pending. Add the member names as pending strings.
+	Always populate the full-size lsizehi/lsizelo members.
+	(membadd): Remove, folding back into...
+	(ctf_add_type_internal): ... here, adding via an ordinary
+	ctf_add_struct_sized and _next iteration rather than doing
+	everything by hand.
+	* ctf-serialize.c (ctf_copy_smembers): Remove this...
+	(ctf_copy_lmembers): ... and this...
+	(ctf_emit_type_sect): ... folding into here. Figure out if a
+	ctf_stype_t is needed here, not in ctf_add_*_sized.
+	(ctf_type_sect_size): Figure out the ctf_stype_t stuff the same
+	way here.
+	* ctf-types.c (ctf_member_next): Remove the dmd path and always
+	use the vlen.  Force large-structure usage for dynamic types.
+	(ctf_type_align): Likewise.
+	(ctf_member_info): Likewise.
+	(ctf_type_rvisit): Likewise.
+	* testsuite/libctf-regression/type-add-unnamed-struct-ctf.c: Add a
+	self-referential type to this test.
+	* testsuite/libctf-regression/type-add-unnamed-struct.c: Adjusted
+	accordingly.
+	* testsuite/libctf-regression/type-add-unnamed-struct.lk: Likewise.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-impl.h (ctf_dtdef_t) <dtd_vlen_alloc>: New.
+	(ctf_str_move_pending): Declare.
+	* ctf-string.c (ctf_str_add_ref_internal): Fix error return.
+	(ctf_str_move_pending): New.
+	* ctf-create.c (ctf_grow_vlen): New.
+	(ctf_dtd_delete): Zero out the vlen_alloc after free.  Free the
+	vlen later: iterate over it and free enum name refs first.
+	(ctf_add_generic): Populate dtd_vlen_alloc from vlen.
+	(ctf_add_enum): populate the vlen; do it by hand if promoting
+	forwards.
+	(ctf_add_enumerator): Set up the vlen rather than the dmd.  Expand
+	it as needed, repointing string refs via ctf_str_move_pending. Add
+	the enumerand names as pending strings.
+	* ctf-serialize.c (ctf_copy_emembers): Remove.
+	(ctf_emit_type_sect): Copy the vlen into place and ref the
+	strings.
+	* ctf-types.c (ctf_enum_next): The dynamic portion now uses
+	the same code as the non-dynamic.
+	(ctf_enum_name): Likewise.
+	(ctf_enum_value): Likewise.
+	* testsuite/libctf-lookup/enum-many-ctf.c: New test.
+	* testsuite/libctf-lookup/enum-many.lk: New test.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-hash.c (ctf_dynset_elements): New.
+	* ctf-impl.h (ctf_dynset_elements): Declare it.
+	(ctf_str_add_pending): Likewise.
+	(ctf_dict_t) <ctf_str_pending_ref>: New, set of refs that must be
+	added during serialization.
+	* ctf-string.c (ctf_str_create_atoms): Initialize it.
+	(CTF_STR_ADD_REF): New flag.
+	(CTF_STR_MAKE_PROVISIONAL): Likewise.
+	(CTF_STR_PENDING_REF): Likewise.
+	(ctf_str_add_ref_internal): Take a flags word rather than int
+	params.  Populate, and clear out, ctf_str_pending_ref.
+	(ctf_str_add): Adjust accordingly.
+	(ctf_str_add_external): Likewise.
+	(ctf_str_add_pending): New.
+	(ctf_str_remove_ref): Also remove the potential ref if it is a
+	pending ref.
+	* ctf-serialize.c (ctf_serialize): Prohibit addition of strings
+	with ctf_str_add_ref before serialization.  Ensure that the
+	ctf_str_pending_ref set is empty before strtab finalization.
+	(ctf_emit_type_sect): Add a ref to the ctt_name.
+	* ctf-create.c (ctf_add_generic): Add the ctt_name as a pending
+	ref.
+	* testsuite/libctf-writable/reserialize-strtab-corruption.*: New test.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-serialize.c (ctf_serialize): Preserve ctf_typemax across
+	serialization.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-impl.h (ctf_dtdef_t) <dtd_u.dtu_argv>: Remove.
+	* ctf-create.c (ctf_dtd_delete): No longer free it.
+	(ctf_add_function): Use the dtd_vlen, not dtu_argv.  Properly align.
+	* ctf-serialize.c (ctf_emit_type_sect): Just copy the dtd_vlen.
+	* ctf-types.c (ctf_func_type_info): Just use the vlen.
+	(ctf_func_type_args): Likewise.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-impl.h (ctf_dtdef_t) <dtd_u.dtu_arr>: Remove.
+	* ctf-create.c (ctf_add_array): Use the dtd_vlen, not dtu_arr.
+	(ctf_set_array): Likewise.
+	* ctf-serialize.c (ctf_emit_type_sect): Just copy the dtd_vlen.
+	* ctf-types.c (ctf_array_info): Just use the vlen.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-impl.h (ctf_dtdef_t) <dtd_u.dtu_enc>: Remove.
+	<dtd_u.dtu_slice>: Likewise.
+	<dtd_vlen>: New.
+	* ctf-create.c (ctf_add_generic): Perhaps allocate it.  All
+	callers adjusted.
+	(ctf_dtd_delete): Free it.
+	(ctf_add_slice): Use the dtd_vlen, not dtu_enc.
+	(ctf_add_encoded): Likewise.  Assert that this must be an int or
+	float.
+	* ctf-serialize.c (ctf_emit_type_sect): Just copy the dtd_vlen.
+	* ctf-dedup.c (ctf_dedup_rhash_type): Use the dtd_vlen, not
+	dtu_slice.
+	* ctf-types.c (ctf_type_reference): Likewise.
+	(ctf_type_encoding): Remove most dynamic-type-specific code: just
+	get the vlen from the right place.  Report failure to look up the
+	underlying type's encoding.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-archive.c (ctf_archive_next): GNU style fix for do {} while.
+	* ctf-dedup.c (ctf_dedup_rhash_type): Likewise.
+	(ctf_dedup_rwalk_one_output_mapping): Likewise.
+	* ctf-dump.c (ctf_dump_format_type): Likewise.
+	* ctf-lookup.c (ctf_symbol_next): Likewise.
+	* swap.h (swap_thing): Likewise.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-serialize.c: General reshuffling, and...
+	(emit_symtypetab_state_t): New, migrated from
+	local variables in ctf_serialize.
+	(ctf_serialize): Split out most section sizing and
+	emission.
+	(ctf_symtypetab_sect_sizes): New (split out).
+	(ctf_emit_symtypetab_sects): Likewise.
+	(ctf_type_sect_size): Likewise.
+	(ctf_emit_type_sect): Likewise.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-impl.h (ctf_dict_t): Fix comment.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-create.c (symtypetab_delete_nonstatic_vars): Move
+	into ctf-serialize.c.
+	(ctf_symtab_skippable): Likewise.
+	(CTF_SYMTYPETAB_EMIT_FUNCTION): Likewise.
+	(CTF_SYMTYPETAB_EMIT_PAD): Likewise.
+	(CTF_SYMTYPETAB_FORCE_INDEXED): Likewise.
+	(symtypetab_density): Likewise.
+	(emit_symtypetab): Likewise.
+	(emit_symtypetab_index): Likewise.
+	(ctf_copy_smembers): Likewise.
+	(ctf_copy_lmembers): Likewise.
+	(ctf_copy_emembers): Likewise.
+	(ctf_sort_var): Likewise.
+	(ctf_serialize): Likewise.
+	(ctf_gzwrite): Likewise.
+	(ctf_compress_write): Likewise.
+	(ctf_write_mem): Likewise.
+	(ctf_write): Likewise.
+	* ctf-serialize.c: New file.
+	* Makefile.am (libctf_nobfd_la_SOURCES): Add it.
+	* Makefile.in: Regenerate.
+
+2021-03-18  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-link.c (ctf_link_lazy_open): Move up in the file, to near
+	ctf_link_add_ctf.
+	* ctf-lookup.c (ctf_lookup_symbol_idx): Repair tabdamage.
+	(ctf_lookup_by_sym_or_name): Likewise.
+	* testsuite/libctf-lookup/struct-iteration.c: Likewise.
+	* testsuite/libctf-regression/type-add-unnamed-struct.c: Likewise.
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-create.c (symtypetab_density): Report the symbol name as
+	well as index in the name != object error; note the likely
+	consequences.
+	* ctf-link.c (ctf_link_shuffle_syms): Report the symbol index
+	as well as name.
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-link.c (ctf_link_shuffle_syms): Free ctf_dynsyms properly.
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-dump.c (ctf_dump_format_type): Fix signed/unsigned confusion.
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-dedup.c (ctf_dedup): Pass on errors from ctf_dedup_hash_type.
+	Call ctf_dedup_fini properly on other errors.
+	(ctf_dedup_emit_type): Set the errno on dynhash insertion failure.
+	* ctf-link.c (ctf_link_deduplicating_per_cu): Close outputs beyond
+	output 0 when asserting because >1 output is found.
+	(ctf_link_deduplicating): Likewise, when asserting because the
+	shared output is not the same as the passed-in fp.
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-impl.h (ctf_dict_t) <ctf_link_type_mapping>: No longer used
+	by the nondeduplicating linker.
+	(ctf_add_type_mapping): Removed, now static.
+	(ctf_type_mapping): Likewise.
+	(ctf_dedup_type_mapping): New.
+	(ctf_dedup_t) <cd_input_nums>: New.
+	* ctf-dedup.c (ctf_dedup_init): Populate it.
+	(ctf_dedup_fini): Free it again.  Emphasise that this has to be
+	the last thing called.
+	(ctf_dedup): Populate it.
+	(ctf_dedup_populate_type_mapping): Removed.
+	(ctf_dedup_populate_type_mappings): Likewise.
+	(ctf_dedup_emit): No longer call it.  No longer call
+	ctf_dedup_fini either.
+	(ctf_dedup_type_mapping): New.
+	* ctf-link.c (ctf_unnamed_cuname): New.
+	(ctf_create_per_cu): Arguments must be non-null now.
+	(ctf_in_member_cb_arg): Removed.
+	(ctf_link): No longer populate it.  No longer discard the
+	mapping table.
+	(ctf_link_deduplicating_one_symtypetab): Use
+	ctf_dedup_type_mapping, not ctf_type_mapping.  Use
+	ctf_unnamed_cuname.
+	(ctf_link_one_variable): Likewise.  Pass in args individually: no
+	longer a ctf_variable_iter callback.
+	(empty_link_type_mapping): Removed.
+	(ctf_link_deduplicating_variables): Use ctf_variable_next, not
+	ctf_variable_iter.  No longer pack arguments to
+	ctf_link_one_variable into a struct.
+	(ctf_link_deduplicating_per_cu): Call ctf_dedup_fini once
+	all link phases are done.
+	(ctf_link_deduplicating): Likewise.
+	(ctf_link_intern_extern_string): Improve comment.
+	(ctf_add_type_mapping): Migrate...
+	(ctf_type_mapping): ... these functions...
+	* ctf-create.c (ctf_add_type_mapping): ... here...
+	(ctf_type_mapping): ... and make static, for the sole use of
+	ctf_add_type.
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-link.c (ctf_link_one_variable): Remove reference to
+	"unconflicted link mode".
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-link.c (ctf_create_per_cu): Drop FILENAME now that it is
+	always identical to CUNAME.
+	(ctf_link_deduplicating_one_symtypetab): Adjust.
+	(ctf_link_one_type): Remove.
+	(ctf_link_one_input_archive_member): Likewise.
+	(ctf_link_close_one_input_archive): Likewise.
+	(ctf_link_one_input_archive): Likewise.
+	(ctf_link): No longer call it.  Drop CTF_LINK_NONDEDUP path.
+	Improve header comment a bit (dicts, not files).  Adjust
+	ctf_create_per_cu call.
+	(ctf_link_deduplicating_variables): Simplify.
+	(ctf_link_in_member_cb_arg_t) <cu_name>: Remove.
+	<in_input_cu_file>: Likewise.
+	<in_fp_parent>: Likewise.
+	<done_parent>: Likewise.
+	(ctf_link_one_variable): Turn uses of in_file_name to in_cuname.
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-types.c (ctf_member_iter): Move 'rc' to an inner scope.
+	(ctf_enum_iter): Reimplement in terms of ctf_enum_next.
+	(ctf_type_iter): Reimplement in terms of ctf_type_next.
+	(ctf_type_iter_all): Likewise.
+	(ctf_variable_iter): Reimplement in terms of ctf_variable_next.
+	* ctf-archive.c (ctf_archive_iter_internal): Remove.
+	(ctf_archive_iter): Reimplement in terms of ctf_archive_next.
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-archive.c (ctf_archive_next): Set the name of parents in
+	single-member archives.
+
 2021-02-26  Alan Modra  <amodra@gmail.com>
 
 	* Makefile.in: Regenerate.
@@ -9,7 +334,7 @@
 	* configure: Regenerate.
 	* Makefile.in: Regenerate.
 
-2021-02-17  Nick Alcock  <nick.alcock@oracle.com>
+2021-02-20  Nick Alcock  <nick.alcock@oracle.com>
 
 	* ctf-impl.h (ctf_dict_t) <ctf_symhash>: New.
 	<ctf_symhash_latest>: Likewise.

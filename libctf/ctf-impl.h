@@ -29,8 +29,10 @@
 #include <sys/types.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include <limits.h>
 #include <ctype.h>
 #include <elf.h>
@@ -178,28 +180,13 @@ typedef struct ctf_decl
   int cd_enomem;		     /* Nonzero if OOM during printing.  */
 } ctf_decl_t;
 
-typedef struct ctf_dmdef
-{
-  ctf_list_t dmd_list;		/* List forward/back pointers.  */
-  char *dmd_name;		/* Name of this member.  */
-  ctf_id_t dmd_type;		/* Type of this member (for sou).  */
-  unsigned long dmd_offset;	/* Offset of this member in bits (for sou).  */
-  int dmd_value;		/* Value of this member (for enum).  */
-} ctf_dmdef_t;
-
 typedef struct ctf_dtdef
 {
   ctf_list_t dtd_list;		/* List forward/back pointers.  */
   ctf_id_t dtd_type;		/* Type identifier for this definition.  */
   ctf_type_t dtd_data;		/* Type node, including name.  */
-  union
-  {
-    ctf_list_t dtu_members;	/* struct, union, or enum */
-    ctf_arinfo_t dtu_arr;	/* array */
-    ctf_encoding_t dtu_enc;	/* integer or float */
-    uint32_t *dtu_argv;		/* function */
-    ctf_slice_t dtu_slice;	/* slice */
-  } dtd_u;
+  size_t dtd_vlen_alloc;	/* Total vlen space allocated.  */
+  unsigned char *dtd_vlen;	/* Variable-length data for this type.  */
 } ctf_dtdef_t;
 
 typedef struct ctf_dvdef
@@ -347,6 +334,11 @@ typedef struct ctf_dedup
   /* A set (a hash) of hash values of conflicting types.  */
   ctf_dynset_t *cd_conflicting_types;
 
+  /* A hash mapping fp *'s of inputs to their input_nums.  Used only by
+     functions outside the core ctf_dedup / ctf_dedup_emit machinery which do
+     not take an inputs array.  */
+  ctf_dynhash_t *cd_input_nums;
+
   /* Maps type hashes to ctf_id_t's in this dictionary.  Populated only at
      emission time, in the dictionary where emission is taking place.  */
   ctf_dynhash_t *cd_output_emission_hashes;
@@ -367,11 +359,12 @@ typedef struct ctf_dedup
    ctf_dict_t typedef appears in <ctf-api.h> and declares a forward tag.
    (A ctf_file_t typedef also appears there, for historical reasons.)
 
-   NOTE: ctf_serialize() requires that everything inside of ctf_dict either be
-   an immediate value, a pointer to dynamically allocated data *outside* of the
-   ctf_dict itself, or a pointer to statically allocated data.  If you add a
-   pointer to ctf_dict that points to something within the ctf_dict itself, you
-   must make corresponding changes to ctf_serialize().  */
+   NOTE: ctf_serialize requires that everything inside of ctf_dict either be an
+   immediate value, a pointer to dynamically allocated data *outside* of the
+   ctf_dict itself, a pointer to statically allocated data, or specially handled
+   in ctf_serialize.  If you add a pointer to ctf_dict that points to something
+   within the ctf_dict itself, you must make corresponding changes to
+   ctf_serialize.  */
 
 struct ctf_dict
 {
@@ -395,7 +388,8 @@ struct ctf_dict
   ctf_names_t ctf_names;	    /* Hash table of remaining type names.  */
   ctf_lookup_t ctf_lookups[5];	    /* Pointers to nametabs for name lookup.  */
   ctf_strs_t ctf_str[2];	    /* Array of string table base and bounds.  */
-  ctf_dynhash_t *ctf_str_atoms;	  /* Hash table of ctf_str_atoms_t.  */
+  ctf_dynhash_t *ctf_str_atoms;	    /* Hash table of ctf_str_atoms_t.  */
+  ctf_dynset_t *ctf_str_pending_ref; /* Locations awaiting ref addition.  */
   uint64_t ctf_str_num_refs;	  /* Number of refs to cts_str_atoms.  */
   uint32_t ctf_str_prov_offset;	  /* Latest provisional offset assigned so far.  */
   unsigned char *ctf_base;	  /* CTF file pointer.  */
@@ -455,9 +449,8 @@ struct ctf_dict
   ctf_dynhash_t *ctf_link_inputs; /* Inputs to this link.  */
   ctf_dynhash_t *ctf_link_outputs; /* Additional outputs from this link.  */
 
-  /* Map input types to output types: populated in each output dict.
-     Key is a ctf_link_type_key_t: value is a type ID.  Used by
-     nondeduplicating links and ad-hoc ctf_add_type calls only.  */
+  /* Map input types to output types for ctf_add_type.  Key is a
+     ctf_link_type_key_t: value is a type ID.  */
   ctf_dynhash_t *ctf_link_type_mapping;
 
   /* Map input CU names to output CTF dict names: populated in the top-level
@@ -538,6 +531,7 @@ struct ctf_next
   ctf_id_t ctn_type;
   ssize_t ctn_size;
   ssize_t ctn_increment;
+  const ctf_type_t *ctn_tp;
   uint32_t ctn_n;
 
   /* Some iterators contain other iterators, in addition to their other
@@ -550,9 +544,7 @@ struct ctf_next
      members, and the structure, variable and enum members, etc.  */
   union
   {
-    const ctf_member_t *ctn_mp;
-    const ctf_lmember_t *ctn_lmp;
-    const ctf_dmdef_t *ctn_dmd;
+    unsigned char *ctn_vlen;
     const ctf_enum_t *ctn_en;
     const ctf_dvdef_t *ctn_dvd;
     ctf_next_hkv_t *ctn_sorted_hkv;
@@ -671,6 +663,7 @@ extern int ctf_dynset_insert (ctf_dynset_t *, void *);
 extern void ctf_dynset_remove (ctf_dynset_t *, const void *);
 extern void ctf_dynset_destroy (ctf_dynset_t *);
 extern void *ctf_dynset_lookup (ctf_dynset_t *, const void *);
+extern size_t ctf_dynset_elements (ctf_dynset_t *);
 extern int ctf_dynset_exists (ctf_dynset_t *, const void *key,
 			      const void **orig_key);
 extern int ctf_dynset_next (ctf_dynset_t *, ctf_next_t **, void **key);
@@ -703,11 +696,6 @@ extern ctf_id_t ctf_add_encoded (ctf_dict_t *, uint32_t, const char *,
 extern ctf_id_t ctf_add_reftype (ctf_dict_t *, uint32_t, ctf_id_t,
 				 uint32_t kind);
 
-extern void ctf_add_type_mapping (ctf_dict_t *src_fp, ctf_id_t src_type,
-				  ctf_dict_t *dst_fp, ctf_id_t dst_type);
-extern ctf_id_t ctf_type_mapping (ctf_dict_t *src_fp, ctf_id_t src_type,
-				  ctf_dict_t **dst_fp);
-
 extern int ctf_dedup_atoms_init (ctf_dict_t *);
 extern int ctf_dedup (ctf_dict_t *, ctf_dict_t **, uint32_t ninputs,
 		      uint32_t *parents, int cu_mapped);
@@ -715,6 +703,8 @@ extern void ctf_dedup_fini (ctf_dict_t *, ctf_dict_t **, uint32_t);
 extern ctf_dict_t **ctf_dedup_emit (ctf_dict_t *, ctf_dict_t **,
 				    uint32_t ninputs, uint32_t *parents,
 				    uint32_t *noutputs, int cu_mapped);
+extern ctf_id_t ctf_dedup_type_mapping (ctf_dict_t *fp, ctf_dict_t *src_fp,
+					ctf_id_t src_type);
 
 extern void ctf_decl_init (ctf_decl_t *);
 extern void ctf_decl_fini (ctf_decl_t *);
@@ -732,6 +722,8 @@ extern int ctf_str_create_atoms (ctf_dict_t *);
 extern void ctf_str_free_atoms (ctf_dict_t *);
 extern uint32_t ctf_str_add (ctf_dict_t *, const char *);
 extern uint32_t ctf_str_add_ref (ctf_dict_t *, const char *, uint32_t *ref);
+extern uint32_t ctf_str_add_pending (ctf_dict_t *, const char *, uint32_t *);
+extern int ctf_str_move_pending (ctf_dict_t *, uint32_t *, ptrdiff_t);
 extern int ctf_str_add_external (ctf_dict_t *, const char *, uint32_t offset);
 extern void ctf_str_remove_ref (ctf_dict_t *, const char *, uint32_t *ref);
 extern void ctf_str_rollback (ctf_dict_t *, ctf_snapshot_id_t);

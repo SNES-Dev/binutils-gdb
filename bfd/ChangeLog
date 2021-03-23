@@ -1,3 +1,368 @@
+2021-03-22  Martin Liska  <mliska@suse.cz>
+
+	* bfd-in.h (startswith): Add startswith function.
+	(CONST_STRNEQ): Remove.
+	* bfd-in2.h (startswith): Regenerate with make headers.
+	* archive.c (bfd_slurp_armap): Replace usage of CONST_STRNEQ with startswith.
+	(_bfd_slurp_extended_name_table): Likewise.
+	* archive64.c (_bfd_archive_64_bit_slurp_armap): Likewise.
+	* bfd.c (bfd_get_sign_extend_vma): Likewise.
+	(bfd_convert_section_size): Likewise.
+	(bfd_convert_section_contents): Likewise.
+	* coff-stgo32.c (go32exe_create_stub): Likewise.
+	(go32exe_check_format): Likewise.
+	* coffcode.h (styp_to_sec_flags): Likewise.
+	(GNU_DEBUGALTLINK): Likewise.
+	* coffgen.c (_bfd_coff_section_already_linked): Likewise.
+	(coff_gc_sweep): Likewise.
+	(bfd_coff_gc_sections): Likewise.
+	* cofflink.c (coff_link_add_symbols): Likewise.
+	(process_embedded_commands): Likewise.
+	* compress.c (bfd_is_section_compressed_with_header): Likewise.
+	(bfd_init_section_decompress_status): Likewise.
+	* dwarf2.c (find_debug_info): Likewise.
+	(place_sections): Likewise.
+	* ecoff.c (_bfd_ecoff_slurp_armap): Likewise.
+	* elf-m10300.c (_bfd_mn10300_elf_size_dynamic_sections): Likewise.
+	* elf.c (_bfd_elf_make_section_from_shdr): Likewise.
+	(assign_section_numbers): Likewise.
+	(elfcore_grok_win32pstatus): Likewise.
+	* elf32-arm.c (cmse_scan): Likewise.
+	(elf32_arm_gc_mark_extra_sections): Likewise.
+	(elf32_arm_size_dynamic_sections): Likewise.
+	(is_arm_elf_unwind_section_name): Likewise.
+	* elf32-bfin.c (bfin_size_dynamic_sections): Likewise.
+	* elf32-cr16.c (_bfd_cr16_elf_size_dynamic_sections): Likewise.
+	* elf32-cris.c (elf_cris_size_dynamic_sections): Likewise.
+	* elf32-csky.c (csky_elf_size_dynamic_sections): Likewise.
+	* elf32-hppa.c (elf32_hppa_size_dynamic_sections): Likewise.
+	* elf32-iq2000.c (iq2000_elf_check_relocs): Likewise.
+	* elf32-lm32.c (lm32_elf_size_dynamic_sections): Likewise.
+	* elf32-m32r.c (m32r_elf_size_dynamic_sections): Likewise.
+	* elf32-m68k.c (elf_m68k_size_dynamic_sections): Likewise.
+	* elf32-metag.c (elf_metag_size_dynamic_sections): Likewise.
+	* elf32-msp430.c (msp430_elf_relax_delete_bytes): Likewise.
+	* elf32-nios2.c (nios2_elf32_size_dynamic_sections): Likewise.
+	* elf32-or1k.c (or1k_elf_size_dynamic_sections): Likewise.
+	* elf32-ppc.c (ppc_elf_size_dynamic_sections): Likewise.
+	* elf32-s390.c (elf_s390_size_dynamic_sections): Likewise.
+	* elf32-score.c (s3_bfd_score_elf_size_dynamic_sections): Likewise.
+	* elf32-score7.c (s7_bfd_score_elf_size_dynamic_sections): Likewise.
+	* elf32-sh.c (sh_elf_size_dynamic_sections): Likewise.
+	* elf32-tic6x.c (is_tic6x_elf_unwind_section_name): Likewise.
+	(elf32_tic6x_size_dynamic_sections): Likewise.
+	* elf32-vax.c (elf_vax_size_dynamic_sections): Likewise.
+	* elf32-xtensa.c (elf_xtensa_size_dynamic_sections): Likewise.
+	(xtensa_is_insntable_section): Likewise.
+	(xtensa_is_littable_section): Likewise.
+	(xtensa_is_proptable_section): Likewise.
+	(xtensa_property_section_name): Likewise.
+	(xtensa_callback_required_dependence): Likewise.
+	* elf64-alpha.c (elf64_alpha_size_dynamic_sections): Likewise.
+	* elf64-hppa.c (elf64_hppa_size_dynamic_sections): Likewise.
+	* elf64-ia64-vms.c (is_unwind_section_name): Likewise.
+	(get_reloc_section): Likewise.
+	(elf64_ia64_size_dynamic_sections): Likewise.
+	(elf64_ia64_object_p): Likewise.
+	* elf64-mmix.c (mmix_elf_add_symbol_hook): Likewise.
+	* elf64-ppc.c (ppc64_elf_size_dynamic_sections): Likewise.
+	* elf64-s390.c (elf_s390_size_dynamic_sections): Likewise.
+	* elflink.c (elf_link_add_object_symbols): Likewise.
+	(_bfd_elf_gc_mark_extra_sections): Likewise.
+	(bfd_elf_parse_eh_frame_entries): Likewise.
+	(_bfd_elf_section_already_linked): Likewise.
+	* elfnn-aarch64.c (elfNN_aarch64_size_dynamic_sections): Likewise.
+	* elfnn-ia64.c (is_unwind_section_name): Likewise.
+	(elfNN_ia64_size_dynamic_sections): Likewise.
+	(elfNN_ia64_object_p): Likewise.
+	* elfxx-mips.c (FN_STUB_P): Likewise.
+	(CALL_STUB_P): Likewise.
+	(CALL_FP_STUB_P): Likewise.
+	(_bfd_mips_elf_section_from_shdr): Likewise.
+	(_bfd_mips_elf_fake_sections): Likewise.
+	(_bfd_mips_elf_size_dynamic_sections): Likewise.
+	(_bfd_mips_final_write_processing): Likewise.
+	(_bfd_mips_elf_final_link): Likewise.
+	* elfxx-sparc.c (_bfd_sparc_elf_size_dynamic_sections): Likewise.
+	* elfxx-x86.c (elf_i386_is_reloc_section): Likewise.
+	(elf_x86_64_is_reloc_section): Likewise.
+	* hpux-core.c (thread_section_p): Likewise.
+	* libcoff.h (bfd_pei_p): Likewise.
+	* linker.c (REAL): Likewise.
+	(unwrap_hash_lookup): Likewise.
+	(_bfd_generic_link_add_one_symbol): Likewise.
+	* mmo.c (mmo_internal_write_section): Likewise.
+	* osf-core.c (osf_core_core_file_p): Likewise.
+	* pef.c (bfd_pef_print_symbol): Likewise.
+	* pei-x86_64.c (pex64_print_all_pdata_sections): Likewise.
+	* som.c (som_slurp_symbol_table): Likewise.
+	(som_slurp_armap): Likewise.
+	* wasm-module.c (wasm_compute_custom_section_file_position): Likewise.
+
+2021-03-22  Jan Beulich  <jbeulich@suse.com>
+
+	* peXXigen.c (_bfd_XXi_swap_scnhdr_out): Add missing
+	language translation wrapping to _bfd_error_handler()
+	invocations.
+
+2021-03-21  Alan Modra  <amodra@gmail.com>
+
+	* bfd-in.h (startswith): New inline.
+	(CONST_STRNEQ): Use startswith.
+	* bfd-in2.h: Regenerate.
+
+2021-03-20  Alan Modra  <amodra@gmail.com>
+
+	PR 27590
+	* elf.c (_bfd_elf_make_section_from_shdr): Remove SHF_EXCLUDE
+	test for .gnu.debuglto*.
+
+2021-03-18  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27590
+	* elf.c (_bfd_elf_make_section_from_shdr): Treat
+	.gnu.debuglto_.debug_ section as debugging section unless it is
+	marked with SHF_EXCLUDE.
+	* elflink.c (elf_create_symbuf): Revert commit 994b2513281.
+	(bfd_elf_match_symbols_in_sections): Ignore section symbols when
+	matching non-debugging sections or linkonce section with comdat
+	section.
+
+2021-03-18  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27587
+	* dwarf2.c (read_attribute_value): Check version >= 3 for
+	DW_FORM_ref_addr.
+
+2021-03-16  Nick Clifton  <nickc@redhat.com>
+
+	* peXXigen.c (_bfd_XXi_swap_aux_out): Avoid potential buffer
+	overrun by using sizeof of the destination x_fname field as the
+	limit for a memcpy.
+
+2021-03-16  Kuan-Lin Chen  <kuanlinchentw@gmail.com>
+
+	* elfxx-riscv.c (riscv_std_z_ext_strtab): Add zba, zbb and zbc.
+
+2021-03-12  Clément Chigot  <clement.chigot@atos.net>
+
+	* reloc.c (BFD_RELOC_PPC_TLS_LE, BFD_RELOC_PPC_TLS_IE,
+	BFD_RELOC_PPC_TLS_M, BFD_RELOC_PPC_TLS_ML, BFD_RELOC_PPC64_TLS_GD,
+	BFD_RELOC_PPC64_TLS_LD, BFD_RELOC_PPC64_TLS_LE,
+	BFD_RELOC_PPC64_TLS_IE, BFD_RELOC_PPC64_TLS_M,
+	BFD_RELOC_PPC64_TLS_ML): New relocations.
+	* bfd-in2.h: Regenerate.
+	* libbfd.h: Regenerate.
+	* coff-rs6000.c (xcoff_calculate_relocation): Call
+	xcoff_reloc_type_tls for TLS relocations.
+	(xcoff_howto_table): Implement TLS relocations.
+	(_bfd_xcoff_reloc_type_lookup): Add cases TLS relocations.
+	(xcoff_reloc_type_tls): New function.
+	* coff64-rs6000.c (xcoff_calculate_relocation): Likewise.
+	(xcoff_howto_table): Likewise.
+	(_bfd_xcoff_reloc_type_lookup): Likewise.
+	* coffcode.h (sec_to_styp_flags): Handle TLS sections.
+	(styp_to_sec_flags): Likewise.
+	(coff_compute_section_file_positions): Avoid file offset
+	optimisation for .data when the previous section is .tdata.
+	(coff_write_object_contents): Handle TLS sections.
+	* coffswap.h (coff_swap_aouthdr_out): Add support for
+	new fields in aouthdr.
+	* libxcoff.h (xcoff_reloc_type_tls): Add prototype.
+	* xcofflink.c (xcoff_link_add_symbols): Handle XMC_UL.
+	(xcoff_need_ldrel_p): Add cases for TLS relocations.
+	(xcoff_create_ldrel): Add l_symndx for TLS sections.
+
+2021-03-12  Clément Chigot  <clement.chigot@atos.net>
+
+	* reloc.c (BFD_RELOC_PPC_TOC16_HI, BFD_RELOC_PPC_TOC16_LO):
+	New relocations.
+	* bfd-in2.h: Regenerate.
+	* libbfd.h: Regenerate.
+	* coff-rs6000.c (xcoff_calculate_relocation): Call
+	xcoff_reloc_type_toc for R_TOCU and R_TOCL.
+	(xcoff_howto_table): Remove src_mask for TOC relocations.
+	Add R_TOCU and R_TOCL howtos.
+	(_bfd_xcoff_reloc_type_lookup): Add cases for
+	BFD_RELOC_PPC_TOC16_HI and BFD_RELOC_PPC_TOC16_LO.
+	(xcoff_reloc_type_toc): Compute the whole offset.
+	Implement R_TOCU and R_TOCL.
+	* coff64-rs6000.c (xcoff64_calculate_relocation):
+	Likewise.
+	(xcoff64_howto_table): Likewise.
+	(xcoff64_reloc_type_lookup): Likewise.
+
+2021-03-12  Clément Chigot  <clement.chigot@atos.net>
+
+	* coff-rs6000.c (xcoff_calculate_relocation): Correct and
+	add new relocations.
+	(xcoff_howto_table): Likewise.
+	(xcoff_rtype2howto): Increase r_type maximum value.
+	(xcoff_ppc_relocate_section): Reuse predefined HOWTOs instead
+	of create a new one from scratch.  Enable only some relocations
+	to have a changing r_size.
+	* coff64-rs6000.c (xcoff64_calculate_relocation): Likewise.
+	(xcoff64_howto_table): Likewise.
+	(xcoff64_rtype2howto): Likewise.
+	(xcoff64_ppc_relocate_section): Likewise.
+	* libxcoff.h (XCOFF_MAX_CALCULATE_RELOCATION): Fix value.
+
+2021-03-12  Clément Chigot  <clement.chigot@atos.net>
+
+	* coff64-rs6000.c (xcoff64_ppc_relocate_section): Move.
+
+2021-03-12  Clément Chigot  <clement.chigot@atos.net>
+
+	* coff64-rs6000.c (xcoff64_write_object_contents): Remove.
+	* coffcode.h (coff_write_object_contents): Add bfd_mach_ppc_620
+	support for o_cputype field.  Avoid creating an empty a.out header
+	for XCOFF64.
+
+2021-03-12  Clément Chigot  <clement.chigot@atos.net>
+
+	* coff64-rs6000.c (xcoff64_create_csect_from_smclas): Add
+	missing smclass.
+
+2021-03-11  Nelson Chu  <nelson.chu@sifive.com>
+
+	* elfnn-riscv.c (riscv_elf_link_hash_table): New boolean
+	restart_relax, used to check if we need to run the whole
+	relaxations from relax pass 0 to 2 again.
+	(riscv_elf_link_hash_table_create): Init restart_relax to FALSE.
+	(_bfd_riscv_relax_align): Remove obsolete sec_flg0 set.
+	(_bfd_riscv_relax_delete): Set again to TRUE if we do delete the code.
+	(bfd_elfNN_riscv_restart_relax_sections): New function.  Called by
+	after_allocation to check if we need to run the whole relaxations again.
+	(_bfd_riscv_relax_section): We will only enter into the relax pass 3
+	when the restart_relax is FALSE; At last set restart_relax to TRUE if
+	again is TRUE, too.
+	* elfxx-riscv.h (bfd_elf32_riscv_restart_relax_sections): Declaration.
+	(bfd_elf64_riscv_restart_relax_sections): Likewise.
+
+2021-03-10  Jan Beulich  <jbeulich@suse.com>
+
+	* cofflink.c (_bfd_coff_write_global_sym): Range-check symbol
+	offset.
+
+2021-03-10  Alan Modra  <amodra@gmail.com>
+	    Jan Beulich  <jbeulich@suse.com>
+
+	* elf.c (bfd_elf_generic_reloc): Make references between debug
+	sections use section relative values.
+
+2021-03-09  Jan Beulich  <jbeulich@suse.com>
+
+	* peXXigen.c (_bfd_XXi_swap_scnhdr_out): Diagnose out of range RVA.
+
+2021-03-05  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27425
+	PR ld/27432
+	* bfd.c (_bfd_get_link_info): New function.
+	* elf-bfd.h (output_elf_obj_tdata): Add link_info.
+	(elf_link_info): New.
+	* libbfd-in.h (_bfd_get_link_info): New prototype.
+	* coff-x86_64.c (coff_amd64_reloc): Also subtract __ImageBase for
+	R_AMD64_IMAGEBASE when generating x86-64 ELF executable.
+	* pe-x86_64.c: Include "coff/internal.h" and "libcoff.h".
+	(pex64_link_add_symbols): New function.
+	(coff_bfd_link_add_symbols): New macro.
+	* libbfd.h: Regenerated.
+
+2021-03-05  Craig Blackmore  <craig.blackmore@embecosm.com>
+	    Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* elf-bfd.h (elfcore_write_riscv_csr): Declare.
+	* elf.c (elfcore_grok_riscv_csr): New function.
+	(elfcore_grok_note): Handle NT_RISCV_CSR.
+	(elfcore_write_riscv_csr): New function.
+	(elfcore_write_register_note): Handle '.reg-riscv-csr'.
+
+2021-03-05  Craig Blackmore  <craig.blackmore@embecosm.com>
+	    Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* elfnn-riscv.c (PRPSINFO_PR_FNAME_LENGTH): Define.
+	(PRPSINFO_PR_PSARGS_LENGTH): Define.
+	(riscv_write_core_note): New function.
+	(riscv_elf_grok_psinfo): Make use of two new length defines.
+	(elf_backend_write_core_note): Define.
+
+2021-03-05  Craig Blackmore  <craig.blackmore@embecosm.com>
+	    Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* elf-bfd.h (elfcore_write_gdb_tdesc): Declare new function.
+	* elf.c (elfcore_grok_gdb_tdesc): New function.
+	(elfcore_grok_note): Handle NT_GDB_TDESC.
+	(elfcore_write_gdb_tdesc): New function.
+	(elfcore_write_register_note): Handle NT_GDB_TDESC.
+
+2021-03-05  Nick Clifton  <nickc@redhat.com>
+
+	PR 27521
+	* dwarf2.c (is_str_attr): Add DW_FORM_strx* forms.
+	(read_indexed_string): Placeholder function.
+	(read_attribute_value): Handle DW_FORM_strx* and DW_FORM_addrx*
+	forms.
+
+2021-03-05  Alan Modra  <amodra@gmail.com>
+
+	* reloc.c (bfd_perform_relocation): Revert 2021-01-12 and
+	2020-09-16 changes.
+	* coff-x86_64.c (coff_amd64_reloc): Do more or less the same
+	adjustments here instead.  Separate pc-relative adjustments
+	from symbol related adjustments.  Tidy comments and formatting.
+
+2021-03-04  Jan Beulich  <jbeulich@suse.com>
+
+	* coffcode.h (sec_to_styp_flags): Don't set IMAGE_SCN_LNK_* in
+	final PE images.
+
+2021-03-04  Alan Modra  <amodra@gmail.com>
+
+	* rs6000-core.c (rs6000coff_core_p): Correct prototype.
+
+2021-03-03  Alan Modra  <amodra@gmail.com>
+
+	PR 27500
+	* elflink.c (_bfd_elf_gc_mark_rsec): Do special start/stop
+	processing not when start/stop symbol section is unmarked but
+	on first time a start/stop symbol is processed.
+
+2021-03-03  Alan Modra  <amodra@gmail.com>
+
+	* reloc.c: Include x86_64.h rather than internal.h.
+
+2021-03-02  Nick Clifton  <nickc@redhat.com>
+
+	PR 27484
+	* dwarf2.c (scan_unit_for_symbols): Scan twice, once to accumulate
+	function and variable tags and a second time to resolve their
+	attributes.
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* elf-strtab.c (_bfd_elf_strtab_str): Skip strings with zero refcount.
+
+2021-03-02  Alan Modra  <amodra@gmail.com>
+
+	PR 27451
+	* elf64-ppc.c (ppc64_elf_gc_mark_dynamic_ref): Ignore synthesized
+	linker defined start/stop symbols when start_stop_gc.
+
+2021-03-02  Alan Modra  <amodra@gmail.com>
+
+	* elf64-ppc.c (ppc64_elf_relocate_section): Don't optimise got
+	indirect to pc-relative or toc-relative for undefined symbols.
+
+2021-03-01  Alan Modra  <amodra@gmail.com>
+	    Fangrui Song <maskray@google.com>
+
+	* elflink.c (_bfd_elf_gc_mark_rsec): Ignore synthesized linker
+	defined start/stop symbols when start_stop_gc.
+	(bfd_elf_gc_mark_dynamic_ref_symbol): Likewise.
+	(bfd_elf_define_start_stop): Don't modify ldscript_def syms.
+	* linker.c (bfd_generic_define_start_stop): Likewise.
+
 2021-02-25  Alan Modra  <amodra@gmail.com>
 
 	PR 27441

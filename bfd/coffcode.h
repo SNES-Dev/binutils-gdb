@@ -527,8 +527,8 @@ sec_to_styp_flags (const char *sec_name, flagword sec_flags)
       styp_flags = STYP_LIT;
 #endif /* _LIT */
     }
-  else if (CONST_STRNEQ (sec_name, DOT_DEBUG)
-	   || CONST_STRNEQ (sec_name, DOT_ZDEBUG))
+  else if (startswith (sec_name, DOT_DEBUG)
+	   || startswith (sec_name, DOT_ZDEBUG))
     {
       /* Handle the XCOFF debug section and DWARF2 debug sections.  */
       if (!sec_name[6])
@@ -536,18 +536,26 @@ sec_to_styp_flags (const char *sec_name, flagword sec_flags)
       else
 	styp_flags = STYP_DEBUG_INFO;
     }
-  else if (CONST_STRNEQ (sec_name, ".stab"))
+  else if (startswith (sec_name, ".stab"))
     {
       styp_flags = STYP_DEBUG_INFO;
     }
 #ifdef COFF_LONG_SECTION_NAMES
-  else if (CONST_STRNEQ (sec_name, GNU_LINKONCE_WI)
-	   || CONST_STRNEQ (sec_name, GNU_LINKONCE_WT))
+  else if (startswith (sec_name, GNU_LINKONCE_WI)
+	   || startswith (sec_name, GNU_LINKONCE_WT))
     {
       styp_flags = STYP_DEBUG_INFO;
     }
 #endif
 #ifdef RS6000COFF_C
+  else if (!strcmp (sec_name, _TDATA))
+    {
+      styp_flags = STYP_TDATA;
+    }
+  else if (!strcmp (sec_name, _TBSS))
+    {
+      styp_flags = STYP_TBSS;
+    }
   else if (!strcmp (sec_name, _PAD))
     {
       styp_flags = STYP_PAD;
@@ -634,13 +642,13 @@ sec_to_styp_flags (const char *sec_name, flagword sec_flags)
   long styp_flags = 0;
   bfd_boolean is_dbg = FALSE;
 
-  if (CONST_STRNEQ (sec_name, DOT_DEBUG)
-      || CONST_STRNEQ (sec_name, DOT_ZDEBUG)
+  if (startswith (sec_name, DOT_DEBUG)
+      || startswith (sec_name, DOT_ZDEBUG)
 #ifdef COFF_LONG_SECTION_NAMES
-      || CONST_STRNEQ (sec_name, GNU_LINKONCE_WI)
-      || CONST_STRNEQ (sec_name, GNU_LINKONCE_WT)
+      || startswith (sec_name, GNU_LINKONCE_WI)
+      || startswith (sec_name, GNU_LINKONCE_WT)
 #endif
-      || CONST_STRNEQ (sec_name, ".stab"))
+      || startswith (sec_name, ".stab"))
     is_dbg = TRUE;
 
   /* caution: there are at least three groups of symbols that have
@@ -672,22 +680,31 @@ sec_to_styp_flags (const char *sec_name, flagword sec_flags)
   /* skip ROM */
   /* skip constRUCTOR */
   /* skip CONTENTS */
+#ifndef COFF_IMAGE_WITH_PE
+  /* I don't think any of the IMAGE_SCN_LNK_* flags set below should be set
+     when the output is PE. Only object files should have them, for the linker
+     to consume.  */
   if ((sec_flags & SEC_IS_COMMON) != 0)
     styp_flags |= IMAGE_SCN_LNK_COMDAT;
+#endif
   if ((sec_flags & SEC_DEBUGGING) != 0)
     styp_flags |= IMAGE_SCN_MEM_DISCARDABLE;
-  if ((sec_flags & SEC_EXCLUDE) != 0 && !is_dbg)
+  if ((sec_flags & (SEC_EXCLUDE | SEC_NEVER_LOAD)) != 0 && !is_dbg)
+#ifdef COFF_IMAGE_WITH_PE
+    styp_flags |= IMAGE_SCN_MEM_DISCARDABLE;
+#else
     styp_flags |= IMAGE_SCN_LNK_REMOVE;
-  if ((sec_flags & SEC_NEVER_LOAD) != 0 && !is_dbg)
-    styp_flags |= IMAGE_SCN_LNK_REMOVE;
+#endif
   /* skip IN_MEMORY */
   /* skip SORT */
+#ifndef COFF_IMAGE_WITH_PE
   if (sec_flags & SEC_LINK_ONCE)
     styp_flags |= IMAGE_SCN_LNK_COMDAT;
   if ((sec_flags
        & (SEC_LINK_DUPLICATES_DISCARD | SEC_LINK_DUPLICATES_SAME_CONTENTS
 	  | SEC_LINK_DUPLICATES_SAME_SIZE)) != 0)
     styp_flags |= IMAGE_SCN_LNK_COMDAT;
+#endif
 
   /* skip LINKER_CREATED */
 
@@ -778,6 +795,22 @@ styp_to_sec_flags (bfd *abfd,
   else if (styp_flags & STYP_PAD)
     sec_flags = 0;
 #ifdef RS6000COFF_C
+  else if (styp_flags & STYP_TDATA)
+    {
+      if (sec_flags & SEC_NEVER_LOAD)
+	sec_flags |= SEC_DATA | SEC_THREAD_LOCAL | SEC_COFF_SHARED_LIBRARY;
+      else
+	sec_flags |= SEC_DATA | SEC_THREAD_LOCAL | SEC_LOAD | SEC_ALLOC;
+    }
+  else if (styp_flags & STYP_TBSS)
+    {
+#ifdef BSS_NOLOAD_IS_SHARED_LIBRARY
+      if (sec_flags & SEC_NEVER_LOAD)
+	sec_flags |= SEC_ALLOC | SEC_THREAD_LOCAL | SEC_COFF_SHARED_LIBRARY;
+      else
+#endif
+	sec_flags |= SEC_ALLOC | SEC_THREAD_LOCAL;
+    }
   else if (styp_flags & STYP_EXCEPT)
     sec_flags |= SEC_LOAD;
   else if (styp_flags & STYP_LOADER)
@@ -810,16 +843,16 @@ styp_to_sec_flags (bfd *abfd,
 #endif
 	sec_flags |= SEC_ALLOC;
     }
-  else if (CONST_STRNEQ (name, DOT_DEBUG)
-	   || CONST_STRNEQ (name, DOT_ZDEBUG)
+  else if (startswith (name, DOT_DEBUG)
+	   || startswith (name, DOT_ZDEBUG)
 #ifdef _COMMENT
 	   || strcmp (name, _COMMENT) == 0
 #endif
 #ifdef COFF_LONG_SECTION_NAMES
-	   || CONST_STRNEQ (name, GNU_LINKONCE_WI)
-	   || CONST_STRNEQ (name, GNU_LINKONCE_WT)
+	   || startswith (name, GNU_LINKONCE_WI)
+	   || startswith (name, GNU_LINKONCE_WT)
 #endif
-	   || CONST_STRNEQ (name, ".stab"))
+	   || startswith (name, ".stab"))
     {
 #ifdef COFF_PAGE_SIZE
       sec_flags |= SEC_DEBUGGING;
@@ -847,8 +880,8 @@ styp_to_sec_flags (bfd *abfd,
 #endif /* STYP_SDATA */
 
   if ((bfd_applicable_section_flags (abfd) & SEC_SMALL_DATA) != 0
-      && (CONST_STRNEQ (name, ".sbss")
-	  || CONST_STRNEQ (name, ".sdata")))
+      && (startswith (name, ".sbss")
+	  || startswith (name, ".sdata")))
     sec_flags |= SEC_SMALL_DATA;
 
 #if defined (COFF_LONG_SECTION_NAMES) && defined (COFF_SUPPORT_GNU_LINKONCE)
@@ -858,7 +891,7 @@ styp_to_sec_flags (bfd *abfd,
      The symbols will be defined as weak, so that multiple definitions
      are permitted.  The GNU linker extension is to actually discard
      all but one of the sections.  */
-  if (CONST_STRNEQ (name, ".gnu.linkonce"))
+  if (startswith (name, ".gnu.linkonce"))
     sec_flags |= SEC_LINK_ONCE | SEC_LINK_DUPLICATES_DISCARD;
 #endif
 
@@ -1170,18 +1203,18 @@ styp_to_sec_flags (bfd *abfd,
   bfd_boolean result = TRUE;
   bfd_boolean is_dbg = FALSE;
 
-  if (CONST_STRNEQ (name, DOT_DEBUG)
-      || CONST_STRNEQ (name, DOT_ZDEBUG)
+  if (startswith (name, DOT_DEBUG)
+      || startswith (name, DOT_ZDEBUG)
 #ifdef COFF_LONG_SECTION_NAMES
-      || CONST_STRNEQ (name, GNU_LINKONCE_WI)
-      || CONST_STRNEQ (name, GNU_LINKONCE_WT)
+      || startswith (name, GNU_LINKONCE_WI)
+      || startswith (name, GNU_LINKONCE_WT)
       /* FIXME: These definitions ought to be in a header file.  */
 #define GNU_DEBUGLINK		".gnu_debuglink"
 #define GNU_DEBUGALTLINK	".gnu_debugaltlink"
-      || CONST_STRNEQ (name, GNU_DEBUGLINK)
-      || CONST_STRNEQ (name, GNU_DEBUGALTLINK)
+      || startswith (name, GNU_DEBUGLINK)
+      || startswith (name, GNU_DEBUGALTLINK)
 #endif
-      || CONST_STRNEQ (name, ".stab"))
+      || startswith (name, ".stab"))
     is_dbg = TRUE;
   /* Assume read only unless IMAGE_SCN_MEM_WRITE is specified.  */
   sec_flags = SEC_READONLY;
@@ -1314,8 +1347,8 @@ styp_to_sec_flags (bfd *abfd,
     }
 
   if ((bfd_applicable_section_flags (abfd) & SEC_SMALL_DATA) != 0
-      && (CONST_STRNEQ (name, ".sbss")
-	  || CONST_STRNEQ (name, ".sdata")))
+      && (startswith (name, ".sbss")
+	  || startswith (name, ".sdata")))
     sec_flags |= SEC_SMALL_DATA;
 
 #if defined (COFF_LONG_SECTION_NAMES) && defined (COFF_SUPPORT_GNU_LINKONCE)
@@ -1325,7 +1358,7 @@ styp_to_sec_flags (bfd *abfd,
      The symbols will be defined as weak, so that multiple definitions
      are permitted.  The GNU linker extension is to actually discard
      all but one of the sections.  */
-  if (CONST_STRNEQ (name, ".gnu.linkonce"))
+  if (startswith (name, ".gnu.linkonce"))
     sec_flags |= SEC_LINK_ONCE | SEC_LINK_DUPLICATES_DISCARD;
 #endif
 
@@ -1646,7 +1679,7 @@ Special entry points for gdb to swap in coff symbol table parts:
 .{* Macro: Returns true if the bfd is a PE executable as opposed to a
 .   PE object file.  *}
 .#define bfd_pei_p(abfd) \
-.  (CONST_STRNEQ ((abfd)->xvec->name, "pei-"))
+.  (startswith ((abfd)->xvec->name, "pei-"))
 */
 
 /* See whether the magic number matches.  */
@@ -3159,10 +3192,15 @@ coff_compute_section_file_positions (bfd * abfd)
 
 	     0 .text	     000054cc  10000128	 10000128  00000128  2**5
 			     CONTENTS, ALLOC, LOAD, CODE
+
+	     Don't perform the above tweak if the previous one is .tdata,
+	     as it will increase the memory allocated for every threads
+	     created and not just improve performances with gdb.
 	  */
 
-	  if (!strcmp (current->name, _TEXT)
-	      || !strcmp (current->name, _DATA))
+	  if ((!strcmp (current->name, _TEXT)
+	       || !strcmp (current->name, _DATA))
+	      && (previous == NULL || strcmp(previous->name, _TDATA)))
 	    {
 	      bfd_vma align = 4096;
 	      bfd_vma sofar_off = sofar % align;
@@ -3372,6 +3410,10 @@ coff_write_object_contents (bfd * abfd)
   asection *text_sec = NULL;
   asection *data_sec = NULL;
   asection *bss_sec = NULL;
+#ifdef RS6000COFF_C
+  asection *tdata_sec = NULL;
+  asection *tbss_sec = NULL;
+#endif
   struct internal_filehdr internal_f;
   struct internal_aouthdr internal_a;
 #ifdef COFF_LONG_SECTION_NAMES
@@ -3594,6 +3636,13 @@ coff_write_object_contents (bfd * abfd)
 	data_sec = current;
       else if (!strcmp (current->name, _BSS))
 	bss_sec = current;
+#ifdef RS6000COFF_C
+      else if (!strcmp (current->name, _TDATA))
+	tdata_sec = current;
+      else if (!strcmp (current->name, _TBSS))
+	tbss_sec = current;
+#endif
+
 
 #ifdef COFF_ENCODE_ALIGNMENT
       COFF_ENCODE_ALIGNMENT(section, current->alignment_power);
@@ -4032,6 +4081,29 @@ coff_write_object_contents (bfd * abfd)
       else
 	internal_a.o_snbss = 0;
 
+      if (tdata_sec != NULL)
+	{
+	  internal_a.o_sntdata = tdata_sec->target_index;
+	  /* TODO: o_flags should be set to RS6K_AOUTHDR_TLS_LE
+	     if there is at least one R_TLS_LE relocations.  */
+	  internal_a.o_flags = 0;
+#ifdef XCOFF64
+	  internal_a.o_x64flags = 0;
+#endif
+	}
+      else
+	{
+	  internal_a.o_sntdata = 0;
+	  internal_a.o_flags = 0;
+#ifdef XCOFF64
+	  internal_a.o_x64flags = 0;
+#endif
+	}
+      if (tbss_sec != NULL)
+	  internal_a.o_sntbss = tbss_sec->target_index;
+      else
+	  internal_a.o_sntbss = 0;
+
       toc = xcoff_data (abfd)->toc;
       internal_a.o_toc = toc;
       internal_a.o_sntoc = xcoff_data (abfd)->sntoc;
@@ -4049,6 +4121,8 @@ coff_write_object_contents (bfd * abfd)
 	    case bfd_arch_powerpc:
 	      if (bfd_get_mach (abfd) == bfd_mach_ppc)
 		internal_a.o_cputype = 3;
+	      else if (bfd_get_mach (abfd) == bfd_mach_ppc_620)
+		internal_a.o_cputype = 2;
 	      else
 		internal_a.o_cputype = 1;
 	      break;
@@ -4118,12 +4192,13 @@ coff_write_object_contents (bfd * abfd)
 #endif
     }
 #ifdef RS6000COFF_C
+#ifndef XCOFF64
   else
     {
       AOUTHDR buff;
       size_t size;
 
-      /* XCOFF seems to always write at least a small a.out header.  */
+      /* XCOFF32 seems to always write at least a small a.out header.  */
       coff_swap_aouthdr_out (abfd, & internal_a, & buff);
       if (xcoff_data (abfd)->full_aouthdr)
 	size = bfd_coff_aoutsz (abfd);
@@ -4132,6 +4207,7 @@ coff_write_object_contents (bfd * abfd)
       if (bfd_bwrite (& buff, (bfd_size_type) size, abfd) != size)
 	return FALSE;
     }
+#endif
 #endif
 
   return TRUE;

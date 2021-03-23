@@ -1160,8 +1160,23 @@ read_abbrevs (bfd *abfd, bfd_uint64_t offset, struct dwarf2_debug *stash,
 static inline bfd_boolean
 is_str_attr (enum dwarf_form form)
 {
-  return (form == DW_FORM_string || form == DW_FORM_strp
-	  || form == DW_FORM_line_strp || form == DW_FORM_GNU_strp_alt);
+  return (form == DW_FORM_string
+	  || form == DW_FORM_strp
+	  || form == DW_FORM_strx
+	  || form == DW_FORM_strx1
+	  || form == DW_FORM_strx2
+	  || form == DW_FORM_strx3
+	  || form == DW_FORM_strx4
+	  || form == DW_FORM_line_strp
+	  || form == DW_FORM_GNU_strp_alt);
+}
+
+static const char *
+read_indexed_string (bfd_uint64_t index ATTRIBUTE_UNUSED,
+		     struct comp_unit * unit ATTRIBUTE_UNUSED)
+{
+  /* FIXME: Add support for indexed strings.  */
+  return "<indexed strings not yet supported>";
 }
 
 /* Read and fill in the value of attribute ATTR as described by FORM.
@@ -1192,10 +1207,13 @@ read_attribute_value (struct attribute *  attr,
 
   switch (form)
     {
+    case DW_FORM_flag_present:
+      attr->u.val = 1;
+      break;
     case DW_FORM_ref_addr:
       /* DW_FORM_ref_addr is an address in DWARF2, and an offset in
 	 DWARF3.  */
-      if (unit->version == 3 || unit->version == 4)
+      if (unit->version >= 3)
 	{
 	  if (unit->offset_size == 4)
 	    attr->u.val = read_4_bytes (unit->abfd, info_ptr, info_ptr_end);
@@ -1237,15 +1255,32 @@ read_attribute_value (struct attribute *  attr,
       info_ptr = read_n_bytes (info_ptr, info_ptr_end, blk);
       attr->u.blk = blk;
       break;
+    case DW_FORM_ref1:
+    case DW_FORM_flag:
+    case DW_FORM_data1:
+    case DW_FORM_addrx1:
+      attr->u.val = read_1_byte (abfd, info_ptr, info_ptr_end);
+      info_ptr += 1;
+      break;
     case DW_FORM_data2:
+    case DW_FORM_ref2:
       attr->u.val = read_2_bytes (abfd, info_ptr, info_ptr_end);
       info_ptr += 2;
       break;
+    case DW_FORM_addrx3:
+      attr->u.val = read_4_bytes (abfd, info_ptr, info_ptr_end);
+      attr->u.val &= 0xffffff;
+      info_ptr += 3;
+      break;
+    case DW_FORM_ref4:
     case DW_FORM_data4:
+    case DW_FORM_addrx4:
       attr->u.val = read_4_bytes (abfd, info_ptr, info_ptr_end);
       info_ptr += 4;
       break;
     case DW_FORM_data8:
+    case DW_FORM_ref8:
+    case DW_FORM_ref_sig8:
       attr->u.val = read_8_bytes (abfd, info_ptr, info_ptr_end);
       info_ptr += 8;
       break;
@@ -1264,6 +1299,33 @@ read_attribute_value (struct attribute *  attr,
     case DW_FORM_GNU_strp_alt:
       attr->u.str = read_alt_indirect_string (unit, info_ptr, info_ptr_end, &bytes_read);
       info_ptr += bytes_read;
+      break;
+    case DW_FORM_strx1:
+      attr->u.val = read_1_byte (abfd, info_ptr, info_ptr_end);
+      info_ptr += 1;
+      attr->u.str = (char *) read_indexed_string (attr->u.val, unit);
+      break;
+    case DW_FORM_strx2:
+      attr->u.val = read_2_bytes (abfd, info_ptr, info_ptr_end);
+      info_ptr += 2;
+      attr->u.str = (char *) read_indexed_string (attr->u.val, unit);
+      break;
+    case DW_FORM_strx3:
+      attr->u.val = read_4_bytes (abfd, info_ptr, info_ptr_end);
+      info_ptr += 3;
+      attr->u.val &= 0xffffff;
+      attr->u.str = (char *) read_indexed_string (attr->u.val, unit);
+      break;
+    case DW_FORM_strx4:
+      attr->u.val = read_4_bytes (abfd, info_ptr, info_ptr_end);
+      info_ptr += 4;
+      attr->u.str = (char *) read_indexed_string (attr->u.val, unit);
+      break;
+    case DW_FORM_strx:
+      attr->u.val = _bfd_safe_read_leb128 (abfd, info_ptr, &bytes_read,
+					 FALSE, info_ptr_end);
+      info_ptr += bytes_read;
+      attr->u.str = (char *) read_indexed_string (attr->u.val, unit);
       break;
     case DW_FORM_exprloc:
     case DW_FORM_block:
@@ -1287,48 +1349,14 @@ read_attribute_value (struct attribute *  attr,
       info_ptr = read_n_bytes (info_ptr, info_ptr_end, blk);
       attr->u.blk = blk;
       break;
-    case DW_FORM_data1:
-      attr->u.val = read_1_byte (abfd, info_ptr, info_ptr_end);
-      info_ptr += 1;
-      break;
-    case DW_FORM_flag:
-      attr->u.val = read_1_byte (abfd, info_ptr, info_ptr_end);
-      info_ptr += 1;
-      break;
-    case DW_FORM_flag_present:
-      attr->u.val = 1;
-      break;
     case DW_FORM_sdata:
       attr->u.sval = _bfd_safe_read_leb128 (abfd, info_ptr, &bytes_read,
 					    TRUE, info_ptr_end);
       info_ptr += bytes_read;
       break;
-    case DW_FORM_udata:
-      attr->u.val = _bfd_safe_read_leb128 (abfd, info_ptr, &bytes_read,
-					   FALSE, info_ptr_end);
-      info_ptr += bytes_read;
-      break;
-    case DW_FORM_ref1:
-      attr->u.val = read_1_byte (abfd, info_ptr, info_ptr_end);
-      info_ptr += 1;
-      break;
-    case DW_FORM_ref2:
-      attr->u.val = read_2_bytes (abfd, info_ptr, info_ptr_end);
-      info_ptr += 2;
-      break;
-    case DW_FORM_ref4:
-      attr->u.val = read_4_bytes (abfd, info_ptr, info_ptr_end);
-      info_ptr += 4;
-      break;
-    case DW_FORM_ref8:
-      attr->u.val = read_8_bytes (abfd, info_ptr, info_ptr_end);
-      info_ptr += 8;
-      break;
-    case DW_FORM_ref_sig8:
-      attr->u.val = read_8_bytes (abfd, info_ptr, info_ptr_end);
-      info_ptr += 8;
-      break;
     case DW_FORM_ref_udata:
+    case DW_FORM_udata:
+    case DW_FORM_addrx:
       attr->u.val = _bfd_safe_read_leb128 (abfd, info_ptr, &bytes_read,
 					   FALSE, info_ptr_end);
       info_ptr += bytes_read;
@@ -1361,6 +1389,7 @@ read_attribute_value (struct attribute *  attr,
       info_ptr = read_n_bytes (info_ptr, info_ptr_end, blk);
       attr->u.blk = blk;
       break;
+
     default:
       _bfd_error_handler (_("DWARF error: invalid or unhandled FORM value: %#x"),
 			  form);
@@ -1484,6 +1513,8 @@ struct funcinfo
   struct arange		arange;
   /* Where the symbol is defined.  */
   asection *		sec;
+  /* The offset of the funcinfo from the start of the unit.  */
+  bfd_uint64_t          unit_offset;
 };
 
 struct lookup_funcinfo
@@ -3304,6 +3335,15 @@ read_rangelist (struct comp_unit *unit, struct arange *arange,
     return read_rnglists (unit, arange, offset);
 }
 
+static struct funcinfo *
+lookup_func_by_offset (bfd_uint64_t offset, struct funcinfo * table)
+{
+  for (; table != NULL; table = table->prev_func)
+    if (table->unit_offset == offset)
+      return table;
+  return NULL;
+}
+
 static struct varinfo *
 lookup_var_by_offset (bfd_uint64_t offset, struct varinfo * table)
 {
@@ -3330,7 +3370,8 @@ scan_unit_for_symbols (struct comp_unit *unit)
   bfd_byte *info_ptr = unit->first_child_die_ptr;
   bfd_byte *info_ptr_end = unit->end_ptr;
   int nesting_level = 0;
-  struct nest_funcinfo {
+  struct nest_funcinfo
+  {
     struct funcinfo *func;
   } *nested_funcs;
   int nested_funcs_size;
@@ -3344,16 +3385,16 @@ scan_unit_for_symbols (struct comp_unit *unit)
     return FALSE;
   nested_funcs[nesting_level].func = 0;
 
+  /* PR 27484: We must scan the DIEs twice.  The first time we look for
+     function and variable tags and accumulate them into their respective
+     tables.  The second time through we process the attributes of the
+     functions/variables and augment the table entries.  */
   while (nesting_level >= 0)
     {
       unsigned int abbrev_number, bytes_read, i;
       struct abbrev_info *abbrev;
-      struct attribute attr;
       struct funcinfo *func;
       struct varinfo *var;
-      bfd_vma low_pc = 0;
-      bfd_vma high_pc = 0;
-      bfd_boolean high_pc_relative = FALSE;
       bfd_uint64_t current_offset;
 
       /* PR 17512: file: 9f405d9d.  */
@@ -3365,7 +3406,7 @@ scan_unit_for_symbols (struct comp_unit *unit)
 					     FALSE, info_ptr_end);
       info_ptr += bytes_read;
 
-      if (! abbrev_number)
+      if (abbrev_number == 0)
 	{
 	  nesting_level--;
 	  continue;
@@ -3400,6 +3441,7 @@ scan_unit_for_symbols (struct comp_unit *unit)
 	    goto fail;
 	  func->tag = abbrev->tag;
 	  func->prev_func = unit->function_table;
+	  func->unit_offset = current_offset;
 	  unit->function_table = func;
 	  unit->number_of_functions++;
 	  BFD_ASSERT (!unit->cached);
@@ -3420,6 +3462,7 @@ scan_unit_for_symbols (struct comp_unit *unit)
 	      || abbrev->tag == DW_TAG_member)
 	    {
 	      size_t amt = sizeof (struct varinfo);
+
 	      var = (struct varinfo *) bfd_zalloc (abfd, amt);
 	      if (var == NULL)
 		goto fail;
@@ -3436,6 +3479,89 @@ scan_unit_for_symbols (struct comp_unit *unit)
 
 	  /* No inline function in scope at this nesting level.  */
 	  nested_funcs[nesting_level].func = 0;
+	}
+
+      for (i = 0; i < abbrev->num_attrs; ++i)
+	{
+	  struct attribute attr;
+
+	  info_ptr = read_attribute (&attr, &abbrev->attrs[i],
+				     unit, info_ptr, info_ptr_end);
+	  if (info_ptr == NULL)
+	    goto fail;
+	}
+
+      if (abbrev->has_children)
+	{
+	  nesting_level++;
+
+	  if (nesting_level >= nested_funcs_size)
+	    {
+	      struct nest_funcinfo *tmp;
+
+	      nested_funcs_size *= 2;
+	      tmp = (struct nest_funcinfo *)
+		bfd_realloc (nested_funcs,
+			     nested_funcs_size * sizeof (*nested_funcs));
+	      if (tmp == NULL)
+		goto fail;
+	      nested_funcs = tmp;
+	    }
+	  nested_funcs[nesting_level].func = 0;
+	}
+    }
+
+  /* This is the second pass over the abbrevs.  */      
+  info_ptr = unit->first_child_die_ptr;
+  nesting_level = 0;
+  
+  while (nesting_level >= 0)
+    {
+      unsigned int abbrev_number, bytes_read, i;
+      struct abbrev_info *abbrev;
+      struct attribute attr;
+      struct funcinfo *func;
+      struct varinfo *var;
+      bfd_vma low_pc = 0;
+      bfd_vma high_pc = 0;
+      bfd_boolean high_pc_relative = FALSE;
+      bfd_uint64_t current_offset;
+
+      /* PR 17512: file: 9f405d9d.  */
+      if (info_ptr >= info_ptr_end)
+	goto fail;
+
+      current_offset = info_ptr - unit->info_ptr_unit;
+      abbrev_number = _bfd_safe_read_leb128 (abfd, info_ptr, &bytes_read,
+					     FALSE, info_ptr_end);
+      info_ptr += bytes_read;
+
+      if (! abbrev_number)
+	{
+	  nesting_level--;
+	  continue;
+	}
+
+      abbrev = lookup_abbrev (abbrev_number, unit->abbrevs);
+      /* This should have been handled above.  */
+      BFD_ASSERT (abbrev != NULL);
+
+      func = NULL;
+      var = NULL;
+      if (abbrev->tag == DW_TAG_subprogram
+	  || abbrev->tag == DW_TAG_entry_point
+	  || abbrev->tag == DW_TAG_inlined_subroutine)
+	{
+	  func = lookup_func_by_offset (current_offset, unit->function_table);
+	  if (func == NULL)
+	    goto fail;
+	}
+      else if (abbrev->tag == DW_TAG_variable
+	       || abbrev->tag == DW_TAG_member)
+	{
+	  var = lookup_var_by_offset (current_offset, unit->variable_table);
+	  if (var == NULL)
+	    goto fail;
 	}
 
       for (i = 0; i < abbrev->num_attrs; ++i)
@@ -3532,7 +3658,7 @@ scan_unit_for_symbols (struct comp_unit *unit)
 			{
 			  _bfd_error_handler (_("DWARF error: could not find "
 						"variable specification "
-						"at offset %lx"),
+						"at offset 0x%lx"),
 					      (unsigned long) attr.u.val);
 			  break;
 			}
@@ -3604,6 +3730,9 @@ scan_unit_for_symbols (struct comp_unit *unit)
 	    }
 	}
 
+      if (abbrev->has_children)
+	nesting_level++;
+
       if (high_pc_relative)
 	high_pc += low_pc;
 
@@ -3611,25 +3740,6 @@ scan_unit_for_symbols (struct comp_unit *unit)
 	{
 	  if (!arange_add (unit, &func->arange, low_pc, high_pc))
 	    goto fail;
-	}
-
-      if (abbrev->has_children)
-	{
-	  nesting_level++;
-
-	  if (nesting_level >= nested_funcs_size)
-	    {
-	      struct nest_funcinfo *tmp;
-
-	      nested_funcs_size *= 2;
-	      tmp = (struct nest_funcinfo *)
-		bfd_realloc (nested_funcs,
-			     nested_funcs_size * sizeof (*nested_funcs));
-	      if (tmp == NULL)
-		goto fail;
-	      nested_funcs = tmp;
-	    }
-	  nested_funcs[nesting_level].func = 0;
 	}
     }
 
@@ -4124,7 +4234,7 @@ find_debug_info (bfd *abfd, const struct dwarf_debug_section *debug_sections,
 	}
 
       for (msec = abfd->sections; msec != NULL; msec = msec->next)
-	if (CONST_STRNEQ (msec->name, GNU_LINKONCE_INFO))
+	if (startswith (msec->name, GNU_LINKONCE_INFO))
 	  return msec;
 
       return NULL;
@@ -4140,7 +4250,7 @@ find_debug_info (bfd *abfd, const struct dwarf_debug_section *debug_sections,
       if (look != NULL && strcmp (msec->name, look) == 0)
 	return msec;
 
-      if (CONST_STRNEQ (msec->name, GNU_LINKONCE_INFO))
+      if (startswith (msec->name, GNU_LINKONCE_INFO))
 	return msec;
     }
 
@@ -4265,7 +4375,7 @@ place_sections (bfd *orig_bfd, struct dwarf2_debug *stash)
 	    continue;
 
 	  is_debug_info = (strcmp (sect->name, debug_info_name) == 0
-			   || CONST_STRNEQ (sect->name, GNU_LINKONCE_INFO));
+			   || startswith (sect->name, GNU_LINKONCE_INFO));
 
 	  if (!((sect->flags & SEC_ALLOC) != 0 && abfd == orig_bfd)
 	      && !is_debug_info)
@@ -4309,7 +4419,7 @@ place_sections (bfd *orig_bfd, struct dwarf2_debug *stash)
 		continue;
 
 	      is_debug_info = (strcmp (sect->name, debug_info_name) == 0
-			       || CONST_STRNEQ (sect->name, GNU_LINKONCE_INFO));
+			       || startswith (sect->name, GNU_LINKONCE_INFO));
 
 	      if (!((sect->flags & SEC_ALLOC) != 0 && abfd == orig_bfd)
 		  && !is_debug_info)

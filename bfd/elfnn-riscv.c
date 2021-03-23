@@ -131,6 +131,9 @@ struct riscv_elf_link_hash_table
 
   /* The index of the last unused .rel.iplt slot.  */
   bfd_vma last_iplt_index;
+
+  /* Re-run the relaxations from relax pass 0 if TRUE.  */
+  bfd_boolean restart_relax;
 };
 
 /* Instruction access functions. */
@@ -399,6 +402,7 @@ riscv_elf_link_hash_table_create (bfd *abfd)
     }
 
   ret->max_alignment = (bfd_vma) -1;
+  ret->restart_relax = FALSE;
 
   /* Create hash table for local ifunc.  */
   ret->loc_hash_table = htab_try_create (1024,
@@ -4365,7 +4369,8 @@ _bfd_riscv_relax_tls_le (bfd *abfd,
     }
 }
 
-/* Implement R_RISCV_ALIGN by deleting excess alignment NOPs.  */
+/* Implement R_RISCV_ALIGN by deleting excess alignment NOPs.
+   Once we've handled an R_RISCV_ALIGN, we can't relax anything else.  */
 
 static bfd_boolean
 _bfd_riscv_relax_align (bfd *abfd, asection *sec,
@@ -4387,9 +4392,6 @@ _bfd_riscv_relax_align (bfd *abfd, asection *sec,
   symval -= rel->r_addend;
   bfd_vma aligned_addr = ((symval - 1) & ~(alignment - 1)) + alignment;
   bfd_vma nop_bytes = aligned_addr - symval;
-
-  /* Once we've handled an R_RISCV_ALIGN, we can't relax anything else.  */
-  sec->sec_flg0 = TRUE;
 
   /* Make sure there are enough NOPs to actually achieve the alignment.  */
   if (rel->r_addend < nop_bytes)
@@ -4586,7 +4588,7 @@ _bfd_riscv_relax_delete (bfd *abfd,
 			 bfd_vma symval ATTRIBUTE_UNUSED,
 			 bfd_vma max_alignment ATTRIBUTE_UNUSED,
 			 bfd_vma reserve_size ATTRIBUTE_UNUSED,
-			 bfd_boolean *again ATTRIBUTE_UNUSED,
+			 bfd_boolean *again,
 			 riscv_pcgp_relocs *pcgp_relocs ATTRIBUTE_UNUSED,
 			 bfd_boolean undefined_weak ATTRIBUTE_UNUSED)
 {
@@ -4594,15 +4596,39 @@ _bfd_riscv_relax_delete (bfd *abfd,
 				 link_info))
     return FALSE;
   rel->r_info = ELFNN_R_INFO (0, R_RISCV_NONE);
+  *again = TRUE;
   return TRUE;
+}
+
+/* Called by after_allocation to check if we need to run the whole
+   relaxations again.  */
+
+bfd_boolean
+bfd_elfNN_riscv_restart_relax_sections (struct bfd_link_info *info)
+{
+  struct riscv_elf_link_hash_table *htab = riscv_elf_hash_table (info);
+  bfd_boolean restart = htab->restart_relax;
+  /* Reset the flag.  */
+  htab->restart_relax = FALSE;
+  return restart;
 }
 
 /* Relax a section.
 
    Pass 0: Shortens code sequences for LUI/CALL/TPREL relocs.
    Pass 1: Shortens code sequences for PCREL relocs.
-   Pass 2: Deletes the bytes that pass 1 made obselete.
-   Pass 3: Which cannot be disabled, handles code alignment directives.  */
+   Pass 2: Deletes the bytes that pass 1 made obsolete.
+   Pass 3: Which cannot be disabled, handles code alignment directives.
+
+   The `again` is used to determine whether the relax pass itself needs to
+   run again.  And the `restart_relax` is used to determine if we need to
+   run the whole relax passes again from 0 to 2.  Once we have deleted the
+   code between relax pass 0 to 2, the restart_relax will be set to TRUE,
+   and we should run the whole relaxations again to give them more chances
+   to shorten the code.
+
+   Since we can't relax anything else once we start to handle the alignments,
+   we will only enter into the relax pass 3 when the restart_relax is FALSE.  */
 
 static bfd_boolean
 _bfd_riscv_relax_section (bfd *abfd, asection *sec,
@@ -4621,11 +4647,12 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
   *again = FALSE;
 
   if (bfd_link_relocatable (info)
-      || sec->sec_flg0
       || (sec->flags & SEC_RELOC) == 0
       || sec->reloc_count == 0
       || (info->disable_target_specific_optimizations
-	  && info->relax_pass < 2))
+	  && info->relax_pass < 2)
+      || (htab->restart_relax
+	  && info->relax_pass == 3))
     return TRUE;
 
   riscv_init_pcgp_relocs (&pcgp_relocs);
@@ -4864,6 +4891,9 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
     free (relocs);
   riscv_free_pcgp_relocs (&pcgp_relocs, abfd, sec);
 
+  if (*again)
+    htab->restart_relax = TRUE;
+
   return ret;
 }
 
@@ -4877,6 +4907,8 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
 # define PRPSINFO_OFFSET_PR_PID		16
 # define PRPSINFO_OFFSET_PR_FNAME	32
 # define PRPSINFO_OFFSET_PR_PSARGS	48
+# define PRPSINFO_PR_FNAME_LENGTH	16
+# define PRPSINFO_PR_PSARGS_LENGTH	80
 #else
 # define PRSTATUS_SIZE			376
 # define PRSTATUS_OFFSET_PR_CURSIG	12
@@ -4887,7 +4919,82 @@ _bfd_riscv_relax_section (bfd *abfd, asection *sec,
 # define PRPSINFO_OFFSET_PR_PID		24
 # define PRPSINFO_OFFSET_PR_FNAME	40
 # define PRPSINFO_OFFSET_PR_PSARGS	56
+# define PRPSINFO_PR_FNAME_LENGTH	16
+# define PRPSINFO_PR_PSARGS_LENGTH	80
 #endif
+
+/* Write PRSTATUS and PRPSINFO note into core file.  This will be called
+   before the generic code in elf.c.  By checking the compiler defines we
+   only perform any action here if the generic code would otherwise not be
+   able to help us.  The intention is that bare metal core dumps (where the
+   prstatus_t and/or prpsinfo_t might not be available) will use this code,
+   while non bare metal tools will use the generic elf code.  */
+
+static char *
+riscv_write_core_note (bfd *abfd ATTRIBUTE_UNUSED,
+                       char *buf ATTRIBUTE_UNUSED,
+                       int *bufsiz ATTRIBUTE_UNUSED,
+                       int note_type ATTRIBUTE_UNUSED, ...)
+{
+  switch (note_type)
+    {
+    default:
+      return NULL;
+
+#if !defined (HAVE_PRPSINFO_T)
+    case NT_PRPSINFO:
+      {
+	char data[PRPSINFO_SIZE] ATTRIBUTE_NONSTRING;
+	va_list ap;
+
+	va_start (ap, note_type);
+	memset (data, 0, sizeof (data));
+	strncpy (data + PRPSINFO_OFFSET_PR_FNAME, va_arg (ap, const char *),
+                 PRPSINFO_PR_FNAME_LENGTH);
+#if GCC_VERSION == 8000 || GCC_VERSION == 8001
+	DIAGNOSTIC_PUSH;
+	/* GCC 8.0 and 8.1 warn about 80 equals destination size with
+	   -Wstringop-truncation:
+	   https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85643
+	 */
+	DIAGNOSTIC_IGNORE_STRINGOP_TRUNCATION;
+#endif
+	strncpy (data + PRPSINFO_OFFSET_PR_PSARGS, va_arg (ap, const char *),
+                 PRPSINFO_PR_PSARGS_LENGTH);
+#if GCC_VERSION == 8000 || GCC_VERSION == 8001
+	DIAGNOSTIC_POP;
+#endif
+	va_end (ap);
+	return elfcore_write_note (abfd, buf, bufsiz,
+				   "CORE", note_type, data, sizeof (data));
+      }
+#endif /* !HAVE_PRPSINFO_T */
+
+#if !defined (HAVE_PRSTATUS_T)
+    case NT_PRSTATUS:
+      {
+        char data[PRSTATUS_SIZE];
+        va_list ap;
+        long pid;
+        int cursig;
+        const void *greg;
+
+        va_start (ap, note_type);
+        memset (data, 0, sizeof(data));
+        pid = va_arg (ap, long);
+        bfd_put_32 (abfd, pid, data + PRSTATUS_OFFSET_PR_PID);
+        cursig = va_arg (ap, int);
+        bfd_put_16 (abfd, cursig, data + PRSTATUS_OFFSET_PR_CURSIG);
+        greg = va_arg (ap, const void *);
+        memcpy (data + PRSTATUS_OFFSET_PR_REG, greg,
+                PRSTATUS_SIZE - PRSTATUS_OFFSET_PR_REG - ARCH_SIZE / 8);
+        va_end (ap);
+        return elfcore_write_note (abfd, buf, bufsiz,
+                                   "CORE", note_type, data, sizeof (data));
+      }
+#endif /* !HAVE_PRSTATUS_T */
+    }
+}
 
 /* Support for core dump NOTE sections.  */
 
@@ -4930,11 +5037,13 @@ riscv_elf_grok_psinfo (bfd *abfd, Elf_Internal_Note *note)
 
 	/* pr_fname */
 	elf_tdata (abfd)->core->program = _bfd_elfcore_strndup
-	  (abfd, note->descdata + PRPSINFO_OFFSET_PR_FNAME, 16);
+	  (abfd, note->descdata + PRPSINFO_OFFSET_PR_FNAME,
+           PRPSINFO_PR_FNAME_LENGTH);
 
 	/* pr_psargs */
 	elf_tdata (abfd)->core->command = _bfd_elfcore_strndup
-	  (abfd, note->descdata + PRPSINFO_OFFSET_PR_PSARGS, 80);
+	  (abfd, note->descdata + PRPSINFO_OFFSET_PR_PSARGS,
+           PRPSINFO_PR_PSARGS_LENGTH);
 	break;
     }
 
@@ -5003,6 +5112,7 @@ riscv_elf_obj_attrs_arg_type (int tag)
 #define elf_backend_grok_prstatus		riscv_elf_grok_prstatus
 #define elf_backend_grok_psinfo			riscv_elf_grok_psinfo
 #define elf_backend_object_p			riscv_elf_object_p
+#define elf_backend_write_core_note		riscv_write_core_note
 #define elf_info_to_howto_rel			NULL
 #define elf_info_to_howto			riscv_info_to_howto_rela
 #define bfd_elfNN_bfd_relax_section		_bfd_riscv_relax_section

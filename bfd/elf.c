@@ -1085,6 +1085,7 @@ _bfd_elf_make_section_from_shdr (bfd *abfd,
       if (name [0] == '.')
 	{
 	  if (strncmp (name, ".debug", 6) == 0
+	      || strncmp (name, ".gnu.debuglto_.debug_", 21) == 0
 	      || strncmp (name, ".gnu.linkonce.wi.", 17) == 0
 	      || strncmp (name, ".zdebug", 7) == 0)
 	    flags |= SEC_DEBUGGING | SEC_ELF_OCTETS;
@@ -1112,7 +1113,7 @@ _bfd_elf_make_section_from_shdr (bfd *abfd,
      The symbols will be defined as weak, so that multiple definitions
      are permitted.  The GNU linker extension is to actually discard
      all but one of the sections.  */
-  if (CONST_STRNEQ (name, ".gnu.linkonce")
+  if (startswith (name, ".gnu.linkonce")
       && elf_next_in_group (newsect) == NULL)
     flags |= SEC_LINK_ONCE | SEC_LINK_DUPLICATES_DISCARD;
 
@@ -1302,8 +1303,7 @@ const char *const bfd_elf_section_type_names[] =
    change anything about the way the reloc is handled, since it will
    all be done at final link time.  Rather than put special case code
    into bfd_perform_relocation, all the reloc types use this howto
-   function.  It just short circuits the reloc if producing
-   relocatable output against an external symbol.  */
+   function, or should call this function for relocatable output.  */
 
 bfd_reloc_status_type
 bfd_elf_generic_reloc (bfd *abfd ATTRIBUTE_UNUSED,
@@ -1322,6 +1322,20 @@ bfd_elf_generic_reloc (bfd *abfd ATTRIBUTE_UNUSED,
       reloc_entry->address += input_section->output_offset;
       return bfd_reloc_ok;
     }
+
+  /* In some cases the relocation should be treated as output section
+     relative, as when linking ELF DWARF into PE COFF.  Many ELF
+     targets lack section relative relocations and instead use
+     ordinary absolute relocations for references between DWARF
+     sections.  That is arguably a bug in those targets but it happens
+     to work for the usual case of linking to non-loaded ELF debug
+     sections with VMAs forced to zero.  PE COFF on the other hand
+     doesn't allow a section VMA of zero.  */
+  if (output_bfd == NULL
+      && !reloc_entry->howto->pc_relative
+      && (symbol->section->flags & SEC_DEBUGGING) != 0
+      && (input_section->flags & SEC_DEBUGGING) != 0)
+    reloc_entry->addend -= symbol->section->output_section->vma;
 
   return bfd_reloc_continue;
 }
@@ -3928,7 +3942,7 @@ assign_section_numbers (bfd *abfd, struct bfd_link_info *link_info)
 	     string section.  We look for a section with the same name
 	     but without the trailing ``str'', and set its sh_link
 	     field to point to this section.  */
-	  if (CONST_STRNEQ (sec->name, ".stab")
+	  if (startswith (sec->name, ".stab")
 	      && strcmp (sec->name + strlen (sec->name) - 3, "str") == 0)
 	    {
 	      size_t len;
@@ -9912,6 +9926,24 @@ elfcore_grok_arc_v2 (bfd *abfd, Elf_Internal_Note *note)
   return elfcore_make_note_pseudosection (abfd, ".reg-arc-v2", note);
 }
 
+/* Convert NOTE into a bfd_section called ".reg-riscv-csr".  Return TRUE if
+   successful otherwise, return FALSE.  */
+
+static bfd_boolean
+elfcore_grok_riscv_csr (bfd *abfd, Elf_Internal_Note *note)
+{
+  return elfcore_make_note_pseudosection (abfd, ".reg-riscv-csr", note);
+}
+
+/* Convert NOTE into a bfd_section called ".gdb-tdesc".  Return TRUE if
+   successful otherwise, return FALSE.  */
+
+static bfd_boolean
+elfcore_grok_gdb_tdesc (bfd *abfd, Elf_Internal_Note *note)
+{
+  return elfcore_make_note_pseudosection (abfd, ".gdb-tdesc", note);
+}
+
 #if defined (HAVE_PRPSINFO_T)
 typedef prpsinfo_t   elfcore_psinfo_t;
 #if defined (HAVE_PRPSINFO32_T)		/* Sparc64 cross Sparc32 */
@@ -10158,7 +10190,7 @@ elfcore_grok_win32pstatus (bfd *abfd, Elf_Internal_Note *note)
   if (note->descsz < 4)
     return TRUE;
 
-  if (! CONST_STRNEQ (note->namedata, "win32"))
+  if (! startswith (note->namedata, "win32"))
     return TRUE;
 
   type = bfd_get_32 (abfd, note->descdata);
@@ -10567,6 +10599,20 @@ elfcore_grok_note (bfd *abfd, Elf_Internal_Note *note)
       if (note->namesz == 6
 	  && strcmp (note->namedata, "LINUX") == 0)
 	return elfcore_grok_aarch_pauth (abfd, note);
+      else
+	return TRUE;
+
+    case NT_GDB_TDESC:
+      if (note->namesz == 4
+          && strcmp (note->namedata, "GDB") == 0)
+        return elfcore_grok_gdb_tdesc (abfd, note);
+      else
+        return TRUE;
+
+    case NT_RISCV_CSR:
+      if (note->namesz == 4
+          && strcmp (note->namedata, "GDB") == 0)
+        return elfcore_grok_riscv_csr (abfd, note);
       else
 	return TRUE;
 
@@ -11951,6 +11997,40 @@ elfcore_write_arc_v2 (bfd *abfd,
 			     note_name, NT_ARC_V2, arc_v2, size);
 }
 
+/* Write the buffer of csr values in CSRS (length SIZE) into the note
+   buffer BUF and update *BUFSIZ.  ABFD is the bfd the note is being
+   written into.  Return a pointer to the new start of the note buffer, to
+   replace BUF which may no longer be valid.  */
+
+char *
+elfcore_write_riscv_csr (bfd *abfd,
+                         char *buf,
+                         int *bufsiz,
+                         const void *csrs,
+                         int size)
+{
+  const char *note_name = "GDB";
+  return elfcore_write_note (abfd, buf, bufsiz,
+			     note_name, NT_RISCV_CSR, csrs, size);
+}
+
+/* Write the target description (a string) pointed to by TDESC, length
+   SIZE, into the note buffer BUF, and update *BUFSIZ.  ABFD is the bfd the
+   note is being written into.  Return a pointer to the new start of the
+   note buffer, to replace BUF which may no longer be valid.  */
+
+char *
+elfcore_write_gdb_tdesc (bfd *abfd,
+			 char *buf,
+			 int *bufsiz,
+			 const void *tdesc,
+			 int size)
+{
+  const char *note_name = "GDB";
+  return elfcore_write_note (abfd, buf, bufsiz,
+                             note_name, NT_GDB_TDESC, tdesc, size);
+}
+
 char *
 elfcore_write_register_note (bfd *abfd,
 			     char *buf,
@@ -12035,6 +12115,10 @@ elfcore_write_register_note (bfd *abfd,
     return elfcore_write_aarch_pauth (abfd, buf, bufsiz, data, size);
   if (strcmp (section, ".reg-arc-v2") == 0)
     return elfcore_write_arc_v2 (abfd, buf, bufsiz, data, size);
+  if (strcmp (section, ".gdb-tdesc") == 0)
+    return elfcore_write_gdb_tdesc (abfd, buf, bufsiz, data, size);
+  if (strcmp (section, ".reg-riscv-csr") == 0)
+    return elfcore_write_riscv_csr (abfd, buf, bufsiz, data, size);
   return NULL;
 }
 

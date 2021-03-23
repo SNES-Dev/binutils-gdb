@@ -4129,7 +4129,7 @@ elf_link_add_object_symbols (bfd *abfd, struct bfd_link_info *info)
       const char *name;
 
       name = bfd_section_name (s);
-      if (CONST_STRNEQ (name, ".gnu.warning."))
+      if (startswith (name, ".gnu.warning."))
 	{
 	  char *msg;
 	  bfd_size_type sz;
@@ -5693,7 +5693,7 @@ elf_link_add_object_symbols (bfd *abfd, struct bfd_link_info *info)
 	  asection *stab;
 
 	  for (stab = abfd->sections; stab; stab = stab->next)
-	    if (CONST_STRNEQ (stab->name, ".stab")
+	    if (startswith (stab->name, ".stab")
 		&& (!stab->name[5] ||
 		    (stab->name[5] == '.' && ISDIGIT (stab->name[6])))
 		&& (stab->flags & SEC_MERGE) == 0
@@ -8135,12 +8135,8 @@ elf_create_symbuf (size_t symcount, Elf_Internal_Sym *isymbuf)
   if (indbuf == NULL)
     return NULL;
 
-  /* NB: When checking if 2 sections define the same set of local and
-     global symbols, ignore both undefined and section symbols in the
-     symbol table.  */
   for (ind = indbuf, i = 0; i < symcount; i++)
-    if (isymbuf[i].st_shndx != SHN_UNDEF
-	&& ELF_ST_TYPE (isymbuf[i].st_info) != STT_SECTION)
+    if (isymbuf[i].st_shndx != SHN_UNDEF)
       *ind++ = &isymbuf[i];
   indbufend = ind;
 
@@ -8203,9 +8199,10 @@ bfd_elf_match_symbols_in_sections (asection *sec1, asection *sec2,
   struct elf_symbuf_head *ssymbuf1, *ssymbuf2;
   Elf_Internal_Sym *isym, *isymend;
   struct elf_symbol *symtable1 = NULL, *symtable2 = NULL;
-  size_t count1, count2, i;
+  size_t count1, count2, sec_count1, sec_count2, i;
   unsigned int shndx1, shndx2;
   bfd_boolean result;
+  bfd_boolean ignore_section_symbol_p;
 
   bfd1 = sec1->owner;
   bfd2 = sec2->owner;
@@ -8238,6 +8235,13 @@ bfd_elf_match_symbols_in_sections (asection *sec1, asection *sec2,
   isymbuf2 = NULL;
   ssymbuf1 = (struct elf_symbuf_head *) elf_tdata (bfd1)->symbuf;
   ssymbuf2 = (struct elf_symbuf_head *) elf_tdata (bfd2)->symbuf;
+
+  /* Ignore section symbols only when matching non-debugging sections
+     or linkonce section with comdat section.  */
+  ignore_section_symbol_p
+    = ((sec1->flags & SEC_DEBUGGING) == 0
+       || ((elf_section_flags (sec1) & SHF_GROUP)
+	   != (elf_section_flags (sec2) & SHF_GROUP)));
 
   if (ssymbuf1 == NULL)
     {
@@ -8278,6 +8282,7 @@ bfd_elf_match_symbols_in_sections (asection *sec1, asection *sec2,
       hi = ssymbuf1->count;
       ssymbuf1++;
       count1 = 0;
+      sec_count1 = 0;
       while (lo < hi)
 	{
 	  mid = (lo + hi) / 2;
@@ -8292,11 +8297,19 @@ bfd_elf_match_symbols_in_sections (asection *sec1, asection *sec2,
 	      break;
 	    }
 	}
+      if (ignore_section_symbol_p)
+	{
+	  for (i = 0; i < count1; i++)
+	    if (ELF_ST_TYPE (ssymbuf1->ssym[i].st_info) == STT_SECTION)
+	      sec_count1++;
+	  count1 -= sec_count1;
+	}
 
       lo = 0;
       hi = ssymbuf2->count;
       ssymbuf2++;
       count2 = 0;
+      sec_count2 = 0;
       while (lo < hi)
 	{
 	  mid = (lo + hi) / 2;
@@ -8311,6 +8324,13 @@ bfd_elf_match_symbols_in_sections (asection *sec1, asection *sec2,
 	      break;
 	    }
 	}
+      if (ignore_section_symbol_p)
+	{
+	  for (i = 0; i < count2; i++)
+	    if (ELF_ST_TYPE (ssymbuf2->ssym[i].st_info) == STT_SECTION)
+	      sec_count2++;
+	  count2 -= sec_count2;
+	}
 
       if (count1 == 0 || count2 == 0 || count1 != count2)
 	goto done;
@@ -8323,24 +8343,30 @@ bfd_elf_match_symbols_in_sections (asection *sec1, asection *sec2,
 	goto done;
 
       symp = symtable1;
-      for (ssym = ssymbuf1->ssym, ssymend = ssym + count1;
-	   ssym < ssymend; ssym++, symp++)
-	{
-	  symp->u.ssym = ssym;
-	  symp->name = bfd_elf_string_from_elf_section (bfd1,
-							hdr1->sh_link,
-							ssym->st_name);
-	}
+      for (ssym = ssymbuf1->ssym, ssymend = ssym + count1 + sec_count1;
+	   ssym < ssymend; ssym++)
+	if (sec_count1 == 0
+	    || ELF_ST_TYPE (ssym->st_info) != STT_SECTION)
+	  {
+	    symp->u.ssym = ssym;
+	    symp->name = bfd_elf_string_from_elf_section (bfd1,
+							  hdr1->sh_link,
+							  ssym->st_name);
+	    symp++;
+	  }
 
       symp = symtable2;
-      for (ssym = ssymbuf2->ssym, ssymend = ssym + count2;
-	   ssym < ssymend; ssym++, symp++)
-	{
-	  symp->u.ssym = ssym;
-	  symp->name = bfd_elf_string_from_elf_section (bfd2,
-							hdr2->sh_link,
-							ssym->st_name);
-	}
+      for (ssym = ssymbuf2->ssym, ssymend = ssym + count2 + sec_count2;
+	   ssym < ssymend; ssym++)
+	if (sec_count2 == 0
+	    || ELF_ST_TYPE (ssym->st_info) != STT_SECTION)
+	  {
+	    symp->u.ssym = ssym;
+	    symp->name = bfd_elf_string_from_elf_section (bfd2,
+							  hdr2->sh_link,
+							  ssym->st_name);
+	    symp++;
+	  }
 
       /* Sort symbol by name.  */
       qsort (symtable1, count1, sizeof (struct elf_symbol),
@@ -8369,12 +8395,16 @@ bfd_elf_match_symbols_in_sections (asection *sec1, asection *sec2,
   /* Count definitions in the section.  */
   count1 = 0;
   for (isym = isymbuf1, isymend = isym + symcount1; isym < isymend; isym++)
-    if (isym->st_shndx == shndx1)
+    if (isym->st_shndx == shndx1
+	&& (!ignore_section_symbol_p
+	    || ELF_ST_TYPE (isym->st_info) != STT_SECTION))
       symtable1[count1++].u.isym = isym;
 
   count2 = 0;
   for (isym = isymbuf2, isymend = isym + symcount2; isym < isymend; isym++)
-    if (isym->st_shndx == shndx2)
+    if (isym->st_shndx == shndx2
+	&& (!ignore_section_symbol_p
+	    || ELF_ST_TYPE (isym->st_info) != STT_SECTION))
       symtable2[count2++].u.isym = isym;
 
   if (count1 == 0 || count2 == 0 || count1 != count2)
@@ -13422,6 +13452,8 @@ _bfd_elf_gc_mark_rsec (struct bfd_link_info *info, asection *sec,
   if (r_symndx >= cookie->locsymcount
       || ELF_ST_BIND (cookie->locsyms[r_symndx].st_info) != STB_LOCAL)
     {
+      bfd_boolean was_marked;
+
       h = cookie->sym_hashes[r_symndx - cookie->extsymoff];
       if (h == NULL)
 	{
@@ -13432,6 +13464,8 @@ _bfd_elf_gc_mark_rsec (struct bfd_link_info *info, asection *sec,
       while (h->root.type == bfd_link_hash_indirect
 	     || h->root.type == bfd_link_hash_warning)
 	h = (struct elf_link_hash_entry *) h->root.u.i.link;
+
+      was_marked = h->mark;
       h->mark = 1;
       /* Keep all aliases of the symbol too.  If an object symbol
 	 needs to be copied into .dynbss then all of its aliases
@@ -13444,15 +13478,18 @@ _bfd_elf_gc_mark_rsec (struct bfd_link_info *info, asection *sec,
 	  hw->mark = 1;
 	}
 
-      if (start_stop != NULL)
+      if (!was_marked && h->start_stop && !h->root.ldscript_def)
 	{
+	  if (info->start_stop_gc)
+	    return NULL;
+
 	  /* To work around a glibc bug, mark XXX input sections
 	     when there is a reference to __start_XXX or __stop_XXX
 	     symbols.  */
-	  if (h->start_stop)
+	  else if (start_stop != NULL)
 	    {
 	      asection *s = h->u2.start_stop_section;
-	      *start_stop = !s->gc_mark;
+	      *start_stop = TRUE;
 	      return s;
 	    }
 	}
@@ -13661,7 +13698,7 @@ _bfd_elf_gc_mark_extra_sections (struct bfd_link_info *info,
 
 	  if (!debug_frag_seen
 	      && (isec->flags & SEC_DEBUGGING)
-	      && CONST_STRNEQ (isec->name, ".debug_line."))
+	      && startswith (isec->name, ".debug_line."))
 	    debug_frag_seen = TRUE;
 	  else if (strcmp (bfd_section_name (isec),
 			   "__patchable_function_entries") == 0
@@ -13912,6 +13949,9 @@ bfd_elf_gc_mark_dynamic_ref_symbol (struct elf_link_hash_entry *h, void *inf)
 
   if ((h->root.type == bfd_link_hash_defined
        || h->root.type == bfd_link_hash_defweak)
+      && (!h->start_stop
+	  || h->root.ldscript_def
+	  || !info->start_stop_gc)
       && ((h->ref_dynamic && !h->forced_local)
 	  || ((h->def_regular || ELF_COMMON_DEF_P (h))
 	      && ELF_ST_VISIBILITY (h->other) != STV_INTERNAL
@@ -13975,7 +14015,7 @@ bfd_elf_parse_eh_frame_entries (bfd *abfd ATTRIBUTE_UNUSED,
 
       for (sec = ibfd->sections; sec; sec = sec->next)
 	{
-	  if (CONST_STRNEQ (bfd_section_name (sec), ".eh_frame_entry")
+	  if (startswith (bfd_section_name (sec), ".eh_frame_entry")
 	      && init_reloc_cookie_rels (&cookie, info, ibfd, sec))
 	    {
 	      _bfd_elf_parse_eh_frame_entry (info, sec, &cookie);
@@ -14682,7 +14722,7 @@ _bfd_elf_section_already_linked (bfd *abfd,
   else
     {
       /* Otherwise we should have a .gnu.linkonce.<type>.<key> section.  */
-      if (CONST_STRNEQ (name, ".gnu.linkonce.")
+      if (startswith (name, ".gnu.linkonce.")
 	  && (key = strchr (name + sizeof (".gnu.linkonce.") - 1, '.')) != NULL)
 	key++;
       else
@@ -14781,10 +14821,10 @@ _bfd_elf_section_already_linked (bfd *abfd,
      `.gnu.linkonce.r.F' section.  The order of sections in a bfd does not
      matter as here were are looking only for cross-bfd sections.  */
 
-  if ((flags & SEC_GROUP) == 0 && CONST_STRNEQ (name, ".gnu.linkonce.r."))
+  if ((flags & SEC_GROUP) == 0 && startswith (name, ".gnu.linkonce.r."))
     for (l = already_linked_list->entry; l != NULL; l = l->next)
       if ((l->sec->flags & SEC_GROUP) == 0
-	  && CONST_STRNEQ (l->sec->name, ".gnu.linkonce.t."))
+	  && startswith (l->sec->name, ".gnu.linkonce.t."))
 	{
 	  if (abfd != l->sec->owner)
 	    sec->output_section = bfd_abs_section_ptr;
@@ -14984,6 +15024,7 @@ bfd_elf_define_start_stop (struct bfd_link_info *info,
 			    FALSE, FALSE, TRUE);
   /* NB: Common symbols will be turned into definition later.  */
   if (h != NULL
+      && !h->root.ldscript_def
       && (h->root.type == bfd_link_hash_undefined
 	  || h->root.type == bfd_link_hash_undefweak
 	  || ((h->ref_regular || h->def_dynamic)

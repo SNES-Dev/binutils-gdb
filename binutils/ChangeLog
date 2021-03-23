@@ -1,3 +1,178 @@
+2021-03-22  Martin Liska  <mliska@suse.cz>
+
+	* dlltool.c (scan_drectve_symbols): Replace usage of CONST_STRNEQ with startswith.
+	* emul_aix.c (ar_emul_aix_parse_arg): Likewise.
+	* objcopy.c (is_mergeable_note_section): Likewise.
+	* objdump.c (dump_dwarf_section): Likewise.
+	* prdbg.c (pr_method_type): Likewise.
+	(pr_class_baseclass): Likewise.
+	(tg_class_baseclass): Likewise.
+	* readelf.c (process_lto_symbol_tables): Likewise.
+	* stabs.c (ULLHIGH): Likewise.
+	(parse_stab_argtypes): Likewise.
+	(stab_demangle_function_name): Likewise.
+
+2021-03-19  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* readelf.c (get_machine_name): Add EM_INTELGT.
+
+2021-03-18  Nick Clifton  <nickc@redhat.com>
+
+	PR 27478
+	* readelf.c (dump_section_as_strings): Mention separate filename.
+	(dump_section_as_bytes): Likewise.
+	(dump_section_as_ctf): Likewise.
+	(initialise_dumkps_byname): Only issue a warning for missing
+	sections if processing the main file.
+	(process_section_contents): Only issue a warning for unsumped
+	section numbers in the main file.
+	(initialise_dump_sects): New function.  Contains code extracted
+	from ...
+	(process_object): ... here.  Also call initialise_dump_sects for
+	separate files.
+
+2021-03-16  Nick Clifton  <nickc@redhat.com>
+
+	PR 27534
+	* readelf.c (display_debug_section): Also retain .debug_addr
+	sections.
+
+2021-03-16  Nick Clifton  <nickc@redhat.com>
+
+	PR 27533
+	* readelf.c (process_section_contents): Only dump debug
+	information for separate files unless process_links is enabled.
+	(process_object): Always call process_section_contents for
+	separate info files.
+
+2021-03-15  Nick Clifton  <nickc@redhat.com>
+
+	PR 27487
+	* nm.c (FORMAT_JUST_SYMBOLS): Define.
+	(struct optput_fns): Add entry for FORMAT_JUST_SYMBOLS.
+	(long_options): Add just-symbols.
+	(set_output_format): Add support for just-symbols.
+	(get_print_format): Likewise.
+	(do_not_print_object_filename): New function.
+	(do_not_print_archive_filename): New function.
+	(do_not_print_archive_member): New function.
+	(do_not_print_symbol_filename): New function.
+	(just_print_symbol_name): New function.
+	(main): Handle --just-symbols.
+	* NEWS: Mention the new feature.
+	* doc/binutils.texi: Document the new feature.
+
+2021-03-12  Clément Chigot  <clement.chigot@atos.net>
+
+	* od-xcoff.c: Replace RTB by TRL entry.
+
+2021-03-05  Craig Blackmore  <craig.blackmore@embecosm.com>
+	    Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* readelf.c (get_note_type): Handle NT_RISCV_CSR.
+
+2021-03-05  Craig Blackmore  <craig.blackmore@embecosm.com>
+	    Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* readelf.c (get_note_type): Handle NT_GDB_TDESC.
+
+2021-03-05  Nick Clifton  <nickc@redhat.com>
+
+	PR 27387
+	* dwarf.c (display_debug_macro): Handle the displaying of
+	DW_MACRO_define_strp and DW_MACRO_undef_strp in v4
+	.debug_macro.dwo sections.
+
+2021-03-04  Nick Clifton  <nickc@redhat.com>
+
+	PR 27478
+	* objdump.c (process_links): New variable.
+	(usage): Add --process-links.
+	(long_options): Likewise.
+	(dump_bfd): Stop processing once the bfd has been loaded unless
+	this is the main file or process_links has been enabled.
+	(main): Handle the process-links option.
+	* readelf.c (process_links): New variable.
+	(struct filedata): Add is_separate field.
+	(options): Add --process-links.
+	(usage): Likewise.
+	(parse_args): Likewise.
+	(process_file_header): Include the filename when dumping
+	information for separate debuginfo files.
+	(process_program_headers): Likewise.
+	(process_section_headers): Likewise.
+	(process_section_groups): Likewise.
+	(process_relocs): Likewise.
+	(process_dynamic_section): Likewise.
+	(process_version_sections): Likewise.
+	(display_lto_symtab): Likewise.
+	(process_symbol_table): Likewise.
+	(process_syminfo): Likewise.
+	(initialise_dumps_by_name): Likewise.
+	(process_section_contents): Likewise.
+	(process_notes_at): Likewise.
+	(process_notes): Likewise.
+	(open_file): Add is_separate parameter.  Use to initialise the
+	is_separate field in the filedata structure.
+	(open_deug): Update call to open_file.
+	(process_object): Add processing of the contents of separate
+	debuginfo files, gated by the process_links variable.
+	(process_archive): Update call to open_file.
+	(process_file): Initialise the is_separate field in the filedata
+	structure.
+	* dwarf.c (load_separate_debug_info_file): Only report the
+	loading of a separate file if debug links are being dumped.
+	* objcopy.c (keep_section_symbols): New variable.
+	(enum command_line_switch): Add OPTION_KEEP_SYMBOLS.
+	(strip_options): Add keep-section-symbols.
+	(copy_options): Likewise.
+	(copy_usage): Likewise.
+	(strip_usage): Likewise.
+	(copy_object): Keep section symbols if requested by command line
+	option.
+	(strip_main): Handle --keep-section-symbols.
+	(copy_main): Likewise.
+	* doc/binutils.texi: Document the new options.
+	* NEWS: Mention the new features.
+	* testsuite/binutils-all/compress.exp (test_gnu_debuglink):
+	Update options passed to objdump.  Use diff rather than cmp to
+	compare the dumped data.
+	* testsuite/binutils-all/objdump.WK2: Update regexp.
+	* testsuite/binutils-all/objdump.WK3: Update regexp.
+	* testsuite/binutils-all/objdump.exp: Use --process-links
+	instead of --dwarf=follow-links.
+	* testsuite/binutils-all/readelf.exp (readelf_test): Include
+	readelf's output in the log when the test fails.
+	Add the -P option to the -wKis test.
+	* testsuite/binutils-all/readelf.wKis: Update expected output.
+
+2021-03-03  Alan Modra  <amodra@gmail.com>
+
+	PR 27493
+	* objcopy.c (filter_symbols): Apply --weaken to undefined symbols.
+	* NEWS: Mention feature.
+
+2021-03-01  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR binutils/27486
+	* dwarf.c (load_separate_debug_info): Issue warning only if
+	do_debug_links is set.
+	* testsuite/binutils-all/compress.exp: Run objdump and readelf
+	with missing debug file.
+
+2021-03-01  Alan Modra  <amodra@gmail.com>
+
+	PR 27128
+	* doc/binutils.texi: Add nm --with-symbol-versions and
+	--without-symbol-versions documentation.
+	* nm.c (with_symbol_versions): New variable.
+	(enum long_option_values): Delete OPTION_WITH_SYMBOL_VERSIONS.
+	(long_options): Make --with-symbol-versions entry twiddle the flag.
+	Add --without-symbol-versions.
+	(print_symname): Strip version when !with_symbol_versions.  Add
+	dynamic version info under control of with_symbol_versions.
+	(main): Remove OPTION_WITH_SYMBOL_VERSIONS case.
+
 2021-02-26  Fangrui Song  <maskray@google.com>
 
 	PR 27408

@@ -63,23 +63,13 @@ extern "C" {
    comma and then the length of the string.  Doing this by hand
    is error prone, so using this macro is safer.  */
 #define STRING_COMMA_LEN(STR) (STR), (sizeof (STR) - 1)
-/* Unfortunately it is not possible to use the STRING_COMMA_LEN macro
-   to create the arguments to another macro, since the preprocessor
-   will mis-count the number of arguments to the outer macro (by not
-   evaluating STRING_COMMA_LEN and so missing the comma).  This is a
-   problem for example when trying to use STRING_COMMA_LEN to build
-   the arguments to the strncmp() macro.  Hence this alternative
-   definition of strncmp is provided here.
 
-   Note - these macros do NOT work if STR2 is not a constant string.  */
-#define CONST_STRNEQ(STR1,STR2) (strncmp ((STR1), (STR2), sizeof (STR2) - 1) == 0)
   /* strcpy() can have a similar problem, but since we know we are
      copying a constant string, we can use memcpy which will be faster
      since there is no need to check for a NUL byte inside STR.  We
      can also save time if we do not need to copy the terminating NUL.  */
 #define LITMEMCPY(DEST,STR2) memcpy ((DEST), (STR2), sizeof (STR2) - 1)
 #define LITSTRCPY(DEST,STR2) memcpy ((DEST), (STR2), sizeof (STR2))
-
 
 #define BFD_SUPPORTS_PLUGINS @supports_plugins@
 
@@ -571,6 +561,14 @@ struct ecoff_debug_swap;
 struct ecoff_extr;
 struct bfd_link_info;
 struct bfd_link_hash_entry;
+
+/* Return TRUE if the start of STR matches PREFIX, FALSE otherwise.  */
+
+static inline bfd_boolean
+startswith (const char *str, const char *prefix)
+{
+  return strncmp (str, prefix, strlen (prefix)) == 0;
+}
 /* Extracted from init.c.  */
 unsigned int bfd_init (void);
 
@@ -2899,6 +2897,8 @@ instruction.  */
   BFD_RELOC_PPC_B26,
   BFD_RELOC_PPC_BA26,
   BFD_RELOC_PPC_TOC16,
+  BFD_RELOC_PPC_TOC16_LO,
+  BFD_RELOC_PPC_TOC16_HI,
   BFD_RELOC_PPC_B16,
   BFD_RELOC_PPC_B16_BRTAKEN,
   BFD_RELOC_PPC_B16_BRNTAKEN,
@@ -3001,6 +3001,10 @@ instruction.  */
   BFD_RELOC_PPC_TLS,
   BFD_RELOC_PPC_TLSGD,
   BFD_RELOC_PPC_TLSLD,
+  BFD_RELOC_PPC_TLSLE,
+  BFD_RELOC_PPC_TLSIE,
+  BFD_RELOC_PPC_TLSM,
+  BFD_RELOC_PPC_TLSML,
   BFD_RELOC_PPC_DTPMOD,
   BFD_RELOC_PPC_TPREL16,
   BFD_RELOC_PPC_TPREL16_LO,
@@ -3028,6 +3032,12 @@ instruction.  */
   BFD_RELOC_PPC_GOT_DTPREL16_LO,
   BFD_RELOC_PPC_GOT_DTPREL16_HI,
   BFD_RELOC_PPC_GOT_DTPREL16_HA,
+  BFD_RELOC_PPC64_TLSGD,
+  BFD_RELOC_PPC64_TLSLD,
+  BFD_RELOC_PPC64_TLSLE,
+  BFD_RELOC_PPC64_TLSIE,
+  BFD_RELOC_PPC64_TLSM,
+  BFD_RELOC_PPC64_TLSML,
   BFD_RELOC_PPC64_TPREL16_DS,
   BFD_RELOC_PPC64_TPREL16_LO_DS,
   BFD_RELOC_PPC64_TPREL16_HIGH,

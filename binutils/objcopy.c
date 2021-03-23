@@ -91,6 +91,7 @@ static int copy_byte = -1;
 static int interleave = 0; /* Initialised to 4 in copy_main().  */
 static int copy_width = 1;
 
+static bfd_boolean keep_section_symbols = FALSE ;/* True if section symbols should be retained.  */
 static bfd_boolean verbose;		/* Print file and target names.  */
 static bfd_boolean preserve_dates;	/* Preserve input file timestamp.  */
 static int deterministic = -1;		/* Enable deterministic archives.  */
@@ -335,6 +336,7 @@ enum command_line_switch
   OPTION_KEEP_FILE_SYMBOLS,
   OPTION_KEEP_SECTION,
   OPTION_KEEP_SYMBOLS,
+  OPTION_KEEP_SECTION_SYMBOLS,
   OPTION_LOCALIZE_HIDDEN,
   OPTION_LOCALIZE_SYMBOLS,
   OPTION_LONG_SECTION_NAMES,
@@ -387,6 +389,7 @@ static struct option strip_options[] =
   {"info", no_argument, 0, OPTION_FORMATS_INFO},
   {"input-format", required_argument, 0, 'I'}, /* Obsolete */
   {"input-target", required_argument, 0, 'I'},
+  {"keep-section-symbols", no_argument, 0, OPTION_KEEP_SECTION_SYMBOLS},
   {"keep-file-symbols", no_argument, 0, OPTION_KEEP_FILE_SYMBOLS},
   {"keep-section", required_argument, 0, OPTION_KEEP_SECTION},
   {"keep-symbol", required_argument, 0, 'K'},
@@ -463,6 +466,7 @@ static struct option copy_options[] =
   {"keep-section", required_argument, 0, OPTION_KEEP_SECTION},
   {"keep-symbol", required_argument, 0, 'K'},
   {"keep-symbols", required_argument, 0, OPTION_KEEP_SYMBOLS},
+  {"keep-section-symbols", required_argument, 0, OPTION_KEEP_SECTION_SYMBOLS},
   {"localize-hidden", no_argument, 0, OPTION_LOCALIZE_HIDDEN},
   {"localize-symbol", required_argument, 0, 'L'},
   {"localize-symbols", required_argument, 0, OPTION_LOCALIZE_SYMBOLS},
@@ -595,6 +599,7 @@ copy_usage (FILE *stream, int exit_status)
      --extract-symbol              Remove section contents but keep symbols\n\
      --keep-section <name>         Do not strip section <name>\n\
   -K --keep-symbol <name>          Do not strip symbol <name>\n\
+     --keep-section-symbols        Do not strip section symbols\n\
      --keep-file-symbols           Do not strip file symbol(s)\n\
      --localize-hidden             Turn all ELF hidden symbols into locals\n\
   -L --localize-symbol <name>      Force symbol <name> to be marked as a local\n\
@@ -729,6 +734,7 @@ strip_usage (FILE *stream, int exit_status)
   -N --strip-symbol=<name>         Do not copy symbol <name>\n\
      --keep-section=<name>         Do not strip section <name>\n\
   -K --keep-symbol=<name>          Do not strip symbol <name>\n\
+     --keep-section-symbols        Do not strip section symbols\n\
      --keep-file-symbols           Do not strip file symbol(s)\n\
   -w --wildcard                    Permit wildcard in symbol comparison\n\
   -x --discard-all                 Remove all non-global symbols\n\
@@ -1310,7 +1316,7 @@ is_mergeable_note_section (bfd * abfd, asection * sec)
       && elf_section_data (sec)->this_hdr.sh_type == SHT_NOTE
       /* FIXME: We currently only support merging GNU_BUILD_NOTEs.
 	 We should add support for more note types.  */
-      && (CONST_STRNEQ (sec->name, GNU_BUILD_ATTRS_SECTION_NAME)))
+      && (startswith (sec->name, GNU_BUILD_ATTRS_SECTION_NAME)))
     return TRUE;
 
   return FALSE;
@@ -1673,7 +1679,8 @@ filter_symbols (bfd *abfd, bfd *obfd, asymbol **osyms,
 
       if (keep)
 	{
-	  if ((flags & BSF_GLOBAL) != 0
+	  if (((flags & BSF_GLOBAL) != 0
+	       || undefined)
 	      && (weaken || is_specified_symbol (name, weaken_specific_htab)))
 	    {
 	      sym->flags &= ~ BSF_GLOBAL;
@@ -3195,7 +3202,7 @@ copy_object (bfd *ibfd, bfd *obfd, const bfd_arch_info_type *input_arch)
    if ((obfd->flags & (EXEC_P | DYNAMIC)) != 0
        && (obfd->flags & HAS_RELOC) == 0)
     {
-      if (bfd_keep_unused_section_symbols (obfd))
+      if (bfd_keep_unused_section_symbols (obfd) || keep_section_symbols)
 	{
 	  /* Non-relocatable inputs may not have the unused section
 	     symbols.  Mark all section symbols as used to generate
@@ -4767,6 +4774,9 @@ strip_main (int argc, char *argv[])
 	case OPTION_KEEP_FILE_SYMBOLS:
 	  keep_file_symbols = 1;
 	  break;
+	case OPTION_KEEP_SECTION_SYMBOLS:
+	  keep_section_symbols = TRUE;
+	  break;
 	case 0:
 	  /* We've been given a long option.  */
 	  break;
@@ -5650,6 +5660,10 @@ copy_main (int argc, char *argv[])
 	case OPTION_KEEP_SYMBOLS:
 	  add_specific_symbols (optarg, keep_specific_htab,
 				&keep_specific_buffer);
+	  break;
+
+	case OPTION_KEEP_SECTION_SYMBOLS:
+	  keep_section_symbols = TRUE;
 	  break;
 
 	case OPTION_LOCALIZE_HIDDEN:

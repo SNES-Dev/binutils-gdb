@@ -238,6 +238,7 @@ static bfd_boolean is_32bit_elf = FALSE;
 static bfd_boolean decompress_dumps = FALSE;
 static bfd_boolean do_not_show_symbol_truncation = FALSE;
 static bfd_boolean do_demangle = FALSE;	/* Pretty print C++ symbol names.  */
+static bfd_boolean process_links = FALSE;
 static int demangle_flags = DMGL_ANSI | DMGL_PARAMS;
 
 static char *dump_ctf_parent_name;
@@ -259,6 +260,7 @@ struct group
 typedef struct filedata
 {
   const char *         file_name;
+  bfd_boolean          is_separate;
   FILE *               handle;
   bfd_size_type        file_size;
   Elf_Internal_Ehdr    file_header;
@@ -675,7 +677,7 @@ print_symbol (signed int width, const char * symbol)
 static const char *
 printable_section_name (Filedata * filedata, const Elf_Internal_Shdr * sec)
 {
-#define MAX_PRINT_SEC_NAME_LEN 128
+#define MAX_PRINT_SEC_NAME_LEN 256
   static char  sec_name_buf [MAX_PRINT_SEC_NAME_LEN + 1];
   const char * name = SECTION_NAME_PRINT (sec);
   char *       buf = sec_name_buf;
@@ -2547,6 +2549,7 @@ get_machine_name (unsigned e_machine)
     case EM_BA2:		return "Beyond BA2 CPU architecture";
     case EM_XCORE:		return "XMOS xCORE processor family";
     case EM_MCHP_PIC:		return "Microchip 8-bit PIC(r) family";
+    case EM_INTELGT:		return "Intel Graphics Technology";
       /* 210 */
     case EM_KM32:		return "KM211 KM32 32-bit processor";
     case EM_KMX32:		return "KM211 KMX32 32-bit processor";
@@ -4546,6 +4549,7 @@ static struct option options[] =
   {"segments",	       no_argument, 0, 'l'},
   {"full-section-name",no_argument, 0, 'N'},
   {"notes",	       no_argument, 0, 'n'},
+  {"process-links",    no_argument, 0, 'P'},
   {"string-dump",      required_argument, 0, 'p'},
   {"relocated-dump",   required_argument, 0, 'R'},
   {"relocs",	       no_argument, 0, 'r'},
@@ -4624,12 +4628,14 @@ usage (FILE * stream)
   -R --relocated-dump=<number|name>\n\
                          Dump the contents of section <number|name> as relocated bytes\n\
   -z --decompress        Decompress section before dumping it\n\
-  -w[lLiaprmfFsoORtUuTgAck] or\n\
+  -w[lLiaprmfFsoORtUuTgAc] or\n\
   --debug-dump[=rawline,=decodedline,=info,=abbrev,=pubnames,=aranges,=macro,=frames,\n\
                =frames-interp,=str,=str-offsets,=loc,=Ranges,=pubtypes,\n\
                =gdb_index,=trace_info,=trace_abbrev,=trace_aranges,\n\
-               =addr,=cu_index,=links]\n\
-                         Display the contents of DWARF debug sections\n"));
+               =addr,=cu_index]\n\
+                         Display the contents of DWARF debug sections\n\
+  -wk,--debug-dump=links Display the contents of sections that link to separate debuginfo files\n\
+  -P,--process-links     Display the contents of non-debug sections in separate debuginfo files.  (Implies -wK)\n"));
 #if DEFAULT_FOR_FOLLOW_LINKS
   fprintf (stream, _("\
   -wK,--debug-dump=follow-links     Follow links to separate debug info files (default)\n\
@@ -4759,7 +4765,7 @@ parse_args (struct dump_data *dumpdata, int argc, char ** argv)
     usage (stderr);
 
   while ((c = getopt_long
-	  (argc, argv, "ACDHILNR:STVWacdeghi:lnp:rstuvw::x:z", options, NULL)) != EOF)
+	  (argc, argv, "ACDHILNPR:STVWacdeghi:lnp:rstuvw::x:z", options, NULL)) != EOF)
     {
       switch (c)
 	{
@@ -4836,6 +4842,10 @@ parse_args (struct dump_data *dumpdata, int argc, char ** argv)
 	  break;
 	case 'L':
 	  do_checks = TRUE;
+	  break;
+	case 'P':
+	  process_links = TRUE;
+	  do_follow_links = TRUE;
 	  break;
 	case 'x':
 	  request_dump (dumpdata, HEX_DUMP);
@@ -5032,13 +5042,17 @@ process_file_header (Filedata * filedata)
       return FALSE;
     }
 
-  init_dwarf_regnames_by_elf_machine_code (header->e_machine);
+  if (! filedata->is_separate)
+    init_dwarf_regnames_by_elf_machine_code (header->e_machine);
 
   if (do_header)
     {
       unsigned i;
 
-      printf (_("ELF Header:\n"));
+      if (filedata->is_separate)
+	printf (_("ELF Header in linked file '%s':\n"), filedata->file_name);
+      else
+	printf (_("ELF Header:\n"));
       printf (_("  Magic:   "));
       for (i = 0; i < EI_NIDENT; i++)
 	printf ("%2.2x ", header->e_ident[i]);
@@ -5294,13 +5308,24 @@ process_program_headers (Filedata * filedata)
 	  return FALSE;
 	}
       else if (do_segments)
-	printf (_("\nThere are no program headers in this file.\n"));
+	{
+	  if (filedata->is_separate)
+	    printf (_("\nThere are no program headers in linked file '%s'.\n"),
+		    filedata->file_name);
+	  else
+	    printf (_("\nThere are no program headers in this file.\n"));
+	}
       return TRUE;
     }
 
   if (do_segments && !do_header)
     {
-      printf (_("\nElf file type is %s\n"), get_file_type (filedata->file_header.e_type));
+      if (filedata->is_separate)
+	printf ("\nIn linked file '%s' the ELF file type is %s\n",
+		filedata->file_name,
+		get_file_type (filedata->file_header.e_type));
+      else
+	printf (_("\nElf file type is %s\n"), get_file_type (filedata->file_header.e_type));
       printf (_("Entry point 0x%s\n"), bfd_vmatoa ("x", filedata->file_header.e_entry));
       printf (ngettext ("There is %d program header, starting at offset %s\n",
 			"There are %d program headers, starting at offset %s\n",
@@ -6362,13 +6387,18 @@ process_section_headers (Filedata * filedata)
     }
 
   if (do_sections && !do_header)
-    printf (ngettext ("There is %d section header, "
-		      "starting at offset 0x%lx:\n",
-		      "There are %d section headers, "
-		      "starting at offset 0x%lx:\n",
-		      filedata->file_header.e_shnum),
-	    filedata->file_header.e_shnum,
-	    (unsigned long) filedata->file_header.e_shoff);
+    {
+      if (filedata->is_separate && process_links)
+	printf (_("In linked file '%s': "), filedata->file_name);
+      if (! filedata->is_separate || process_links)
+	printf (ngettext ("There is %d section header, "
+			  "starting at offset 0x%lx:\n",
+			  "There are %d section headers, "
+			  "starting at offset 0x%lx:\n",
+			  filedata->file_header.e_shnum),
+		filedata->file_header.e_shnum,
+		(unsigned long) filedata->file_header.e_shoff);
+    }
 
   if (is_32bit_elf)
     {
@@ -6626,7 +6656,12 @@ process_section_headers (Filedata * filedata)
   if (! do_sections)
     return TRUE;
 
-  if (filedata->file_header.e_shnum > 1)
+  if (filedata->is_separate && ! process_links)
+    return TRUE;
+
+  if (filedata->is_separate)
+    printf (_("\nSection Headers in linked file '%s':\n"), filedata->file_name);
+  else if (filedata->file_header.e_shnum > 1)
     printf (_("\nSection Headers:\n"));
   else
     printf (_("\nSection Header:\n"));
@@ -7112,8 +7147,13 @@ process_section_groups (Filedata * filedata)
   if (filedata->file_header.e_shnum == 0)
     {
       if (do_section_groups)
-	printf (_("\nThere are no sections to group in this file.\n"));
-
+	{
+	  if (filedata->is_separate)
+	    printf (_("\nThere are no sections group in linked file '%s'.\n"),
+		    filedata->file_name);
+	  else
+	    printf (_("\nThere are no section groups in this file.\n"));
+	}
       return TRUE;
     }
 
@@ -7146,7 +7186,13 @@ process_section_groups (Filedata * filedata)
   if (filedata->group_count == 0)
     {
       if (do_section_groups)
-	printf (_("\nThere are no section groups in this file.\n"));
+	{
+	  if (filedata->is_separate)
+	    printf (_("\nThere are no section groups in linked file '%s'.\n"),
+		    filedata->file_name);
+	  else
+	    printf (_("\nThere are no section groups in this file.\n"));
+	}
 
       return TRUE;
     }
@@ -7167,6 +7213,10 @@ process_section_groups (Filedata * filedata)
   num_syms = 0;
   strtab = NULL;
   strtab_size = 0;
+
+  if (filedata->is_separate)
+    printf (_("Section groups in linked file '%s'\n"), filedata->file_name);
+      
   for (i = 0, section = filedata->section_headers, group = filedata->section_groups;
        i < filedata->file_header.e_shnum;
        i++, section++)
@@ -7609,9 +7659,15 @@ process_relocs (Filedata * filedata)
 
 	  if (rel_size)
 	    {
-	      printf
-		(_("\n'%s' relocation section at offset 0x%lx contains %ld bytes:\n"),
-		 name, rel_offset, rel_size);
+	      if (filedata->is_separate)
+		printf
+		  (_("\nIn linked file '%s' section '%s' at offset 0x%lx contains %ld bytes:\n"),
+		   filedata->file_name, name, rel_offset, rel_size);
+	      else
+		printf
+		  (_("\n'%s' relocation section at offset 0x%lx contains %ld bytes:\n"),
+		   name, rel_offset, rel_size);
+		
 
 	      dump_relocations (filedata,
 				offset_from_vma (filedata, rel_offset, rel_size),
@@ -7629,7 +7685,13 @@ process_relocs (Filedata * filedata)
 	  has_dynamic_reloc = TRUE;
 
       if (! has_dynamic_reloc)
-	printf (_("\nThere are no dynamic relocations in this file.\n"));
+	{
+	  if (filedata->is_separate)
+	    printf (_("\nThere are no dynamic relocations in linked file '%s'.\n"),
+		    filedata->file_name);
+	  else
+	    printf (_("\nThere are no dynamic relocations in this file.\n"));
+	}
     }
   else
     {
@@ -7653,7 +7715,11 @@ process_relocs (Filedata * filedata)
 	      int is_rela;
 	      unsigned long num_rela;
 
-	      printf (_("\nRelocation section "));
+	      if (filedata->is_separate)
+		printf (_("\nIn linked file '%s' relocation section "),
+			filedata->file_name);
+	      else
+		printf (_("\nRelocation section "));
 
 	      if (filedata->string_table == NULL)
 		printf ("%d", section->sh_name);
@@ -7709,14 +7775,24 @@ process_relocs (Filedata * filedata)
 	    {
 	      if (filedata->dynamic_info[dynamic_relocations [i].size])
 		{
-		  printf (_("\nThere are no static relocations in this file."));
+		  if (filedata->is_separate)
+		    printf (_("\nThere are no static relocations in linked file '%s'."),
+			    filedata->file_name);
+		  else
+		    printf (_("\nThere are no static relocations in this file."));
 		  printf (_("\nTo see the dynamic relocations add --use-dynamic to the command line.\n"));
 
 		  break;
 		}
 	    }
 	  if (i == ARRAY_SIZE (dynamic_relocations))
-	    printf (_("\nThere are no relocations in this file.\n"));
+	    {
+	      if (filedata->is_separate)
+		printf (_("\nThere are no relocations in linked file '%s'.\n"),
+			filedata->file_name);
+	      else
+		printf (_("\nThere are no relocations in this file.\n"));
+	    }
 	}
     }
 
@@ -10429,7 +10505,13 @@ process_dynamic_section (Filedata * filedata)
   if (filedata->dynamic_size == 0)
     {
       if (do_dynamic)
-	printf (_("\nThere is no dynamic section in this file.\n"));
+	{
+	  if (filedata->is_separate)
+	    printf (_("\nThere is no dynamic section in linked file '%s'.\n"),
+		    filedata->file_name);
+	  else
+	    printf (_("\nThere is no dynamic section in this file.\n"));
+	}
 
       return TRUE;
     }
@@ -10654,12 +10736,30 @@ the .dynstr section doesn't match the DT_STRTAB and DT_STRSZ tags\n"));
     }
 
   if (do_dynamic && filedata->dynamic_addr)
-    printf (ngettext ("\nDynamic section at offset 0x%lx "
-		      "contains %lu entry:\n",
-		      "\nDynamic section at offset 0x%lx "
-		      "contains %lu entries:\n",
-		      filedata->dynamic_nent),
-	    filedata->dynamic_addr, (unsigned long) filedata->dynamic_nent);
+    {
+      if (filedata->dynamic_nent == 1)
+	{
+	  if (filedata->is_separate)
+	    printf (_("\nIn linked file '%s' the dynamic section at offset 0x%lx contains 1 entry:\n"),
+		    filedata->file_name,
+		    filedata->dynamic_addr);
+	  else
+	    printf (_("\nDynamic section at offset 0x%lx contains 1 entry:\n"),
+		    filedata->dynamic_addr);
+	}
+      else
+	{
+	  if (filedata->is_separate)
+	    printf (_("\nIn linked file '%s' the dynamic section at offset 0x%lx contains %lu entries:\n"),
+		    filedata->file_name,
+		    filedata->dynamic_addr,
+		    (unsigned long) filedata->dynamic_nent);
+	  else
+	    printf (_("\nDynamic section at offset 0x%lx contains %lu entries:\n"),
+		    filedata->dynamic_addr,
+		    (unsigned long) filedata->dynamic_nent);
+	}
+    }
   if (do_dynamic)
     printf (_("  Tag        Type                         Name/Value\n"));
 
@@ -11240,14 +11340,22 @@ process_version_sections (Filedata * filedata)
 
 	    found = TRUE;
 
-	    printf (ngettext ("\nVersion definition section '%s' "
-			      "contains %u entry:\n",
-			      "\nVersion definition section '%s' "
-			      "contains %u entries:\n",
-			      section->sh_info),
-		    printable_section_name (filedata, section),
-		    section->sh_info);
-
+	    if (filedata->is_separate)
+	      printf (ngettext ("\nIn linked file '%s' the version definition section '%s' contains %u entry:\n",
+				"\nIn linked file '%s' the version definition section '%s' contains %u entries:\n",
+				section->sh_info),
+		      filedata->file_name,
+		      printable_section_name (filedata, section),
+		      section->sh_info);
+	    else
+	      printf (ngettext ("\nVersion definition section '%s' "
+				"contains %u entry:\n",
+				"\nVersion definition section '%s' "
+				"contains %u entries:\n",
+				section->sh_info),
+		      printable_section_name (filedata, section),
+		      section->sh_info);
+	      
 	    printf (_(" Addr: 0x"));
 	    printf_vma (section->sh_addr);
 	    printf (_("  Offset: %#08lx  Link: %u (%s)\n"),
@@ -11379,13 +11487,22 @@ process_version_sections (Filedata * filedata)
 
 	    found = TRUE;
 
-	    printf (ngettext ("\nVersion needs section '%s' "
-			      "contains %u entry:\n",
-			      "\nVersion needs section '%s' "
-			      "contains %u entries:\n",
-			      section->sh_info),
-		    printable_section_name (filedata, section), section->sh_info);
-
+	    if (filedata->is_separate)
+	      printf (ngettext ("\nIn linked file '%s' the version needs section '%s' contains %u entry:\n",
+				"\nIn linked file '%s' the version needs section '%s' contains %u entries:\n",
+				section->sh_info),
+		      filedata->file_name,
+		      printable_section_name (filedata, section),
+		      section->sh_info);
+	    else
+	      printf (ngettext ("\nVersion needs section '%s' "
+				"contains %u entry:\n",
+				"\nVersion needs section '%s' "
+				"contains %u entries:\n",
+				section->sh_info),
+		      printable_section_name (filedata, section),
+		      section->sh_info);
+	      
 	    printf (_(" Addr: 0x"));
 	    printf_vma (section->sh_addr);
 	    printf (_("  Offset: %#08lx  Link: %u (%s)\n"),
@@ -11536,12 +11653,21 @@ process_version_sections (Filedata * filedata)
 		break;
 	      }
 
-	    printf (ngettext ("\nVersion symbols section '%s' "
-			      "contains %lu entry:\n",
-			      "\nVersion symbols section '%s' "
-			      "contains %lu entries:\n",
-			      total),
-		    printable_section_name (filedata, section), (unsigned long) total);
+	    if (filedata->is_separate)
+	      printf (ngettext ("\nIn linked file '%s' the version symbols section '%s' contains %lu entry:\n",
+				"\nIn linked file '%s' the version symbols section '%s' contains %lu entries:\n",
+				total),
+		      filedata->file_name,
+		      printable_section_name (filedata, section),
+		      (unsigned long) total);
+	    else
+	      printf (ngettext ("\nVersion symbols section '%s' "
+				"contains %lu entry:\n",
+				"\nVersion symbols section '%s' "
+				"contains %lu entries:\n",
+				total),
+		      printable_section_name (filedata, section),
+		      (unsigned long) total);
 
 	    printf (_(" Addr: 0x"));
 	    printf_vma (section->sh_addr);
@@ -11744,7 +11870,13 @@ process_version_sections (Filedata * filedata)
     }
 
   if (! found)
-    printf (_("\nNo version information found in this file.\n"));
+    {
+      if (filedata->is_separate)
+	printf (_("\nNo version information found in linked file '%s'.\n"),
+		filedata->file_name);
+      else
+	printf (_("\nNo version information found in this file.\n"));
+    }
 
   return TRUE;
 }
@@ -12390,8 +12522,14 @@ display_lto_symtab (Filedata *           filedata,
 {
   if (section->sh_size == 0)
     {
-      printf (_("\nLTO Symbol table '%s' is empty!\n"),
-	      printable_section_name (filedata, section));
+      if (filedata->is_separate)
+	printf (_("\nThe LTO Symbol table section '%s' in linked file '%s' is empty!\n"),
+		printable_section_name (filedata, section),
+		filedata->file_name);
+      else
+	printf (_("\nLTO Symbol table '%s' is empty!\n"),
+		printable_section_name (filedata, section));
+      
       return TRUE;
     }
 
@@ -12440,24 +12578,28 @@ display_lto_symtab (Filedata *           filedata,
   const unsigned char * data = (const unsigned char *) alloced_data;
   const unsigned char * end = data + section->sh_size;
 
+  if (filedata->is_separate)
+    printf (_("\nIn linked file '%s': "), filedata->file_name);
+  else
+    printf ("\n");
+
   if (ext_data_orig != NULL)
     {
       if (do_wide)
-	printf (_("\nLTO Symbol table '%s' and extension table '%s' contain:\n"),
+	printf (_("LTO Symbol table '%s' and extension table '%s' contain:\n"),
 		printable_section_name (filedata, section),
 		printable_section_name (filedata, ext));
       else
 	{
-	  printf (_("\nLTO Symbol table '%s'\n"),
+	  printf (_("LTO Symbol table '%s'\n"),
 		  printable_section_name (filedata, section));
 	  printf (_(" and extension table '%s' contain:\n"),
 		  printable_section_name (filedata, ext));
 	}
     }
   else
-    printf (_("\nLTO Symbol table '%s' contains:\n"),
+    printf (_("LTO Symbol table '%s' contains:\n"),
 	    printable_section_name (filedata, section));
-
 
   /* FIXME: Add a wide version.  */
   if (ext_data_orig != NULL)
@@ -12566,7 +12708,7 @@ process_lto_symbol_tables (Filedata * filedata)
        i < filedata->file_header.e_shnum;
        i++, section++)
     if (SECTION_NAME_VALID (section)
-	&& CONST_STRNEQ (SECTION_NAME (section), ".gnu.lto_.symtab."))
+	&& startswith (SECTION_NAME (section), ".gnu.lto_.symtab."))
       res &= display_lto_symtab (filedata, section);
 
   return res;
@@ -12590,10 +12732,21 @@ process_symbol_table (Filedata * filedata)
     {
       unsigned long si;
 
-      printf (ngettext ("\nSymbol table for image contains %lu entry:\n",
-			"\nSymbol table for image contains %lu entries:\n",
-			filedata->num_dynamic_syms),
-	      filedata->num_dynamic_syms);
+      if (filedata->is_separate)
+	{
+	  printf (ngettext ("\nIn linked file '%s' the dynamic symbol table contains %lu entry:\n",
+			    "\nIn linked file '%s' the dynamic symbol table contains %lu entries:\n",
+			    filedata->num_dynamic_syms),
+		  filedata->file_name,
+		  filedata->num_dynamic_syms);
+	}
+      else
+	{
+	  printf (ngettext ("\nSymbol table for image contains %lu entry:\n",
+			    "\nSymbol table for image contains %lu entries:\n",
+			    filedata->num_dynamic_syms),
+		  filedata->num_dynamic_syms);
+	}
       if (is_32bit_elf)
 	printf (_("   Num:    Value  Size Type    Bind   Vis      Ndx Name\n"));
       else
@@ -12632,11 +12785,20 @@ process_symbol_table (Filedata * filedata)
 	    }
 
 	  num_syms = section->sh_size / section->sh_entsize;
-	  printf (ngettext ("\nSymbol table '%s' contains %lu entry:\n",
-			    "\nSymbol table '%s' contains %lu entries:\n",
-			    num_syms),
-		  printable_section_name (filedata, section),
-		  num_syms);
+
+	  if (filedata->is_separate)
+	    printf (ngettext ("\nIn linked file '%s' symbol section '%s' contains %lu entry:\n",
+			      "\nIn linked file '%s' symbol section '%s' contains %lu entries:\n",
+			      num_syms),
+		    filedata->file_name,
+		    printable_section_name (filedata, section),
+		    num_syms);
+	  else
+	    printf (ngettext ("\nSymbol table '%s' contains %lu entry:\n",
+			      "\nSymbol table '%s' contains %lu entries:\n",
+			      num_syms),
+		    printable_section_name (filedata, section),
+		    num_syms);
 
 	  if (is_32bit_elf)
 	    printf (_("   Num:    Value  Size Type    Bind   Vis      Ndx Name\n"));
@@ -12858,7 +13020,7 @@ process_symbol_table (Filedata * filedata)
 }
 
 static bfd_boolean
-process_syminfo (Filedata * filedata ATTRIBUTE_UNUSED)
+process_syminfo (Filedata * filedata)
 {
   unsigned int i;
 
@@ -12871,13 +13033,21 @@ process_syminfo (Filedata * filedata ATTRIBUTE_UNUSED)
   if (filedata->dynamic_symbols == NULL || filedata->dynamic_strings == NULL)
     return FALSE;
 
-  if (filedata->dynamic_addr)
+  if (filedata->is_separate)
+    printf (ngettext ("\nIn linked file '%s: the dynamic info segment at offset 0x%lx contains %d entry:\n",
+		      "\nIn linked file '%s: the dynamic info segment at offset 0x%lx contains %d entries:\n",
+		      filedata->dynamic_syminfo_nent),
+	    filedata->file_name,
+	    filedata->dynamic_syminfo_offset,
+	    filedata->dynamic_syminfo_nent);
+  else
     printf (ngettext ("\nDynamic info segment at offset 0x%lx "
 		      "contains %d entry:\n",
 		      "\nDynamic info segment at offset 0x%lx "
 		      "contains %d entries:\n",
 		      filedata->dynamic_syminfo_nent),
-	    filedata->dynamic_syminfo_offset, filedata->dynamic_syminfo_nent);
+	    filedata->dynamic_syminfo_offset,
+	    filedata->dynamic_syminfo_nent);
 
   printf (_(" Num: Name                           BoundTo     Flags\n"));
   for (i = 0; i < filedata->dynamic_syminfo_nent; ++i)
@@ -14288,7 +14458,13 @@ dump_section_as_strings (Elf_Internal_Shdr * section, Filedata * filedata)
 
   num_bytes = section->sh_size;
 
-  printf (_("\nString dump of section '%s':\n"), printable_section_name (filedata, section));
+  if (filedata->is_separate)
+    printf (_("\nString dump of section '%s' in linked file %s:\n"),
+	    printable_section_name (filedata, section),
+	    filedata->file_name);
+  else
+    printf (_("\nString dump of section '%s':\n"),
+	    printable_section_name (filedata, section));
 
   if (decompress_dumps)
     {
@@ -14498,7 +14674,13 @@ dump_section_as_bytes (Elf_Internal_Shdr *  section,
 
   section_size = section->sh_size;
 
-  printf (_("\nHex dump of section '%s':\n"), printable_section_name (filedata, section));
+  if (filedata->is_separate)
+    printf (_("\nHex dump of section '%s' in linked file %s:\n"),
+	    printable_section_name (filedata, section),
+	    filedata->file_name);
+  else
+    printf (_("\nHex dump of section '%s':\n"),
+	    printable_section_name (filedata, section));
 
   if (decompress_dumps)
     {
@@ -14787,6 +14969,7 @@ dump_section_as_ctf (Elf_Internal_Shdr * section, Filedata * filedata)
       symsectp = shdr_to_ctf_sect (&symsect, symtab_sec, filedata);
       symsect.cts_data = symdata;
     }
+
   if (dump_ctf_strtab_name && dump_ctf_strtab_name[0] != 0)
     {
       if ((strtab_sec = find_section (filedata, dump_ctf_strtab_name)) == NULL)
@@ -14803,6 +14986,7 @@ dump_section_as_ctf (Elf_Internal_Shdr * section, Filedata * filedata)
       strsectp = shdr_to_ctf_sect (&strsect, strtab_sec, filedata);
       strsect.cts_data = strdata;
     }
+
   if (dump_ctf_parent_name)
     {
       if ((parent_sec = find_section (filedata, dump_ctf_parent_name)) == NULL)
@@ -14859,8 +15043,13 @@ dump_section_as_ctf (Elf_Internal_Shdr * section, Filedata * filedata)
 
   ret = TRUE;
 
-  printf (_("\nDump of CTF section '%s':\n"),
-	  printable_section_name (filedata, section));
+  if (filedata->is_separate)
+    printf (_("\nDump of CTF section '%s' in linked file %s:\n"),
+	    printable_section_name (filedata, section),
+	    filedata->file_name);
+  else
+    printf (_("\nDump of CTF section '%s':\n"),
+	    printable_section_name (filedata, section));
 
   if ((err = ctf_archive_iter (ctfa, dump_ctf_archive_member, parent)) != 0)
     {
@@ -15003,7 +15192,7 @@ load_specific_debug_section (enum dwarf_section_display_enum  debug,
 unsigned char *
 get_build_id (void * data)
 {
-  Filedata * filedata = (Filedata *)data;
+  Filedata * filedata = (Filedata *) data;
   Elf_Internal_Shdr * shdr;
   unsigned long i;
 
@@ -15273,7 +15462,7 @@ display_debug_section (int shndx, Elf_Internal_Shdr * section, Filedata * fileda
 
 	      section_subset = NULL;
 
-	      if (secondary || (id != info && id != abbrev))
+	      if (secondary || (id != info && id != abbrev && id != debug_addr))
 		free_debug_section (id);
 	    }
 	  break;
@@ -15310,8 +15499,8 @@ initialise_dumps_byname (Filedata * filedata)
 	    any = TRUE;
 	  }
 
-      if (!any)
-	warn (_("Section '%s' was not dumped because it does not exist!\n"),
+      if (!any && !filedata->is_separate)
+	warn (_("Section '%s' was not dumped because it does not exist\n"),
 	      cur->name);
     }
 }
@@ -15334,6 +15523,9 @@ process_section_contents (Filedata * filedata)
     {
       dump_type dump = filedata->dump.dump_sects[i];
 
+      if (filedata->is_separate && ! process_links)
+	dump &= DEBUG_DUMP;
+      
 #ifdef SUPPORT_DISASSEMBLY
       if (dump & DISASS_DUMP)
 	{
@@ -15374,16 +15566,16 @@ process_section_contents (Filedata * filedata)
 #endif
     }
 
-  /* Check to see if the user requested a
-     dump of a section that does not exist.  */
-  while (i < filedata->dump.num_dump_sects)
+  if (! filedata->is_separate)
     {
-      if (filedata->dump.dump_sects[i])
-	{
-	  warn (_("Section %d was not dumped because it does not exist!\n"), i);
-	  res = FALSE;
-	}
-      i++;
+      /* Check to see if the user requested a
+	 dump of a section that does not exist.  */
+      for (; i < filedata->dump.num_dump_sects; i++)
+	if (filedata->dump.dump_sects[i])
+	  {
+	    warn (_("Section %d was not dumped because it does not exist!\n"), i);
+	    res = FALSE;
+	  }
     }
 
   return res;
@@ -18320,6 +18512,8 @@ get_note_type (Filedata * filedata, unsigned e_type)
 	return _("NT_PRPSINFO (prpsinfo structure)");
       case NT_TASKSTRUCT:
 	return _("NT_TASKSTRUCT (task structure)");
+      case NT_GDB_TDESC:
+        return _("NT_GDB_TDESC (GDB XML target description)");
       case NT_PRXFPREG:
 	return _("NT_PRXFPREG (user_xfpregs structure)");
       case NT_PPC_VMX:
@@ -18396,6 +18590,8 @@ get_note_type (Filedata * filedata, unsigned e_type)
 	return _("NT_ARM_HW_WATCH (AArch hardware watchpoint registers)");
       case NT_ARC_V2:
 	return _("NT_ARC_V2 (ARC HS accumulator/extra registers)");
+      case NT_RISCV_CSR:
+	return _("NT_RISCV_CSR (RISC-V control and status registers)");
       case NT_PSTATUS:
 	return _("NT_PSTATUS (pstatus structure)");
       case NT_FPREGS:
@@ -20357,10 +20553,14 @@ process_notes_at (Filedata *           filedata,
 
   external = pnotes;
 
-  if (section)
-    printf (_("\nDisplaying notes found in: %s\n"), printable_section_name (filedata, section));
+  if (filedata->is_separate)
+    printf (_("In linked file '%s': "), filedata->file_name);
   else
-    printf (_("\nDisplaying notes found at file offset 0x%08lx with length 0x%08lx:\n"),
+    printf ("\n");
+  if (section)
+    printf (_("Displaying notes found in: %s\n"), printable_section_name (filedata, section));
+  else
+    printf (_("Displaying notes found at file offset 0x%08lx with length 0x%08lx:\n"),
 	    (unsigned long) offset, (unsigned long) length);
 
   /* NB: Some note sections may have alignment value of 0 or 1.  gABI
@@ -20658,7 +20858,12 @@ process_notes (Filedata * filedata)
   if (filedata->file_header.e_phnum > 0)
     return process_corefile_note_segments (filedata);
 
-  printf (_("No note segments present in the core file.\n"));
+  if (filedata->is_separate)
+    printf (_("No notes found in linked file '%s'.\n"),
+	    filedata->file_name);
+  else
+    printf (_("No notes found file.\n"));
+
   return TRUE;
 }
 
@@ -20868,7 +21073,7 @@ close_debug_file (void * data)
 }
 
 static Filedata *
-open_file (const char * pathname)
+open_file (const char * pathname, bfd_boolean is_separate)
 {
   struct stat  statbuf;
   Filedata *   filedata = NULL;
@@ -20887,6 +21092,7 @@ open_file (const char * pathname)
 
   filedata->file_size = (bfd_size_type) statbuf.st_size;
   filedata->file_name = pathname;
+  filedata->is_separate = is_separate;
 
   if (! get_file_header (filedata))
     goto fail;
@@ -20920,7 +21126,30 @@ open_file (const char * pathname)
 void *
 open_debug_file (const char * pathname)
 {
-  return open_file (pathname);
+  return open_file (pathname, TRUE);
+}
+
+static void
+initialise_dump_sects (Filedata * filedata)
+{
+  /* Initialise the dump_sects array from the cmdline_dump_sects array.
+     Note we do this even if cmdline_dump_sects is empty because we
+     must make sure that the dump_sets array is zeroed out before each
+     object file is processed.  */
+  if (filedata->dump.num_dump_sects > cmdline.num_dump_sects)
+    memset (filedata->dump.dump_sects, 0,
+	    filedata->dump.num_dump_sects * sizeof (*filedata->dump.dump_sects));
+
+  if (cmdline.num_dump_sects > 0)
+    {
+      if (filedata->dump.num_dump_sects == 0)
+	/* A sneaky way of allocating the dump_sects array.  */
+	request_dump_bynumber (&filedata->dump, cmdline.num_dump_sects, 0);
+
+      assert (filedata->dump.num_dump_sects >= cmdline.num_dump_sects);
+      memcpy (filedata->dump.dump_sects, cmdline.dump_sects,
+	      cmdline.num_dump_sects * sizeof (*filedata->dump.dump_sects));
+    }
 }
 
 /* Process one ELF object file according to the command line options.
@@ -20954,24 +21183,7 @@ process_object (Filedata * filedata)
   if (show_name)
     printf (_("\nFile: %s\n"), filedata->file_name);
 
-  /* Initialise the dump_sects array from the cmdline_dump_sects array.
-     Note we do this even if cmdline_dump_sects is empty because we
-     must make sure that the dump_sets array is zeroed out before each
-     object file is processed.  */
-  if (filedata->dump.num_dump_sects > cmdline.num_dump_sects)
-    memset (filedata->dump.dump_sects, 0,
-	    filedata->dump.num_dump_sects * sizeof (*filedata->dump.dump_sects));
-
-  if (cmdline.num_dump_sects > 0)
-    {
-      if (filedata->dump.num_dump_sects == 0)
-	/* A sneaky way of allocating the dump_sects array.  */
-	request_dump_bynumber (&filedata->dump, cmdline.num_dump_sects, 0);
-
-      assert (filedata->dump.num_dump_sects >= cmdline.num_dump_sects);
-      memcpy (filedata->dump.dump_sects, cmdline.dump_sects,
-	      cmdline.num_dump_sects * sizeof (*filedata->dump.dump_sects));
-    }
+  initialise_dump_sects (filedata);
 
   if (! process_file_header (filedata))
     return FALSE;
@@ -21025,10 +21237,37 @@ process_object (Filedata * filedata)
 
       for (d = first_separate_info; d != NULL; d = d->next)
 	{
-	  if (! process_section_headers (d->handle))
+	  initialise_dump_sects (d->handle);
+
+	  if (process_links && ! process_file_header (d->handle))
+	    res = FALSE;
+	  else if (! process_section_headers (d->handle))
 	    res = FALSE;
 	  else if (! process_section_contents (d->handle))
 	    res = FALSE;
+	  else if (process_links)
+	    {
+	      if (! process_section_groups (d->handle))
+		res = FALSE;
+	      if (! process_program_headers (d->handle))
+		res = FALSE;
+	      if (! process_dynamic_section (d->handle))
+		res = FALSE;
+	      if (! process_relocs (d->handle))
+		res = FALSE;
+	      if (! process_unwind (d->handle))
+		res = FALSE;
+	      if (! process_symbol_table (d->handle))
+		res = FALSE;
+	      if (! process_lto_symbol_tables (d->handle))
+		res = FALSE;
+	      if (! process_syminfo (d->handle))
+		res = FALSE;
+	      if (! process_version_sections (d->handle))
+		res = FALSE;
+	      if (! process_notes (d->handle))
+		res = FALSE;
+	    }
 	}
 
       /* The file handles are closed by the call to free_debug_memory() below.  */
@@ -21311,7 +21550,7 @@ process_archive (Filedata * filedata, bfd_boolean is_thin_archive)
 	      break;
 	    }
 
-	  member_filedata = open_file (member_file_name);
+	  member_filedata = open_file (member_file_name, FALSE);
 	  if (member_filedata == NULL)
 	    {
 	      error (_("Input file '%s' is not readable.\n"), member_file_name);
@@ -21444,6 +21683,7 @@ process_file (char * file_name)
     }
 
   filedata->file_size = (bfd_size_type) statbuf.st_size;
+  filedata->is_separate = FALSE;
 
   if (memcmp (armag, ARMAG, SARMAG) == 0)
     {

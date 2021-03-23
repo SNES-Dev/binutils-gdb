@@ -1,3 +1,71 @@
+2021-03-19  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* elf/common.h (EM_INTEL205): Renamed to ...
+	(EM_INTELGT): This.
+
+2021-03-16  Nick Clifton  <nickc@redhat.com>
+
+	* coff/internal.h (struct internal_auxent): Fix a couple of typos
+	in comment describing the x_fname field.
+
+2021-03-16  Kuan-Lin Chen  <kuanlinchentw@gmail.com>
+
+	* opcode/riscv-opc.h: Support zba, zbb and zbc extensions.
+	* opcode/riscv.h (riscv_insn_class): Add INSN_CLASS_ZB*.
+
+2021-03-12  Frederic Cambus  <fred@statdns.com>
+
+	* elf/common.h (NT_NETBSD_PAX, NT_NETBSD_PAX_MPROTECT)
+	(NT_NETBSD_PAX_NOMPROTECT, NT_NETBSD_PAX_GUARD, NT_NETBSD_PAX_NOGUARD)
+	(NT_NETBSD_PAX_ASLR, NT_NETBSD_PAX_NOASLR): Define.
+
+2021-03-12  Clément Chigot  <clement.chigot@atos.net>
+
+	* coff/internal.h (struct internal_aouthdr): Add new fields.
+	* coff/rs6000.h (AOUTHDRÃ): Add new fields.
+	* coff/rs6k64.h (struct external_filehdr): Likewise.
+	* coff/xcoff.h (_TDATA), _TBSS): New defines
+	(RS6K_AOUTHDR_TLS_LE, RS6K_AOUTHDR_RAS, RS6K_AOUTHDR_ALGNTDATA,
+	RS6K_AOUTHDR_SHR_SYMTAB, RS6K_AOUTHDR_FORK_POLICY,
+	RS6K_AOUTHDR_FORK_COR): New defines.
+	(XMC_TU): Removed.
+	(XMC_UL): New define.
+
+2021-03-12  Clément Chigot  <clement.chigot@atos.net>
+
+	* coff/xcoff.h (R_RTB): Remove.
+	(R_TRL): Fix value.
+
+2021-03-05  Craig Blackmore  <craig.blackmore@embecosm.com>
+	    Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* elf/common.h (NT_RISCV_CSR): Define.
+
+2021-03-05  Craig Blackmore  <craig.blackmore@embecosm.com>
+	    Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* elf/common.h (NT_GDB_TDESC): Define.
+
+2021-03-03  Alan Modra  <amodra@gmail.com>
+
+	* coff/internal.h: Delete obsolete relocation defines.  Move used
+	relocation defines..
+	* coff/i386.h: ..to here..
+	* coff/ti.h: ..and here..
+	* coff/x86_64.h: ..and here..
+	* coff/z80.h: ..and here..
+	* coff/z8k.h: ..and here.
+
+2021-03-02  Nick Alcock  <nick.alcock@oracle.com>
+
+	* ctf-api.h (CTF_LINK_SHARE_DUPLICATED): Note that this might
+	merely change how much deduplication is done.
+
+2021-03-01  Alan Modra  <amodra@gmail.com>
+	    Fangrui Song <maskray@google.com>
+
+	* bfdlink.h (struct bfd_link_info): Add start_stop_gc.
+
 2021-02-21  Alan Modra  <amodra@gmail.com>
 
 	* bfdlink.h (struct bfd_link_info): Add warn_multiple_definition.

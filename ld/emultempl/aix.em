@@ -287,7 +287,7 @@ gld${EMULATION_NAME}_parse_args (int argc, char **argv)
   if (indx == 0)
     indx = 1;
 
-  if (indx < argc && CONST_STRNEQ (argv[indx], "-b"))
+  if (indx < argc && startswith (argv[indx], "-b"))
     {
       char *s;
 
@@ -968,6 +968,44 @@ gld${EMULATION_NAME}_before_allocation (void)
 	else
 	  sec->flags |= SEC_KEEP;
       }
+
+  /* Make sure .tdata is removed if empty, even with -r flag.
+     .tdata is always being generated because its size is needed
+     to cumpute .data address.  */
+  if (bfd_link_relocatable (&link_info))
+    {
+      static const char *const thread_sections[] = {
+	".tdata",
+	".tbss"
+      };
+
+      /* Run lang_size_sections (if not already done).  */
+      if (expld.phase != lang_mark_phase_enum)
+	{
+	  expld.phase = lang_mark_phase_enum;
+	  expld.dataseg.phase = exp_seg_none;
+	  one_lang_size_sections_pass (NULL, FALSE);
+	  lang_reset_memory_regions ();
+	}
+
+      for (i = 0; i < ARRAY_SIZE (thread_sections); i++)
+	{
+	  asection *sec;
+
+	  sec = bfd_get_section_by_name (link_info.output_bfd,
+					 thread_sections[i]);
+
+	  if (sec != NULL && sec->rawsize == 0
+	      && (sec->flags & SEC_KEEP) == 0
+	      && !bfd_section_removed_from_list (link_info.output_bfd,
+						 sec))
+	    {
+	      sec->flags |= SEC_EXCLUDE;
+	      bfd_section_list_remove (link_info.output_bfd, sec);
+	      link_info.output_bfd->section_count--;
+	    }
+	}
+    }
 
   before_allocation_default ();
 }
