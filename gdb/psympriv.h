@@ -111,7 +111,8 @@ enum class psymbol_placement
 
 struct partial_symtab
 {
-  /* Allocate a new partial symbol table associated with OBJFILE.
+  /* Allocate a new partial symbol table.
+
      FILENAME (which must be non-NULL) is the filename of this partial
      symbol table; it is copied into the appropriate storage.  The
      partial symtab will also be installed using
@@ -119,7 +120,7 @@ struct partial_symtab
 
   partial_symtab (const char *filename,
 		  psymtab_storage *partial_symtabs,
-		  struct objfile *objfile)
+		  objfile_per_bfd_storage *objfile_per_bfd)
     ATTRIBUTE_NONNULL (2) ATTRIBUTE_NONNULL (3);
 
   /* Like the above, but also sets the initial text low and text high
@@ -128,7 +129,7 @@ struct partial_symtab
 
   partial_symtab (const char *filename,
 		  psymtab_storage *partial_symtabs,
-		  struct objfile *objfile,
+		  objfile_per_bfd_storage *objfile_per_bfd,
 		  CORE_ADDR addr)
     ATTRIBUTE_NONNULL (2) ATTRIBUTE_NONNULL (3);
 
@@ -369,16 +370,16 @@ struct standard_psymtab : public partial_symtab
 {
   standard_psymtab (const char *filename,
 		    psymtab_storage *partial_symtabs,
-		    struct objfile *objfile)
-    : partial_symtab (filename, partial_symtabs, objfile)
+		    objfile_per_bfd_storage *objfile_per_bfd)
+    : partial_symtab (filename, partial_symtabs, objfile_per_bfd)
   {
   }
 
   standard_psymtab (const char *filename,
 		    psymtab_storage *partial_symtabs,
-		    struct objfile *objfile,
+		    objfile_per_bfd_storage *objfile_per_bfd,
 		    CORE_ADDR addr)
-    : partial_symtab (filename, partial_symtabs, objfile, addr)
+    : partial_symtab (filename, partial_symtabs, objfile_per_bfd, addr)
   {
   }
 
@@ -411,16 +412,16 @@ struct legacy_psymtab : public standard_psymtab
 {
   legacy_psymtab (const char *filename,
 		  psymtab_storage *partial_symtabs,
-		  struct objfile *objfile)
-    : standard_psymtab (filename, partial_symtabs, objfile)
+		  objfile_per_bfd_storage *objfile_per_bfd)
+    : standard_psymtab (filename, partial_symtabs, objfile_per_bfd)
   {
   }
 
   legacy_psymtab (const char *filename,
 		  psymtab_storage *partial_symtabs,
-		  struct objfile *objfile,
+		  objfile_per_bfd_storage *objfile_per_bfd,
 		  CORE_ADDR addr)
-    : standard_psymtab (filename, partial_symtabs, objfile, addr)
+    : standard_psymtab (filename, partial_symtabs, objfile_per_bfd, addr)
   {
   }
 
@@ -556,8 +557,8 @@ struct psymbol_functions : public quick_symbol_functions
     (struct objfile *objfile, CORE_ADDR address) override;
 
   void map_symbol_filenames (struct objfile *objfile,
-			     symbol_filename_ftype *fun, void *data,
-			     int need_fullname) override;
+			     gdb::function_view<symbol_filename_ftype> fun,
+			     bool need_fullname) override;
 
   void relocated () override
   {

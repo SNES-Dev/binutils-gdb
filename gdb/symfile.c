@@ -838,10 +838,8 @@ init_entry_point_info (struct objfile *objfile)
 
       /* Make certain that the address points at real code, and not a
 	 function descriptor.  */
-      entry_point
-	= gdbarch_convert_from_func_ptr_addr (objfile->arch (),
-					      entry_point,
-					      current_top_target ());
+      entry_point = gdbarch_convert_from_func_ptr_addr
+	(objfile->arch (), entry_point, current_inferior ()->top_target ());
 
       /* Remove any ISA markers, so that this matches entries in the
 	 symbol table.  */
@@ -2772,16 +2770,15 @@ allocate_symtab (struct compunit_symtab *cust, const char *filename)
     {
       /* Be a bit clever with debugging messages, and don't print objfile
 	 every time, only when it changes.  */
-      static char *last_objfile_name = NULL;
+      static std::string last_objfile_name;
+      const char *this_objfile_name = objfile_name (objfile);
 
-      if (last_objfile_name == NULL
-	  || strcmp (last_objfile_name, objfile_name (objfile)) != 0)
+      if (last_objfile_name.empty () || last_objfile_name != this_objfile_name)
 	{
-	  xfree (last_objfile_name);
-	  last_objfile_name = xstrdup (objfile_name (objfile));
+	  last_objfile_name = this_objfile_name;
 	  fprintf_filtered (gdb_stdlog,
 			    "Creating one or more symtabs for objfile %s ...\n",
-			    last_objfile_name);
+			    this_objfile_name);
 	}
       fprintf_filtered (gdb_stdlog,
 			"Created symtab %s for module %s.\n",
@@ -3739,11 +3736,11 @@ expand_symtabs_matching
    See quick_symbol_functions.map_symbol_filenames for details.  */
 
 void
-map_symbol_filenames (symbol_filename_ftype *fun, void *data,
-		      int need_fullname)
+map_symbol_filenames (gdb::function_view<symbol_filename_ftype> fun,
+		      bool need_fullname)
 {
   for (objfile *objfile : current_program_space->objfiles ())
-    objfile->map_symbol_filenames (fun, data, need_fullname);
+    objfile->map_symbol_filenames (fun, need_fullname);
 }
 
 #if GDB_SELF_TEST

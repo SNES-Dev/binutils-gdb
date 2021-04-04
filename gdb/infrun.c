@@ -477,7 +477,7 @@ holding the child stopped.  Try \"set detach-on-fork\" or \
 	  set_current_inferior (child_inf);
 	  switch_to_no_thread ();
 	  child_inf->symfile_flags = SYMFILE_NO_READ;
-	  push_target (parent_inf->process_target ());
+	  child_inf->push_target (parent_inf->process_target ());
 	  thread_info *child_thr
 	    = add_thread_silent (child_inf->process_target (), child_ptid);
 
@@ -627,7 +627,7 @@ holding the child stopped.  Try \"set detach-on-fork\" or \
 	   informing the solib layer about this new process.  */
 
 	set_current_inferior (child_inf);
-	push_target (target);
+	child_inf->push_target (target);
       }
 
       thread_info *child_thr = add_thread_silent (target, child_ptid);
@@ -1183,7 +1183,7 @@ follow_exec (ptid_t ptid, const char *exec_file_target)
 
       inferior *org_inferior = current_inferior ();
       switch_to_inferior_no_thread (inf);
-      push_target (org_inferior->process_target ());
+      inf->push_target (org_inferior->process_target ());
       thread_info *thr = add_thread (inf->process_target (), ptid);
       switch_to_thread (thr);
     }
@@ -1777,7 +1777,7 @@ displaced_step_finish (thread_info *event_thread, enum gdb_signal signal)
   /* Fixup may need to read memory/registers.  Switch to the thread
      that we're fixing up.  Also, target_stopped_by_watchpoint checks
      the current thread, and displaced_step_restore performs ptid-dependent
-     memory accesses using current_inferior() and current_top_target().  */
+     memory accesses using current_inferior().  */
   switch_to_thread (event_thread);
 
   displaced_step_reset_cleanup cleanup (displaced);
@@ -2030,7 +2030,8 @@ set_schedlock_func (const char *args, int from_tty, struct cmd_list_element *c)
   if (!target_can_lock_scheduler ())
     {
       scheduler_mode = schedlock_off;
-      error (_("Target '%s' cannot support this command."), target_shortname);
+      error (_("Target '%s' cannot support this command."),
+	     target_shortname ());
     }
 }
 
@@ -2171,8 +2172,6 @@ do_target_resume (ptid_t resume_ptid, bool step, enum gdb_signal sig)
     target_pass_signals (signal_pass);
 
   target_resume (resume_ptid, step, sig);
-
-  target_commit_resume ();
 
   if (target_can_async_p ())
     target_async (1);
@@ -2760,28 +2759,220 @@ schedlock_applies (struct thread_info *tp)
 					    execution_direction)));
 }
 
-/* Calls target_commit_resume on all targets.  */
+/* Set process_stratum_target::COMMIT_RESUMED_STATE in all target
+   stacks that have threads executing and don't have threads with
+   pending events.  */
 
 static void
-commit_resume_all_targets ()
+maybe_set_commit_resumed_all_targets ()
 {
   scoped_restore_current_thread restore_thread;
 
-  /* Map between process_target and a representative inferior.  This
-     is to avoid committing a resume in the same target more than
-     once.  Resumptions must be idempotent, so this is an
-     optimization.  */
-  std::unordered_map<process_stratum_target *, inferior *> conn_inf;
+  for (inferior *inf : all_non_exited_inferiors ())
+    {
+      process_stratum_target *proc_target = inf->process_target ();
+
+      if (proc_target->commit_resumed_state)
+	{
+	  /* We already set this in a previous iteration, via another
+	     inferior sharing the process_stratum target.  */
+	  continue;
+	}
+
+      /* If the target has no resumed threads, it would be useless to
+	 ask it to commit the resumed threads.  */
+      if (!proc_target->threads_executing)
+	{
+	  infrun_debug_printf ("not requesting commit-resumed for target "
+			       "%s, no resumed threads",
+			       proc_target->shortname ());
+	  continue;
+	}
+
+      /* As an optimization, if a thread from this target has some
+	 status to report, handle it before requiring the target to
+	 commit its resumed threads: handling the status might lead to
+	 resuming more threads.  */
+      bool has_thread_with_pending_status = false;
+      for (thread_info *thread : all_non_exited_threads (proc_target))
+	if (thread->resumed && thread->suspend.waitstatus_pending_p)
+	  {
+	    has_thread_with_pending_status = true;
+	    break;
+	  }
+
+      if (has_thread_with_pending_status)
+	{
+	  infrun_debug_printf ("not requesting commit-resumed for target %s, a"
+			       " thread has a pending waitstatus",
+			       proc_target->shortname ());
+	  continue;
+	}
+
+      switch_to_inferior_no_thread (inf);
+
+      if (target_has_pending_events ())
+	{
+	  infrun_debug_printf ("not requesting commit-resumed for target %s, "
+			       "target has pending events",
+			       proc_target->shortname ());
+	  continue;
+	}
+
+      infrun_debug_printf ("enabling commit-resumed for target %s",
+			   proc_target->shortname ());
+
+      proc_target->commit_resumed_state = true;
+    }
+}
+
+/* See infrun.h.  */
+
+void
+maybe_call_commit_resumed_all_targets ()
+{
+  scoped_restore_current_thread restore_thread;
 
   for (inferior *inf : all_non_exited_inferiors ())
-    if (inf->has_execution ())
-      conn_inf[inf->process_target ()] = inf;
-
-  for (const auto &ci : conn_inf)
     {
-      inferior *inf = ci.second;
+      process_stratum_target *proc_target = inf->process_target ();
+
+      if (!proc_target->commit_resumed_state)
+	continue;
+
       switch_to_inferior_no_thread (inf);
-      target_commit_resume ();
+
+      infrun_debug_printf ("calling commit_resumed for target %s",
+			   proc_target->shortname());
+
+      target_commit_resumed ();
+    }
+}
+
+/* To track nesting of scoped_disable_commit_resumed objects, ensuring
+   that only the outermost one attempts to re-enable
+   commit-resumed.  */
+static bool enable_commit_resumed = true;
+
+/* See infrun.h.  */
+
+scoped_disable_commit_resumed::scoped_disable_commit_resumed
+  (const char *reason)
+  : m_reason (reason),
+    m_prev_enable_commit_resumed (enable_commit_resumed)
+{
+  infrun_debug_printf ("reason=%s", m_reason);
+
+  enable_commit_resumed = false;
+
+  for (inferior *inf : all_non_exited_inferiors ())
+    {
+      process_stratum_target *proc_target = inf->process_target ();
+
+      if (m_prev_enable_commit_resumed)
+	{
+	  /* This is the outermost instance: force all
+	     COMMIT_RESUMED_STATE to false.  */
+	  proc_target->commit_resumed_state = false;
+	}
+      else
+	{
+	  /* This is not the outermost instance, we expect
+	     COMMIT_RESUMED_STATE to have been cleared by the
+	     outermost instance.  */
+	  gdb_assert (!proc_target->commit_resumed_state);
+	}
+    }
+}
+
+/* See infrun.h.  */
+
+void
+scoped_disable_commit_resumed::reset ()
+{
+  if (m_reset)
+    return;
+  m_reset = true;
+
+  infrun_debug_printf ("reason=%s", m_reason);
+
+  gdb_assert (!enable_commit_resumed);
+
+  enable_commit_resumed = m_prev_enable_commit_resumed;
+
+  if (m_prev_enable_commit_resumed)
+    {
+      /* This is the outermost instance, re-enable
+         COMMIT_RESUMED_STATE on the targets where it's possible.  */
+      maybe_set_commit_resumed_all_targets ();
+    }
+  else
+    {
+      /* This is not the outermost instance, we expect
+	 COMMIT_RESUMED_STATE to still be false.  */
+      for (inferior *inf : all_non_exited_inferiors ())
+	{
+	  process_stratum_target *proc_target = inf->process_target ();
+	  gdb_assert (!proc_target->commit_resumed_state);
+	}
+    }
+}
+
+/* See infrun.h.  */
+
+scoped_disable_commit_resumed::~scoped_disable_commit_resumed ()
+{
+  reset ();
+}
+
+/* See infrun.h.  */
+
+void
+scoped_disable_commit_resumed::reset_and_commit ()
+{
+  reset ();
+  maybe_call_commit_resumed_all_targets ();
+}
+
+/* See infrun.h.  */
+
+scoped_enable_commit_resumed::scoped_enable_commit_resumed
+  (const char *reason)
+  : m_reason (reason),
+    m_prev_enable_commit_resumed (enable_commit_resumed)
+{
+  infrun_debug_printf ("reason=%s", m_reason);
+
+  if (!enable_commit_resumed)
+    {
+      enable_commit_resumed = true;
+
+      /* Re-enable COMMIT_RESUMED_STATE on the targets where it's
+	 possible.  */
+      maybe_set_commit_resumed_all_targets ();
+
+      maybe_call_commit_resumed_all_targets ();
+    }
+}
+
+/* See infrun.h.  */
+
+scoped_enable_commit_resumed::~scoped_enable_commit_resumed ()
+{
+  infrun_debug_printf ("reason=%s", m_reason);
+
+  gdb_assert (enable_commit_resumed);
+
+  enable_commit_resumed = m_prev_enable_commit_resumed;
+
+  if (!enable_commit_resumed)
+    {
+      /* Force all COMMIT_RESUMED_STATE back to false.  */
+      for (inferior *inf : all_non_exited_inferiors ())
+	{
+	  process_stratum_target *proc_target = inf->process_target ();
+	  proc_target->commit_resumed_state = false;
+	}
     }
 }
 
@@ -3005,7 +3196,7 @@ proceed (CORE_ADDR addr, enum gdb_signal siggnal)
   cur_thr->prev_pc = regcache_read_pc_protected (regcache);
 
   {
-    scoped_restore save_defer_tc = make_scoped_defer_target_commit_resume ();
+    scoped_disable_commit_resumed disable_commit_resumed ("proceeding");
 
     started = start_step_over ();
 
@@ -3073,9 +3264,9 @@ proceed (CORE_ADDR addr, enum gdb_signal siggnal)
 	if (!ecs->wait_some_more)
 	  error (_("Command aborted."));
       }
-  }
 
-  commit_resume_all_targets ();
+    disable_commit_resumed.reset_and_commit ();
+  }
 
   finish_state.release ();
 
@@ -3877,8 +4068,16 @@ fetch_inferior_event ()
       = make_scoped_restore (&execution_direction,
 			     target_execution_direction ());
 
+    /* Allow targets to pause their resumed threads while we handle
+       the event.  */
+    scoped_disable_commit_resumed disable_commit_resumed ("handling event");
+
     if (!do_target_wait (minus_one_ptid, ecs, TARGET_WNOHANG))
-      return;
+      {
+	infrun_debug_printf ("do_target_wait returned no event");
+	disable_commit_resumed.reset_and_commit ();
+	return;
+      }
 
     gdb_assert (ecs->ws.kind != TARGET_WAITKIND_IGNORE);
 
@@ -3968,6 +4167,8 @@ fetch_inferior_event ()
 
     /* No error, don't finish the thread states yet.  */
     finish_state.release ();
+
+    disable_commit_resumed.reset_and_commit ();
 
     /* This scope is used to ensure that readline callbacks are
        reinstalled here.  */
@@ -5812,7 +6013,8 @@ handle_signal_stop (struct execution_control_state *ecs)
 
 	  infrun_debug_printf ("stopped by watchpoint");
 
-	  if (target_stopped_data_address (current_top_target (), &addr))
+	  if (target_stopped_data_address (current_inferior ()->top_target (),
+					   &addr))
 	    infrun_debug_printf ("stopped data address=%s",
 				 paddress (reg_gdbarch, addr));
 	  else
@@ -8834,7 +9036,8 @@ siginfo_value_read (struct value *v)
   validate_registers_access ();
 
   transferred =
-    target_read (current_top_target (), TARGET_OBJECT_SIGNAL_INFO,
+    target_read (current_inferior ()->top_target (),
+		 TARGET_OBJECT_SIGNAL_INFO,
 		 NULL,
 		 value_contents_all_raw (v),
 		 value_offset (v),
@@ -8856,7 +9059,7 @@ siginfo_value_write (struct value *v, struct value *fromval)
      vice versa.  */
   validate_registers_access ();
 
-  transferred = target_write (current_top_target (),
+  transferred = target_write (current_inferior ()->top_target (),
 			      TARGET_OBJECT_SIGNAL_INFO,
 			      NULL,
 			      value_contents_all_raw (fromval),
@@ -8920,7 +9123,8 @@ public:
 
 	siginfo_data.reset ((gdb_byte *) xmalloc (len));
 
-	if (target_read (current_top_target (), TARGET_OBJECT_SIGNAL_INFO, NULL,
+	if (target_read (current_inferior ()->top_target (),
+			 TARGET_OBJECT_SIGNAL_INFO, NULL,
 			 siginfo_data.get (), 0, len) != len)
 	  {
 	    /* Errors ignored.  */
@@ -8955,7 +9159,8 @@ public:
 	struct type *type = gdbarch_get_siginfo_type (gdbarch);
 
 	/* Errors ignored.  */
-	target_write (current_top_target (), TARGET_OBJECT_SIGNAL_INFO, NULL,
+	target_write (current_inferior ()->top_target (),
+		      TARGET_OBJECT_SIGNAL_INFO, NULL,
 		      m_siginfo_data.get (), 0, TYPE_LENGTH (type));
       }
 

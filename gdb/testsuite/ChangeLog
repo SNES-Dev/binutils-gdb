@@ -1,3 +1,115 @@
+2021-04-01  Egeyar Bagcioglu  <egeyar@gmail.com>
+
+	* lib/pdtrace.in: Fix obvious typo.
+
+2021-03-31  Tom Tromey  <tromey@adacore.com>
+
+	* lib/dwarf.exp (Dwarf::_get_args): New proc.
+	(Dwarf::_location): Use it.
+
+2021-03-31  Tom de Vries  <tdevries@suse.de>
+
+	PR testsuite/27667
+	* lib/gdb.exp (default_gdb_init): Unset DEBUGINFOD_URLS.
+
+2021-03-30  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	PR gdb/27541
+	* gdb.base/index-cache-load-twice.exp: Remove.
+	* gdb.base/index-cache-load-twice.c: Remove.
+	* gdb.dwarf2/per-bfd-sharing.exp: New.
+	* gdb.dwarf2/per-bfd-sharing.c: New.
+
+2021-03-30  Tom de Vries  <tdevries@suse.de>
+
+	PR testsuite/27604
+	* gdb.dwarf2/dw2-cu-size.S: Add missing .debug_abbrev terminator.
+
+2021-03-29  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* gdb.mi/user-selected-context-sync.exp: Spin on a variable in
+	the infinite loop to avoid a Clang bug.
+
+2021-03-26  Will Schmidt  <will_schmidt@vnet.ibm.com>
+
+	* gdb.arch/powerpc-disassembler-options.exp: Extend some test
+	names for uniqueness.
+	* gdb.arch/powerpc-fpscr-gcore.exp: Add more test names for
+	uniqueness.
+
+2021-03-26  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.python/py-prettyprint.c (struct container): Add 'is_array_p'
+	member.
+	(make_container): Initialise is_array_p.
+	* gdb.python/py-prettyprint.exp: Add new tests.
+	* gdb.python/py-prettyprint.py (ContainerPrinter.display_hint):
+	Check is_array_p and possibly return 'array'.
+
+2021-03-26  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.cp/breakpoint.exp: Extend test names to make them unique.
+	* gdb.cp/casts.exp: Give tests unique names.
+	* gdb.cp/filename.exp: Likewise.
+	* gdb.cp/gdb2495.exp: Likewise.
+	* gdb.cp/mb-ctor.exp: Extend test names to make them unique.
+	* gdb.cp/misc.exp: Rename test to make it unique.
+	* gdb.cp/nsnested.exp: Give tests unique names.
+	* gdb.cp/ovldbreak.exp: Likewise.
+	* gdb.cp/pr17494.exp: Rename test to reflect what is actually
+	being tested.  This also removes the duplicate test name.
+	* gdb.cp/ref-types.exp: Likewise.
+	* gdb.cp/temargs.exp: Likewise.
+
+2021-03-26  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.cp/cplusfuncs.exp (test_paddr_operator_functions): Escape
+	square brackets in test.
+
+2021-03-26  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.cp/maint.exp (test_first_component): Run more tests with a
+	variable number of spaces, this removes the duplicate testing of
+	'operator ->' which existed before.
+
+2021-03-26  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.cp/gdb2384.cc (main): Change comments used for breakpoints.
+	* gdb.cp/gdb2384.exp: Change and extend test names to avoid
+	duplicates, and also to avoid having a string inside parentheses
+	at the end of test names.
+
+2021-03-26  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.cp/nsusing.exp: Rewrite test, remove a duplicate test block.
+	Avoid repeated uses of 'runto', and instread just progress once
+	through the test stopping at different breakpoints.  Give comments
+	a capital letter and full stop.  Give duplicate tests unique names.
+
+2021-03-25  Pedro Alves  <pedro@palves.net>
+
+	* gdb.server/stop-reply-no-thread-multi.exp (run_test): Add
+	"target_non_stop" parameter and use it.
+	(top level): Add "maint set target-non-stop on/off" testing axis.
+
+2021-03-25  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* lib/ada.exp (gnat_runtime_has_debug_info): Use -wrap with
+	gdb_test_multiple.
+
+2021-03-24  Luis Machado  <luis.machado@linaro.org>
+
+	* gdb.arch/aarch64-mte.c: New file.
+	* gdb.arch/aarch64-mte.exp: New test.
+	* gdb.base/memtag.c: New file.
+	* gdb.base/memtag.exp: New test.
+	* lib/gdb.exp (supports_memtag): New function.
+
+2021-03-24  Luis Machado  <luis.machado@linaro.org>
+
+	* gdb.base/options.exp: Adjust for new print options.
+	* gdb.base/with.exp: Likewise.
+
 2021-03-22  Andrew Burgess  <andrew.burgess@embecosm.com>
 
 	* gdb.dwarf2/dw2-missing-cu-tag.c: New file.

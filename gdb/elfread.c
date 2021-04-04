@@ -53,26 +53,6 @@
 #include "debuginfod-support.h"
 #include "dwarf2/public.h"
 
-/* A subclass of psymbol_functions that arranges to read the DWARF
-   partial symbols when needed.  */
-struct lazy_dwarf_reader : public psymbol_functions
-{
-  using psymbol_functions::psymbol_functions;
-
-  bool can_lazily_read_symbols () override
-  {
-    return true;
-  }
-
-  void read_partial_symbols (struct objfile *objfile) override
-  {
-    if (dwarf2_has_info (objfile, nullptr))
-      dwarf2_build_psymtabs (objfile, this);
-  }
-};
-
-extern const struct sym_fns elf_sym_fns_lazy_psyms;
-
 /* The struct elfinfo is available only during ELF symbol table and
    psymtab reading.  It is destroyed at the completion of psymtab-reading.
    It's local to elf_symfile_read.  */
@@ -863,8 +843,8 @@ elf_gnu_ifunc_resolve_by_got (const char *name, CORE_ADDR *addr_p)
       if (target_read_memory (pointer_address, buf, ptr_size) != 0)
 	continue;
       addr = extract_typed_address (buf, ptr_type);
-      addr = gdbarch_convert_from_func_ptr_addr (gdbarch, addr,
-						 current_top_target ());
+      addr = gdbarch_convert_from_func_ptr_addr
+	(gdbarch, addr, current_inferior ()->top_target ());
       addr = gdbarch_addr_bits_remove (gdbarch, addr);
 
       if (elf_gnu_ifunc_record_cache (name, addr))
@@ -931,12 +911,13 @@ elf_gnu_ifunc_resolve_addr (struct gdbarch *gdbarch, CORE_ADDR pc)
      parameter.  FUNCTION is the function entry address.  ADDRESS may be a
      function descriptor.  */
 
-  target_auxv_search (current_top_target (), AT_HWCAP, &hwcap);
+  target_auxv_search (current_inferior ()->top_target (), AT_HWCAP, &hwcap);
   hwcap_val = value_from_longest (builtin_type (gdbarch)
 				  ->builtin_unsigned_long, hwcap);
   address_val = call_function_by_hand (function, NULL, hwcap_val);
   address = value_as_address (address_val);
-  address = gdbarch_convert_from_func_ptr_addr (gdbarch, address, current_top_target ());
+  address = gdbarch_convert_from_func_ptr_addr
+    (gdbarch, address, current_inferior ()->top_target ());
   address = gdbarch_addr_bits_remove (gdbarch, address);
 
   if (name_at_pc)
@@ -1042,9 +1023,8 @@ elf_gnu_ifunc_resolver_return_stop (struct breakpoint *b)
   gdbarch_return_value (gdbarch, func_func, value_type, regcache,
 			value_contents_raw (value), NULL);
   resolved_address = value_as_address (value);
-  resolved_pc = gdbarch_convert_from_func_ptr_addr (gdbarch,
-						    resolved_address,
-						    current_top_target ());
+  resolved_pc = gdbarch_convert_from_func_ptr_addr
+    (gdbarch, resolved_address, current_inferior ()->top_target ());
   resolved_pc = gdbarch_addr_bits_remove (gdbarch, resolved_pc);
 
   gdb_assert (current_program_space == b->pspace || b->pspace == NULL);
@@ -1275,25 +1255,7 @@ elf_symfile_read (struct objfile *objfile, symfile_add_flags symfile_flags)
     }
 
   if (dwarf2_has_info (objfile, NULL, true))
-    {
-      dw_index_kind index_kind;
-
-      if (dwarf2_initialize_objfile (objfile, &index_kind))
-	{
-	  switch (index_kind)
-	    {
-	    case dw_index_kind::GDB_INDEX:
-	      objfile->qf.push_front (make_dwarf_gdb_index ());
-	      break;
-	    case dw_index_kind::DEBUG_NAMES:
-	      objfile->qf.clear ();
-	      objfile->qf.push_front (make_dwarf_debug_names ());
-	      break;
-	    }
-	}
-      else
-	objfile->qf.emplace_front (new lazy_dwarf_reader);
-    }
+    dwarf2_initialize_objfile (objfile);
   /* If the file has its own symbol tables it has no separate debug
      info.  `.dynsym'/`.symtab' go to MSYMBOLS, `.debug_info' goes to
      SYMTABS/PSYMTABS.  `.gnu_debuglink' may no longer be present with

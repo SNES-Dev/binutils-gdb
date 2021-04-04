@@ -1,6 +1,75 @@
+2021-04-01  Martin Liska  <mliska@suse.cz>
+
+	* elfcomm.h (strneq): Remove strneq and use startswith.
+	* readelf.c (ia64_process_unwind): Likewise.
+	(process_note): Likewise.
+
+2021-04-01  Martin Liska  <mliska@suse.cz>
+
+	* dllwrap.c: Use startswith function.
+	* objcopy.c (is_dwo_section): Likewise.
+	(handle_remove_section_option): Likewise.
+	(copy_main): Likewise.
+	* objdump.c (is_significant_symbol_name): Likewise.
+
+2021-04-01  Martin Liska  <mliska@suse.cz>
+
+	* dwarf.c (display_debug_lines_raw): Replace const_strneq with
+	startswith.
+	(display_debug_lines_decoded): Likewise.
+	(display_debug_links): Likewise.
+	* elfcomm.c (setup_archive): Likewise.
+	* elfcomm.h (const_strneq): Likewise.
+	* readelf.c (process_section_headers): Likewise.
+	(slurp_ia64_unwind_table): Likewise.
+	(slurp_hppa_unwind_table): Likewise.
+	(decode_arm_unwind): Likewise.
+	(display_debug_section): Likewise.
+	(process_note): Likewise.
+
+2021-03-31  Alan Modra  <amodra@gmail.com>
+
+	* sysdep.h (POISON_BFD_BOOLEAN): Define.
+	* addr2line.c, * ar.c, * arsup.c, * bfdtest2.c, * binemul.c,
+	* binemul.h, * bucomm.c, * bucomm.h, * budbg.h, * coffgrok.c,
+	* debug.c, * debug.h, * dlltool.c, * dwarf.c, * dwarf.h,
+	* elfedit.c, * emul_aix.c, * mclex.c, * nm.c, * objcopy.c,
+	* objdump.c, * od-macho.c, * prdbg.c, * rdcoff.c, * rddbg.c,
+	* readelf.c, * rename.c, * stabs.c, * strings.c, * windint.h,
+	* windmc.c, * windmc.h, * windres.c, * winduni.c,
+	* wrstabs.c: Replace bfd_boolean with bool, FALSE with false,
+	and TRUE with true throughout.
+
+2021-03-31  Alan Modra  <amodra@gmail.com>
+
+	* coffdump.c: Include stdint.h in place of bfd_stdint.h.
+	* dwarf.c: Likewise.
+
+2021-03-31  Alan Modra  <amodra@gmail.com>
+
+	* prdbg.c (pr_function_type): Replace LITSTTCPY with strcpy.
+
+2021-03-29  Alan Modra  <amodra@gmail.com>
+
+	* dlltool.c (main): Don't use "boolean_condition ? TRUE : FALSE".
+	* dwarf.c (read_and_display_attr_value): Likewise.
+	(display_debug_str_offsets): Likewise.
+	* objdump.c (dump_bfd): Likewise.
+	* readelf.c (dump_section_as_strings): Likewise.
+	(dump_section_as_bytes): Likewise.
+
+2021-03-29  Alan Modra  <amodra@gmail.com>
+
+	* objdump.c (process_links): Use type int.
+	* readelf.c (request_dump): Don't increment do_dump, set it.
+	* windint.h (target_is_bigendian): Use type bfd_boolean.
+	* windmc.c (target_is_bigendian): Likewise.
+	* windres.c (target_is_bigendian): Likewise.
+
 2021-03-22  Martin Liska  <mliska@suse.cz>
 
-	* dlltool.c (scan_drectve_symbols): Replace usage of CONST_STRNEQ with startswith.
+	* dlltool.c (scan_drectve_symbols): Replace usage of CONST_STRNEQ
+	with startswith.
 	* emul_aix.c (ar_emul_aix_parse_arg): Likewise.
 	* objcopy.c (is_mergeable_note_section): Likewise.
 	* objdump.c (dump_dwarf_section): Likewise.
