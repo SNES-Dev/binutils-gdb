@@ -48,6 +48,18 @@
   the use of the GNAT encoding (based on information added to the type's
   name following a GNAT-specific format).
 
+* GDB will now load and process commands from ~/.config/gdb/gdbearlyinit
+  or ~/.gdbearlyinit if these files are present.  These files are
+  processed earlier than any of the other initialization files and
+  can affect parts of GDB's startup that previously had already been
+  completed before the initialization files were read, for example
+  styling of the initial GDB greeting.
+
+* GDB now has two new options "--early-init-command" and
+  "--early-init-eval-command" with corresponding short options "-eix"
+  and "-eiex" that allow options (that would normally appear in a
+  gdbearlyinit file) to be passed on the command line.
+
 * New commands
 
 set debug event-loop
@@ -81,6 +93,34 @@ memory-tag set-allocation-tag ADDRESS LENGTH TAGS
   Set the allocation tag for [ADDRESS, ADDRESS + LENGTH) to TAGS.
 memory-tag check POINTER
   Validate that POINTER's logical tag matches the allocation tag.
+
+set startup-quietly on|off
+show startup-quietly
+  When 'on', this causes GDB to act as if "-silent" were passed on the
+  command line.  This command needs to be added to an early
+  initialization file (e.g. ~/.config/gdb/gdbearlyinit) in order to
+  affect GDB.
+
+set print type hex on|off
+show print type hex
+  When 'on', the 'ptype' command uses hexadecimal notation to print sizes
+  and offsets of struct members.  When 'off', decimal notation is used.
+
+set python ignore-environment on|off
+show python ignore-environment
+  When 'on', this causes GDB's builtin Python to ignore any
+  environment variables that would otherwise affect how Python
+  behaves.  This command needs to be added to an early initialization
+  file (e.g. ~/.config/gdb/gdbearlyinit) in order to affect GDB.
+
+set python dont-write-bytecode auto|on|off
+show python dont-write-bytecode
+  When 'on', this causes GDB's builtin Python to not write any
+  byte-code (.pyc files) to disk.  This command needs to be added to
+  an early initialization file (e.g. ~/.config/gdb/gdbearlyinit) in
+  order to affect GDB.  When 'off' byte-code will always be written.
+  When set to 'auto' (the default) Python will check the
+  PYTHONDONTWRITEBYTECODE environment variable.
 
 * Changed commands
 
@@ -125,6 +165,13 @@ maintenance info sections
   The ALLOBJ keyword has been replaced with an -all-objects command
   line flag.  It is now possible to filter which sections are printed
   even when -all-objects is passed.
+
+ptype[/FLAGS] TYPE | EXPRESSION
+  The 'ptype' command has two new flags.  When '/x' is set, hexadecimal
+  notation is used when printing sizes and offsets of struct members.
+  When '/d' is set, decimal notation is used when printing sizes and
+  offsets of struct members.  Default behavior is given by 'show print
+  type hex'.
 
 * Removed targets and native configurations
 

@@ -1,3 +1,190 @@
+2021-04-30  Nick Clifton  <nickc@redhat.com>
+
+	PR 27801
+	* mach-o.c (bfd_mach_o_core_fetch_environment): Use bfd_get_32 to
+	read 32-bit value.
+
+2021-04-30  Nick Clifton  <nickc@redhat.com>
+
+	PR 27799
+	* elf32-xtensa.c (elf_xtensa_grok_prstatus): Check for core notes
+	that are too small.
+
+2021-04-30  Nick Clifton  <nickc@redhat.com>
+
+	PR 27797
+	* libbfd.c (bfd_realloc_or_free): Do not free a pointer than has
+	been realloc'ed to size 0.
+
+2021-04-30  Nick Clifton  <nickc@redhat.com>
+
+	PR 27795
+	* coff-rs6000.c (_bfd_xcoff_read_ar_hdr): Check for invalid name
+	lengths.
+
+2021-04-29  Nick Clifton  <nickc@redhat.com>
+
+	PR 27793
+	* som.c (som_slurp_symbol_table): Assign symbols without any scope
+	to the undefined section.
+	(som_decode_symclass): Check for a missing symbol section.
+	* syms.c (bfd_decode_symclass): Likewise.
+
+2021-04-29  Nick Clifton  <nickc@redhat.com>
+
+	PR 27792
+	* som.c (som_slurp_string_table): Place a terminating NUL byte at
+	the end of the table.
+	(som_slurp_symbol_table): Check for an over-large offset into the
+	string string table.
+
+2021-04-28  Nick Clifton  <nickc@redhat.com>
+
+	* elf.c (_bfd_elf_maybe_function_sym): Do not accept annobin
+	symbols as potential function symbols.
+	* elfnn-aarch64.c (elfNN_aarch64_maybe_function_sym): Likewise.
+	* elf64-ppc.c (ppc64_elf_maybe_function_sym): Likewise.
+	* elf32-arm.c (elf32_arm_maybe_function_sym): Likewise.
+
+2021-04-26  Mike Frysinger  <vapier@gentoo.org>
+
+	* elf-bfd.h: Include stdlib.h.
+
+2021-04-26  Jan Beulich  <jbeulich@suse.com>
+
+	* elf32-i386.c (elf_howto_table): Switch R_386_PC16 to
+	complain_overflow_signed.
+	* elf64-x86-64.c (x86_64_elf_howto_table): Switch R_X86_64_PC16
+	to complain_overflow_signed.
+
+2021-04-23  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* elf.c (special_sections_p): Add .persistent.bss.
+
+2021-04-23  Jan Beulich  <jbeulich@suse.com>
+
+	* elf32-i386.c (elf_howto_table): R_386_TLS_DESC_CALL has zero
+	size field.
+	* elf64-x86-64.c (x86_64_elf_howto_table): R_X86_64_TLSDESC_CALL
+	has zero size field.
+
+2021-04-22  Clément Chigot  <clement.chigot@atos.net>
+
+	* hash.c (struct bfd_strtab_hash): Remove xcoff field.
+	Add length_field_size field.
+	(_bfd_stringtab_init): Change prototype.
+	Adapt to new length_field_size.
+	(_bfd_xcoff_stringtab_init): Likewise.
+	(_bfd_stringtab_add): Likewise.
+	(_bfd_stringtab_emit): Likewise.
+	* libbfd-in.h (_bfd_xcoff_stringtab_init):
+	Change prototype.
+	* libbfd.h: Regenerate.
+	* xcofflink.c (_bfd_xcoff_bfd_link_hash_table_create):
+	Call _bfd_xcoff_stringtab_init with isxcoff64 value.
+
+2021-04-22  Clément Chigot  <clement.chigot@atos.net>
+
+	* coff-rs6000.c (_bfd_xcoff_swap_aux_in): Add errors for
+	unsupported storage class or auxialiry entries.
+	Improve and adapt to new aux structures.
+	Add C_DWARF support.
+	(_bfd_xcoff_swap_aux_out): Likewise.
+	* coff64-rs6000.c (_bfd_xcoff64_swap_aux_in): Likewise.
+	(_bfd_xcoff64_swap_aux_out): Likewise.
+
+2021-04-21  Eli Zaretskii  <eliz@gnu.org>
+
+	PR 27760
+	* peXXigen.c (_bfd_XX_print_private_bfd_data_common): Add display
+	of IMAGE_FILE_REMOVABLE_RUN_FROM_SWAP,
+	IMAGE_FILE_NET_RUN_FROM_SWAP and IMAGE_FILE_UP_SYSTEM_ONLY flags.
+	Decode the contents of the DllCharacteristics field.
+
+2021-04-21  Nick Clifton  <nickc@redhat.com>
+
+	PR 27759
+	* srec.c (srec_read_section): Replace assertions with error
+	returns.
+
+2021-04-20  Clément Chigot  <clement.chigot@atos.net>
+
+	PR binutils/21700
+	* reloc.c (BFD_RELOC_PPC_NEG): New relocation.
+	* bfd-in2.h: Regenerate.
+	* libbfd.h: Regenerate.
+	* coff-rs6000.c (_bfd_xcoff_reloc_type_lookup): Add
+	BFD_RELOC_PPC_NEG handler.
+	(xcoff_reloc_type_neg): Correctly substract addend.
+	* coff64-rs6000.c (xcoff64_howto_table): Add R_NEG_32
+	howto.
+	(xcoff64_rtype2howto): Add handler for R_NEG_32.
+	(xcoff64_reloc_type_lookup): Add BFD_RELOC_PPC_NEG handler.
+	* xcofflink.c (xcoff_need_ldrel_p): Check output section
+	for R_POS-like relocations. New argument added.
+	(xcoff_mark): Adapt to new xcoff_need_ldrel_p argument.
+	(xcoff_link_input_bfd): Likewise.
+
+2021-04-16  Alan Modra  <amodra@gmail.com>
+
+	PR 27567
+	* coffcode.h (styp_to_sec_flags): Use an unsigned long styp_flags.
+	(coff_write_object_contents): Pass bfd to COFF_ENCODE_ALIGNMENT,
+	ignore alignment checks when return is false.  Formatting.
+
+2021-04-15  Nelson Chu  <nelson.chu@sifive.com>
+
+	PR27584
+	* elfnn-riscv.c (riscv_elf_is_target_special_symbol): Added to
+	omit local and empty symbols since they usually generated to
+	mark the auipc instructions.
+
+2021-04-15  Lifang Xia<lifang_xia@c-sky.com>
+
+	* elf32-csky.c (csky_elf_howto_table)
+	<R_CKCORE_PCREL_IMM16BY2>: Set special_function to
+	bfd_elf_generic_reloc.
+	<R_CKCORE_PCREL_IMM16BY4>: Likewise.
+	<R_CKCORE_PCREL_IMM10BY4>: Likewise.
+	<R_CKCORE_PCREL_IMM18BY2>: Likewise.
+	<R_CKCORE_PCREL_FLRW_IMM8BY4>: Likewise.
+
+2021-04-14  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR binutils/27708
+	* elf.c (assign_file_positions_for_non_load_sections): Set
+	p_memsz to p_filesz for the loadable PT_NOTE segment.
+
+2021-04-14  Frederic Cambus  <fred@statdns.com>
+
+	* elf.c (elfcore_grok_netbsd_note): Remove unneeded #ifdef
+	checks for NT_NETBSDCORE_AUXV and NT_NETBSDCORE_LWPSTATUS.
+
+2021-04-14  Alan Modra  <amodra@gmail.com>
+
+	PR 27631
+	* elf32-metag.c (elf_metag_relocate_section): Don't use &hh->elf
+	when hh might be NULL, test for NULL first.
+
+2021-04-14  Alan Modra  <amodra@gmail.com>
+
+	PR 27630
+	* elf32-arm.c (elf32_arm_size_stubs): Don't use &hash->root when
+	hash might be NULL, cast instead.
+
+2021-04-13  Clément Chigot  <clement.chigot@atos.net>
+
+	* xcofflink.c (xcoff_link_check_ar_symbols): Update esym earlier.
+
+2021-04-13  Nelson Chu  <nelson.chu@sifive.com>
+
+	* elfnn-riscv.c (riscv_version_mismatch): Do not report the warning
+	when the version of input or output is RISCV_UNKNOWN_VERSION, since
+	the extension is added implicitly.
+	* elfxx-riscv.c: Updated the obsolete comments.
+	(RISCV_UNKNOWN_VERSION): Moved to elfxx-riscv.h.
+	* elfxx-riscv.h (RISCV_UNKNOWN_VERSION): Added.
+
 2021-04-12  Alan Modra  <amodra@gmail.com>
 
 	* elf-bfd.h (ENABLE_CHECKING): Define.

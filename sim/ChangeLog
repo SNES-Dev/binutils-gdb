@@ -1,3 +1,45 @@
+2021-05-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* m4/sim_ac_common.m4 (AC_CHECK_FUNCS_ONCE): Add strsignal.
+
+2021-04-26  Mike Frysinger  <vapier@gentoo.org>
+
+	* README-HACKING (nltvals.def): Update to gennltvals.py.
+
+2021-04-26  Mike Frysinger  <vapier@gentoo.org>
+
+	* m4/sim_ac_output.m4 (SIM_AC_OUTPUT): Require SIM_AC_OPTION_HARDWARE.
+
+2021-04-23  Mike Frysinger  <vapier@gentoo.org>
+
+	* README-HACKING (SIM_AC_OPTION_HARDWARE): Delete first two args.
+	* m4/sim_ac_option_hardware.m4 (SIM_AC_OPTION_HARDWARE): Replace [$1]
+	with yes.  Delete test [$2].  Change [$3] to [$1].  Update comments.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* m4/sim_ac_common.m4 (SIM_AC_COMMON): Don't check for sys/time.h
+	or sys/times.h.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* m4/sim_ac_common.m4 (SIM_AC_COMMON): Don't check for make.
+
+2021-04-21  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* m4/sim_ac_option_warnings.m4 (SIM_AC_OPTION_WARNINGS): Use
+	-Werror when probing for supported warning flags.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* m4/sim_ac_common.m4: Change AC_CHECK_HEADERS to
+	AC_CHECK_HEADERS_ONCE, merge calls, and sort args.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* m4/sim_ac_common.m4: Change AC_CHECK_FUNCS to AC_CHECK_FUNCS_ONCE,
+	merge calls, and sort args.
+
 2021-04-03  Mike Frysinger  <vapier@gentoo.org>
 
 	* configure.ac: Add --example-sims option.

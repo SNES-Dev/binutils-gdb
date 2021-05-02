@@ -538,6 +538,7 @@ if [gas_32_check] then {
     run_dump_test "optimize-6b"
     run_list_test "optimize-7" "-I${srcdir}/$subdir -march=+noavx2 -al"
     run_dump_test "lea-optimize"
+    run_dump_test "lea16-optimize"
     run_dump_test "align-branch-1a"
     run_dump_test "align-branch-1b"
     run_dump_test "align-branch-1c"
@@ -636,6 +637,8 @@ if [gas_32_check] then {
 	run_dump_test "size-2"
 	run_dump_test "size-3"
 	run_dump_test "size-4"
+	run_dump_test "size-5a"
+	run_dump_test "size-5b"
 
 	run_dump_test "note"
 
@@ -750,6 +753,7 @@ if [gas_64_check] then {
     run_dump_test "x86_64-intel"
     run_dump_test "x86-64-addr32"
     run_dump_test "x86-64-addr32-intel"
+    run_list_test "x86-64-addr32-bad" "-al"
     run_dump_test "x86-64-opcode"
     run_dump_test "x86-64-intel64"
     if { ! [istarget "*-*-*cygwin*"] && ![istarget "*-*-mingw*"] } then {
@@ -758,8 +762,11 @@ if [gas_64_check] then {
     } else {
       run_dump_test "x86-64-w64-pcrel"
     }
+    run_list_test "pcrel64" "-al"
     run_dump_test "x86-64-rip"
     run_dump_test "x86-64-rip-intel"
+    run_list_test "x86-64-rip-inval-1" "-al"
+    run_list_test "x86-64-rip-inval-2" "-al"
     run_dump_test "x86-64-stack"
     run_dump_test "x86-64-stack-intel"
     run_dump_test "x86-64-stack-suffix"
@@ -1193,6 +1200,8 @@ if [gas_64_check] then {
 	run_dump_test "x86-64-align-branch-2a"
 	run_dump_test "x86-64-align-branch-2b"
 	run_dump_test "x86-64-align-branch-2c"
+	run_dump_test "lea64"
+	run_dump_test "lea64-optimize"
     }
     run_dump_test "x86-64-align-branch-4a"
     run_dump_test "x86-64-align-branch-4b"
@@ -1267,6 +1276,8 @@ if [gas_64_check] then {
 	run_dump_test "x86-64-branch-3"
 	run_list_test "x86-64-branch-4" "-al -mintel64"
 	run_list_test "x86-64-branch-5" "-al"
+
+	run_dump_test "x86-64-rip-2"
 
 	run_dump_test "x86-64-gotpcrel"
 	run_dump_test "x86-64-gotpcrel-no-relax"

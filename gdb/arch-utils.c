@@ -279,7 +279,13 @@ default_floatformat_for_type (struct gdbarch *gdbarch,
 {
   const struct floatformat **format = NULL;
 
-  if (len == gdbarch_half_bit (gdbarch))
+  /* Check if this is a bfloat16 type.  It has the same size as the
+     IEEE half float type, so we use the base type name to tell them
+     apart.  */
+  if (name != nullptr && strcmp (name, "__bf16") == 0
+      && len == gdbarch_bfloat16_bit (gdbarch))
+    format = gdbarch_bfloat16_format (gdbarch);
+  else if (len == gdbarch_half_bit (gdbarch))
     format = gdbarch_half_format (gdbarch);
   else if (len == gdbarch_float_bit (gdbarch))
     format = gdbarch_float_format (gdbarch);
@@ -999,13 +1005,15 @@ default_gnu_triplet_regexp (struct gdbarch *gdbarch)
   return gdbarch_bfd_arch_info (gdbarch)->arch_name;
 }
 
-/* Default method for gdbarch_addressable_memory_unit_size.  By default, a memory byte has
-   a size of 1 octet.  */
+/* Default method for gdbarch_addressable_memory_unit_size.  The default is
+   based on the bits_per_byte defined in the bfd library for the current
+   architecture, this is usually 8-bits, and so this function will usually
+   return 1 indicating 1 byte is 1 octet.  */
 
 int
 default_addressable_memory_unit_size (struct gdbarch *gdbarch)
 {
-  return 1;
+  return gdbarch_bfd_arch_info (gdbarch)->bits_per_byte / 8;
 }
 
 void

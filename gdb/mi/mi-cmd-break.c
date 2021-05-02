@@ -84,7 +84,8 @@ setup_breakpoint_reporting (void)
 {
   if (! mi_breakpoint_observers_installed)
     {
-      gdb::observers::breakpoint_created.attach (breakpoint_notify);
+      gdb::observers::breakpoint_created.attach (breakpoint_notify,
+						 "mi-cmd-break");
       mi_breakpoint_observers_installed = 1;
     }
 
@@ -353,6 +354,7 @@ mi_cmd_break_insert_1 (int dprintf, const char *command, char **argv, int argc)
 
   create_breakpoint (get_current_arch (), location.get (), condition, thread,
 		     extra_string.c_str (),
+		     false,
 		     0 /* condition and thread are valid.  */,
 		     temp_p, type_wanted,
 		     ignore_count,

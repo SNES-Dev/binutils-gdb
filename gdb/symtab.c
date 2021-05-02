@@ -4547,6 +4547,8 @@ global_symbol_searcher::expand_symtabs
 	       || preg->exec (symname, 0, NULL, 0) == 0);
      },
      NULL,
+     SEARCH_GLOBAL_BLOCK | SEARCH_STATIC_BLOCK,
+     UNDEF_DOMAIN,
      kind);
 
   /* Here, we search through the minimal symbol tables for functions and
@@ -5730,7 +5732,9 @@ default_collect_symbol_completion_matches_break_on
 			       add_symtab_completions (symtab,
 						       tracker, mode, lookup_name,
 						       sym_text, word, code);
+			       return true;
 			     },
+			   SEARCH_GLOBAL_BLOCK | SEARCH_STATIC_BLOCK,
 			   ALL_DOMAIN);
 
   /* Search upwards from currently selected frame (so that we can
@@ -6902,7 +6906,8 @@ If zero then the symbol cache is disabled."),
 		     class_maintenance, 0, &maintenancelist);
   deprecate_cmd (c, "maintenancelist flush symbol-cache");
 
-  gdb::observers::executable_changed.attach (symtab_observer_executable_changed);
-  gdb::observers::new_objfile.attach (symtab_new_objfile_observer);
-  gdb::observers::free_objfile.attach (symtab_free_objfile_observer);
+  gdb::observers::executable_changed.attach (symtab_observer_executable_changed,
+					     "symtab");
+  gdb::observers::new_objfile.attach (symtab_new_objfile_observer, "symtab");
+  gdb::observers::free_objfile.attach (symtab_free_objfile_observer, "symtab");
 }

@@ -823,8 +823,15 @@ gdbscm_type_range (SCM self)
     case TYPE_CODE_ARRAY:
     case TYPE_CODE_STRING:
     case TYPE_CODE_RANGE:
-      low = type->bounds ()->low.const_val ();
-      high = type->bounds ()->high.const_val ();
+      if (type->bounds ()->low.kind () == PROP_CONST)
+	low = type->bounds ()->low.const_val ();
+      else
+	low = 0;
+
+      if (type->bounds ()->high.kind () == PROP_CONST)
+	high = type->bounds ()->high.const_val ();
+      else
+	high = 0;
       break;
     }
 
@@ -1498,11 +1505,16 @@ Internal function to assist the type fields iterator."));
 
   block_keyword = scm_from_latin1_keyword ("block");
 
+  global_types_map = gdbscm_create_eqable_gsmob_ptr_map (tyscm_hash_type_smob,
+							 tyscm_eq_type_smob);
+}
+
+void _initialize_scm_type ();
+void
+_initialize_scm_type ()
+{
   /* Register an objfile "free" callback so we can properly copy types
      associated with the objfile when it's about to be deleted.  */
   tyscm_objfile_data_key
     = register_objfile_data_with_cleanup (save_objfile_types, NULL);
-
-  global_types_map = gdbscm_create_eqable_gsmob_ptr_map (tyscm_hash_type_smob,
-							 tyscm_eq_type_smob);
 }

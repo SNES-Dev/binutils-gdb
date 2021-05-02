@@ -766,7 +766,7 @@ extern struct bfd_strtab_hash *_bfd_stringtab_init
 
 /* Create an XCOFF .debug section style string table.  */
 extern struct bfd_strtab_hash *_bfd_xcoff_stringtab_init
-  (void) ATTRIBUTE_HIDDEN;
+  (bool isxcoff64) ATTRIBUTE_HIDDEN;
 
 /* Free a string table.  */
 extern void _bfd_stringtab_free
@@ -1510,6 +1510,7 @@ static const char *const bfd_reloc_code_real_names[] = { "@@uninitialized@@",
   "BFD_RELOC_PPC_VLE_SDAREL_HA16D",
   "BFD_RELOC_PPC_16DX_HA",
   "BFD_RELOC_PPC_REL16DX_HA",
+  "BFD_RELOC_PPC_NEG",
   "BFD_RELOC_PPC64_HIGHER",
   "BFD_RELOC_PPC64_HIGHER_S",
   "BFD_RELOC_PPC64_HIGHEST",

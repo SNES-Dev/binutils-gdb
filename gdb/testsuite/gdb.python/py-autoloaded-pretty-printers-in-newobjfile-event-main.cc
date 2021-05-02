@@ -1,9 +1,6 @@
-/* Host file transfer support for gdbserver.
-   Copyright (C) 2007-2021 Free Software Foundation, Inc.
+/* This testcase is part of GDB, the GNU debugger.
 
-   Contributed by CodeSourcery.
-
-   This file is part of GDB.
+   Copyright 2021 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,19 +15,13 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-/* This file implements the hostio_last_error target callback
-   on top of errno.  */
+#include "py-autoloaded-pretty-printers-in-newobjfile-event-lib.h"
 
-#include "server.h"
+bool all_good = false;
 
-#include "hostio.h"
-
-#include "gdbsupport/fileio.h"
-
-void
-hostio_last_error_from_errno (char *buf)
+int
+main ()
 {
-  int error = errno;
-  int fileio_error = host_to_fileio_error (error);
-  sprintf (buf, "F-1,%x", fileio_error);
+  MyClassTestLib test (1);
+  return 0; /* break to inspect */
 }

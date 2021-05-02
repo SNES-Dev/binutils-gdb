@@ -1,3 +1,39 @@
+2021-05-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* config.in, configure: Regenerate.
+
+2021-04-23  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.ac (hw_enabled): Delete.
+	(SIM_AC_OPTION_HARDWARE): Delete first two args.
+	* configure: Regenerate.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* configure, config.in: Rebuild.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* Makefile.in (interp.o, m16run.o, micromipsrun.o, multi-run.o):
+	Remove.
+	(SIM_EXTRA_DEPS): New variable.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* configure: Rebuild.
+
+2021-04-21  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4: Regenerate.
+
+2021-04-21  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* configure: Regenerate.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
 2021-04-12  Mike Frysinger  <vapier@gentoo.org>
 
 	* interp.c (sim_open): Delete 3rd arg to sim_cpu_alloc_all.

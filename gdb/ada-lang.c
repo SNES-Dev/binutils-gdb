@@ -95,8 +95,6 @@ static struct type *desc_index_type (struct type *, int);
 
 static int desc_arity (struct type *);
 
-static int ada_type_match (struct type *, struct type *, int);
-
 static int ada_args_match (struct symbol *, struct value **, int);
 
 static struct value *make_array_descriptor (struct type *, struct value *);
@@ -2879,8 +2877,11 @@ ada_index_type (struct type *type, int n, const char *name)
       int i;
 
       for (i = 1; i < n; i += 1)
-	type = TYPE_TARGET_TYPE (type);
-      result_type = TYPE_TARGET_TYPE (type->index_type ());
+	{
+	  type = ada_check_typedef (type);
+	  type = TYPE_TARGET_TYPE (type);
+	}
+      result_type = TYPE_TARGET_TYPE (ada_check_typedef (type)->index_type ());
       /* FIXME: The stabs type r(0,0);bound;bound in an array type
 	 has a target type of TYPE_CODE_UNDEF.  We compensate here, but
 	 perhaps stabsread.c would make more sense.  */
@@ -3492,14 +3493,12 @@ ada_resolve_variable (struct symbol *sym, const struct block *block,
   return candidates[i];
 }
 
-/* Return non-zero if formal type FTYPE matches actual type ATYPE.  If
-   MAY_DEREF is non-zero, the formal may be a pointer and the actual
-   a non-pointer.  */
+/* Return non-zero if formal type FTYPE matches actual type ATYPE.  */
 /* The term "match" here is rather loose.  The match is heuristic and
    liberal.  */
 
 static int
-ada_type_match (struct type *ftype, struct type *atype, int may_deref)
+ada_type_match (struct type *ftype, struct type *atype)
 {
   ftype = ada_check_typedef (ftype);
   atype = ada_check_typedef (atype);
@@ -3514,12 +3513,13 @@ ada_type_match (struct type *ftype, struct type *atype, int may_deref)
     default:
       return ftype->code () == atype->code ();
     case TYPE_CODE_PTR:
-      if (atype->code () == TYPE_CODE_PTR)
-	return ada_type_match (TYPE_TARGET_TYPE (ftype),
-			       TYPE_TARGET_TYPE (atype), 0);
-      else
-	return (may_deref
-		&& ada_type_match (TYPE_TARGET_TYPE (ftype), atype, 0));
+      if (atype->code () != TYPE_CODE_PTR)
+	return 0;
+      atype = TYPE_TARGET_TYPE (atype);
+      /* This can only happen if the actual argument is 'null'.  */
+      if (atype->code () == TYPE_CODE_INT && TYPE_LENGTH (atype) == 0)
+	return 1;
+      return ada_type_match (TYPE_TARGET_TYPE (ftype), atype);
     case TYPE_CODE_INT:
     case TYPE_CODE_ENUM:
     case TYPE_CODE_RANGE:
@@ -3580,7 +3580,7 @@ ada_args_match (struct symbol *func, struct value **actuals, int n_actuals)
 	  struct type *ftype = ada_check_typedef (func_type->field (i).type ());
 	  struct type *atype = ada_check_typedef (value_type (actuals[i]));
 
-	  if (!ada_type_match (ftype, atype, 1))
+	  if (!ada_type_match (ftype, atype))
 	    return 0;
 	}
     }
@@ -5175,6 +5175,33 @@ ada_lookup_name (const lookup_name_info &lookup_name)
   return lookup_name.ada ().lookup_name ().c_str ();
 }
 
+/* A helper for add_nonlocal_symbols.  Call expand_matching_symbols
+   for OBJFILE, then walk the objfile's symtabs and update the
+   results.  */
+
+static void
+map_matching_symbols (struct objfile *objfile,
+		      const lookup_name_info &lookup_name,
+		      bool is_wild_match,
+		      domain_enum domain,
+		      int global,
+		      match_data &data)
+{
+  data.objfile = objfile;
+  objfile->expand_matching_symbols (lookup_name, domain, global,
+				    is_wild_match ? nullptr : compare_names);
+
+  const int block_kind = global ? GLOBAL_BLOCK : STATIC_BLOCK;
+  for (compunit_symtab *symtab : objfile->compunits ())
+    {
+      const struct block *block
+	= BLOCKVECTOR_BLOCK (COMPUNIT_BLOCKVECTOR (symtab), block_kind);
+      if (!iterate_over_symbols_terminated (block, lookup_name,
+					    domain, data))
+	break;
+    }
+}
+
 /* Add to RESULT all non-local symbols whose name and domain match
    LOOKUP_NAME and DOMAIN respectively.  The search is performed on
    GLOBAL_BLOCK symbols if GLOBAL is non-zero, or on STATIC_BLOCK
@@ -5191,10 +5218,8 @@ add_nonlocal_symbols (std::vector<struct block_symbol> &result,
 
   for (objfile *objfile : current_program_space->objfiles ())
     {
-      data.objfile = objfile;
-
-      objfile->map_matching_symbols (lookup_name, domain, global, data,
-				     is_wild_match ? NULL : compare_names);
+      map_matching_symbols (objfile, lookup_name, is_wild_match, domain,
+			    global, data);
 
       for (compunit_symtab *cu : objfile->compunits ())
 	{
@@ -5214,12 +5239,8 @@ add_nonlocal_symbols (std::vector<struct block_symbol> &result,
       lookup_name_info name1 (bracket_name, symbol_name_match_type::FULL);
 
       for (objfile *objfile : current_program_space->objfiles ())
-	{
-	  data.objfile = objfile;
-	  objfile->map_matching_symbols (name1, domain, global, data,
-					 compare_names);
-	}
-    }      	
+	map_matching_symbols (objfile, name1, false, domain, global, data);
+    }
 }
 
 /* Find symbols in DOMAIN matching LOOKUP_NAME, in BLOCK and, if
@@ -10248,8 +10269,8 @@ ada_var_value_operation::evaluate_for_cast (struct type *expect_type,
 					    enum noside noside)
 {
   value *val = evaluate_var_value (noside,
-				   std::get<1> (m_storage),
-				   std::get<0> (m_storage));
+				   std::get<0> (m_storage).block,
+				   std::get<0> (m_storage).symbol);
 
   val = ada_value_cast (expect_type, val);
 
@@ -10269,7 +10290,7 @@ ada_var_value_operation::evaluate (struct type *expect_type,
 				   struct expression *exp,
 				   enum noside noside)
 {
-  symbol *sym = std::get<0> (m_storage);
+  symbol *sym = std::get<0> (m_storage).symbol;
 
   if (SYMBOL_DOMAIN (sym) == UNDEF_DOMAIN)
     /* Only encountered when an unresolved symbol occurs in a
@@ -10360,19 +10381,19 @@ ada_var_value_operation::resolve (struct expression *exp,
 				  innermost_block_tracker *tracker,
 				  struct type *context_type)
 {
-  symbol *sym = std::get<0> (m_storage);
+  symbol *sym = std::get<0> (m_storage).symbol;
   if (SYMBOL_DOMAIN (sym) == UNDEF_DOMAIN)
     {
       block_symbol resolved
-	= ada_resolve_variable (sym, std::get<1> (m_storage),
+	= ada_resolve_variable (sym, std::get<0> (m_storage).block,
 				context_type, parse_completion,
 				deprocedure_p, tracker);
-      std::get<0> (m_storage) = resolved.symbol;
-      std::get<1> (m_storage) = resolved.block;
+      std::get<0> (m_storage) = resolved;
     }
 
   if (deprocedure_p
-      && SYMBOL_TYPE (std::get<0> (m_storage))->code () == TYPE_CODE_FUNC)
+      && (SYMBOL_TYPE (std::get<0> (m_storage).symbol)->code ()
+	  == TYPE_CODE_FUNC))
     return true;
 
   return false;
@@ -10694,8 +10715,7 @@ ada_funcall_operation::resolve (struct expression *exp,
 			   tracker);
 
   std::get<0> (m_storage)
-    = make_operation<ada_var_value_operation> (resolved.symbol,
-					       resolved.block);
+    = make_operation<ada_var_value_operation> (resolved);
   return false;
 }
 
@@ -12517,6 +12537,7 @@ ada_add_global_exceptions (compiled_regex *preg,
 			     return name_matches_regex (decoded.c_str (), preg);
 			   },
 			   NULL,
+			   SEARCH_GLOBAL_BLOCK | SEARCH_STATIC_BLOCK,
 			   VARIABLES_DOMAIN);
 
   for (objfile *objfile : current_program_space->objfiles ())
@@ -13033,6 +13054,7 @@ public:
 			     lookup_name,
 			     NULL,
 			     NULL,
+			     SEARCH_GLOBAL_BLOCK | SEARCH_STATIC_BLOCK,
 			     ALL_DOMAIN);
 
     /* At this point scan through the misc symbol vectors and add each
@@ -13472,7 +13494,7 @@ DWARF attribute."),
 					   NULL, xcalloc, xfree);
 
   /* The ada-lang observers.  */
-  gdb::observers::new_objfile.attach (ada_new_objfile_observer);
-  gdb::observers::free_objfile.attach (ada_free_objfile_observer);
-  gdb::observers::inferior_exit.attach (ada_inferior_exit);
+  gdb::observers::new_objfile.attach (ada_new_objfile_observer, "ada-lang");
+  gdb::observers::free_objfile.attach (ada_free_objfile_observer, "ada-lang");
+  gdb::observers::inferior_exit.attach (ada_inferior_exit, "ada-lang");
 }

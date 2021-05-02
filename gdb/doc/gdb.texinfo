@@ -1040,6 +1040,20 @@ Execute a single @value{GDBN} command before loading the inferior (but
 after loading gdbinit files).
 @xref{Startup}.
 
+@item -early-init-command @var{file}
+@itemx -eix @var{file}
+@cindex @code{--early-init-command}
+@cindex @code{-eix}
+Execute commands from @var{file} very early in the initialization
+process, before any output is produced.  @xref{Startup}.
+
+@item -early-init-eval-command @var{command}
+@itemx -eiex @var{command}
+@cindex @code{--early-init-eval-command}
+@cindex @code{-eiex}
+Execute a single @value{GDBN} command very early in the initialization
+process, before any output is produced.
+
 @item -directory @var{directory}
 @itemx -d @var{directory}
 @cindex @code{--directory}
@@ -1097,6 +1111,14 @@ are still loaded.
 @cindex @code{-q}
 ``Quiet''.  Do not print the introductory and copyright messages.  These
 messages are also suppressed in batch mode.
+
+@kindex set startup-quietly
+@kindex show startup-quietly
+This can also be enabled using @code{set startup-quietly on}.  The
+default is @code{off}.  Use @code{show startup-quietly} to see the
+current setting.  Place @code{set startup-quietly on} into your early
+initialization file (@pxref{Initialization Files,,Initialization
+Files}) to have future @value{GDBN} sessions startup quietly.
 
 @item -batch
 @cindex @code{--batch}
@@ -1291,6 +1313,23 @@ important when reporting @value{GDBN} bugs (@pxref{GDB Bugs}).
 Here's the description of what @value{GDBN} does during session startup:
 
 @enumerate
+
+@item
+Performs minimal setup required to initialize basic internal state.
+
+@item
+@cindex early initialization file
+Reads commands from the early initialization file (if any) in your
+home directory.  Only a restricted set of commands can be placed into
+an early initialization file, see @ref{Initialization Files}, for
+details.
+
+@item
+Executes commands and command files specified by the @samp{-eiex} and
+@samp{-eix} command line options in their specified order.  Only a
+restricted set of commands can be used with @samp{-eiex} and
+@samp{eix}, see @ref{Initialization Files}, for details.
+
 @item
 Sets up the command interpreter as specified by the command line
 (@pxref{Mode Options, interpreter}).
@@ -1367,13 +1406,82 @@ To display the list of initialization files loaded by @value{GDBN} at
 startup, in the order they will be loaded, you can use @kbd{gdb
 --help}.
 
+@cindex early initialization
+The @dfn{early initialization} file is loaded very early in
+@value{GDBN}'s initialization process, before the interpreter
+(@pxref{Interpreters}) has been initialized, and before the default
+target (@pxref{Targets}) is initialized.  Only @code{set} or
+@code{source} commands should be placed into an early initialization
+file, and the only @code{set} commands that can be used are those that
+control how @value{GDBN} starts up.
+
+Commands that can be placed into an early initialization file will be
+documented as such throughout this manual.  Any command that is not
+documented as being suitable for an early initialization file should
+instead be placed into a general initialization file.  Command files
+passed to @code{--early-init-command} or @code{-eix} are also early
+initialization files, with the same command restrictions.  Only
+commands that can appear in an early initialization file should be
+passed to @code{--early-init-eval-command} or @code{-eiex}.
+
+@cindex general initialization
+In contrast, the @dfn{general initialization} files are processed
+later, after @value{GDBN} has finished its own internal initialization
+process, any valid command can be used in these files.
+
+@cindex initialization file
+Throughout the rest of this document the term @dfn{initialization
+file} refers to one of the general initialization files, not the early
+initialization file.  Any discussion of the early initialization file
+will specifically mention that it is the early initialization file
+being discussed.
+
 As the system wide and home directory initialization files are
 processed before most command line options, changes to settings
 (e.g. @samp{set complaints}) can affect subsequent processing of
 command line options and operands.
 
-The following sections describe where @value{GDBN} looks for the
-initialization and the order that the files are searched for.
+The following sections describe where @value{GDBN} looks for the early
+initialization and initialization files, and the order that the files
+are searched for.
+
+@subsubsection Home directory early initialization files
+
+@value{GDBN} initially looks for an early initialization file in the
+users home directory@footnote{On DOS/Windows systems, the home
+directory is the one pointed to by the @env{HOME} environment
+variable.}.  There are a number of locations that @value{GDBN} will
+search in the home directory, these locations are searched in order
+and @value{GDBN} will load the first file that it finds, and
+subsequent locations will not be checked.
+
+On non-macOS hosts the locations searched are:
+@itemize
+@item
+The file @file{gdb/gdbearlyinit} within the directory pointed to by the
+environment variable @env{XDG_CONFIG_HOME}, if it is defined.
+@item
+The file @file{.config/gdb/gdbearlyinit} within the directory pointed to
+by the environment variable @env{HOME}, if it is defined.
+@item
+The file @file{.gdbearlyinit} within the directory pointed to by the
+environment variable @env{HOME}, if it is defined.
+@end itemize
+
+By contrast, on macOS hosts the locations searched are:
+@itemize
+@item
+The file @file{Library/Preferences/gdb/gdbearlyinit} within the
+directory pointed to by the environment variable @env{HOME}, if it is
+defined.
+@item
+The file @file{.gdbearlyinit} within the directory pointed to by the
+environment variable @env{HOME}, if it is defined.
+@end itemize
+
+It is possible to prevent the home directory early initialization file
+from being loaded using the @samp{-nx} or @samp{-nh} command line
+options, @pxref{Mode Options,,Choosing Modes}.
 
 @anchor{System Wide Init Files}
 @subsubsection System wide initialization files
@@ -1416,7 +1524,7 @@ Options,,Choosing Modes}.
 After loading the system wide initialization files @value{GDBN} will
 look for an initialization file in the users home
 directory@footnote{On DOS/Windows systems, the home directory is the
-one pointed to by the @code{HOME} environment variable.}.  There are a
+one pointed to by the @env{HOME} environment variable.}.  There are a
 number of locations that @value{GDBN} will search in the home
 directory, these locations are searched in order and @value{GDBN} will
 load the first file that it finds, and subsequent locations will not
@@ -1507,7 +1615,7 @@ just use the @code{shell} command.
 @itemx !@var{command-string}
 Invoke a standard shell to execute @var{command-string}.
 Note that no space is needed between @code{!} and @var{command-string}.
-On GNU and Unix systems, the environment variable @code{SHELL}, if it
+On GNU and Unix systems, the environment variable @env{SHELL}, if it
 exists, determines which shell to run.  Otherwise @value{GDBN} uses
 the default shell (@file{/bin/sh} on GNU and Unix systems,
 @file{cmd.exe} on MS-Windows, @file{COMMAND.COM} on MS-DOS, etc.).
@@ -2417,7 +2525,7 @@ is used to pass the arguments, so that you may use normal conventions
 (such as wildcard expansion or variable substitution) in describing
 the arguments.
 In Unix systems, you can control which shell is used with the
-@code{SHELL} environment variable.  If you do not define @code{SHELL},
+@env{SHELL} environment variable.  If you do not define @env{SHELL},
 @value{GDBN} uses the default shell (@file{/bin/sh}).  You can disable
 use of any shell with the @code{set startup-with-shell} command (see
 below for details).
@@ -2563,7 +2671,7 @@ which indicates the shell or the wrapper specified with
 caused by something odd in your shell's non-interactive mode
 initialization file---such as @file{.cshrc} for C-shell,
 $@file{.zshenv} for the Z shell, or the file specified in the
-@samp{BASH_ENV} environment variable for BASH.
+@env{BASH_ENV} environment variable for BASH.
 
 @anchor{set auto-connect-native-target}
 @kindex set auto-connect-native-target
@@ -2678,8 +2786,8 @@ The arguments to your program can be specified by the arguments of the
 @code{run} command.
 They are passed to a shell, which expands wildcard characters and
 performs redirection of I/O, and thence to your program.  Your
-@code{SHELL} environment variable (if it exists) specifies what shell
-@value{GDBN} uses.  If you do not define @code{SHELL}, @value{GDBN} uses
+@env{SHELL} environment variable (if it exists) specifies what shell
+@value{GDBN} uses.  If you do not define @env{SHELL}, @value{GDBN} uses
 the default shell (@file{/bin/sh} on Unix).
 
 On non-Unix systems, the program is usually invoked directly by
@@ -2719,9 +2827,9 @@ environment without having to start @value{GDBN} over again.
 @table @code
 @kindex path
 @item path @var{directory}
-Add @var{directory} to the front of the @code{PATH} environment variable
+Add @var{directory} to the front of the @env{PATH} environment variable
 (the search path for executables) that will be passed to your program.
-The value of @code{PATH} used by @value{GDBN} does not change.
+The value of @env{PATH} used by @value{GDBN} does not change.
 You may specify several directory names, separated by whitespace or by a
 system-dependent separator character (@samp{:} on Unix, @samp{;} on
 MS-DOS and MS-Windows).  If @var{directory} is already in the path, it
@@ -2738,7 +2846,7 @@ use @samp{.} instead, it refers to the directory where you executed the
 
 @kindex show paths
 @item show paths
-Display the list of search paths for executables (the @code{PATH}
+Display the list of search paths for executables (the @env{PATH}
 environment variable).
 
 @kindex show environment
@@ -2796,11 +2904,11 @@ Environment variables that are unset by the user are also unset on
 @end table
 
 @emph{Warning:} On Unix systems, @value{GDBN} runs your program using
-the shell indicated by your @code{SHELL} environment variable if it
-exists (or @code{/bin/sh} if not).  If your @code{SHELL} variable
+the shell indicated by your @env{SHELL} environment variable if it
+exists (or @code{/bin/sh} if not).  If your @env{SHELL} variable
 names a shell that runs an initialization file when started
 non-interactively---such as @file{.cshrc} for C-shell, $@file{.zshenv}
-for the Z shell, or the file specified in the @samp{BASH_ENV}
+for the Z shell, or the file specified in the @env{BASH_ENV}
 environment variable for BASH---any variables you set in that file
 affect your program.  You may wish to move setting of environment
 variables to files that are only run when you sign on, such as
@@ -9159,7 +9267,7 @@ ex +@var{number} file
 The optional numeric value +@var{number} specifies the number of the line in
 the file where to start editing.}.
 By default, it is @file{@value{EDITOR}}, but you can change this
-by setting the environment variable @code{EDITOR} before using
+by setting the environment variable @env{EDITOR} before using
 @value{GDBN}.  For example, to configure @value{GDBN} to use the
 @code{vi} editor, you could use these commands with the @code{sh} shell:
 @smallexample
@@ -18777,6 +18885,21 @@ types.
 This command shows the current setting of typedef display when
 printing classes.
 
+@kindex set print type hex
+@item set print type hex
+@itemx set print type hex on
+@itemx set print type hex off
+
+When @value{GDBN} prints sizes and offsets of struct members, it can use
+either the decimal or hexadecimal notation.  You can select one or the
+other either by passing the appropriate flag to @code{ptype}, or by using
+the @command{set print type hex} command.
+
+@kindex show print type hex
+@item show print type hex
+This command shows whether the sizes and offsets of struct members are
+printed in decimal or hexadecimal notation.
+
 @kindex info address
 @cindex address of a symbol
 @item info address @var{symbol}
@@ -18889,6 +19012,14 @@ exists in case you change the default with @command{set print type typedefs}.
 Print the offsets and sizes of fields in a struct, similar to what the
 @command{pahole} tool does.  This option implies the @code{/tm} flags.
 
+@item x
+Use hexadecimal notation when printing offsets and sizes of fields in a
+struct.
+
+@item d
+Use decimal notation when printing offsets and sizes of fields in a
+struct.
+
 For example, given the following declarations:
 
 @smallexample
@@ -18929,14 +19060,14 @@ Issuing a @kbd{ptype /o struct tuv} command would print:
 
 @smallexample
 (@value{GDBP}) ptype /o struct tuv
-/* offset    |  size */  type = struct tuv @{
-/*    0      |     4 */    int a1;
-/* XXX  4-byte hole  */
-/*    8      |     8 */    char *a2;
-/*   16      |     4 */    int a3;
+/* offset      |    size */  type = struct tuv @{
+/*      0      |       4 */    int a1;
+/* XXX  4-byte hole      */
+/*      8      |       8 */    char *a2;
+/*     16      |       4 */    int a3;
 
-                           /* total size (bytes):   24 */
-                         @}
+                               /* total size (bytes):   24 */
+                             @}
 @end smallexample
 
 Notice the format of the first column of comments.  There, you can
@@ -18951,34 +19082,34 @@ It is also possible to print offsets inside an union:
 
 @smallexample
 (@value{GDBP}) ptype /o union qwe
-/* offset    |  size */  type = union qwe @{
-/*                24 */    struct tuv @{
-/*    0      |     4 */        int a1;
-/* XXX  4-byte hole  */
-/*    8      |     8 */        char *a2;
-/*   16      |     4 */        int a3;
-
-                               /* total size (bytes):   24 */
-                           @} fff1;
-/*                40 */    struct xyz @{
-/*    0      |     4 */        int f1;
-/*    4      |     1 */        char f2;
-/* XXX  3-byte hole  */
-/*    8      |     8 */        void *f3;
-/*   16      |    24 */        struct tuv @{
-/*   16      |     4 */            int a1;
-/* XXX  4-byte hole  */
-/*   24      |     8 */            char *a2;
-/*   32      |     4 */            int a3;
+/* offset      |    size */  type = union qwe @{
+/*                    24 */    struct tuv @{
+/*      0      |       4 */        int a1;
+/* XXX  4-byte hole      */
+/*      8      |       8 */        char *a2;
+/*     16      |       4 */        int a3;
 
                                    /* total size (bytes):   24 */
-                               @} f4;
+                               @} fff1;
+/*                    40 */    struct xyz @{
+/*      0      |       4 */        int f1;
+/*      4      |       1 */        char f2;
+/* XXX  3-byte hole      */
+/*      8      |       8 */        void *f3;
+/*     16      |      24 */        struct tuv @{
+/*     16      |       4 */            int a1;
+/* XXX  4-byte hole      */
+/*     24      |       8 */            char *a2;
+/*     32      |       4 */            int a3;
+
+                                       /* total size (bytes):   24 */
+                                   @} f4;
+
+                                   /* total size (bytes):   40 */
+                               @} fff2;
 
                                /* total size (bytes):   40 */
-                           @} fff2;
-
-                           /* total size (bytes):   40 */
-                         @}
+                             @}
 @end smallexample
 
 In this case, since @code{struct tuv} and @code{struct xyz} occupy the
@@ -18991,20 +19122,20 @@ bitfields:
 
 @smallexample
 (@value{GDBP}) ptype /o struct tyu
-/* offset    |  size */  type = struct tyu @{
-/*    0:31   |     4 */    int a1 : 1;
-/*    0:28   |     4 */    int a2 : 3;
-/*    0: 5   |     4 */    int a3 : 23;
-/*    3: 3   |     1 */    signed char a4 : 2;
-/* XXX  3-bit hole   */
-/* XXX  4-byte hole  */
-/*    8      |     8 */    int64_t a5;
-/*   16: 0   |     4 */    int a6 : 5;
-/*   16: 5   |     8 */    int64_t a7 : 3;
-"/* XXX  7-byte padding  */
+/* offset      |    size */  type = struct tyu @{
+/*      0:31   |       4 */    int a1 : 1;
+/*      0:28   |       4 */    int a2 : 3;
+/*      0: 5   |       4 */    int a3 : 23;
+/*      3: 3   |       1 */    signed char a4 : 2;
+/* XXX  3-bit hole       */
+/* XXX  4-byte hole      */
+/*      8      |       8 */    int64_t a5;
+/*     16: 0   |       4 */    int a6 : 5;
+/*     16: 5   |       8 */    int64_t a7 : 3;
+/* XXX  7-byte padding   */
 
-                           /* total size (bytes):   24 */
-                         @}
+                               /* total size (bytes):   24 */
+                             @}
 @end smallexample
 
 Note how the offset information is now extended to also include the
@@ -20396,15 +20527,15 @@ will print to the console.
 
 @value{GDBN} needs to find @value{NGCC} for the inferior being debugged
 which may not be obvious for remote targets of different architecture
-than where @value{GDBN} is running.  Environment variable @code{PATH} on
+than where @value{GDBN} is running.  Environment variable @env{PATH} on
 @value{GDBN} host is searched for @value{NGCC} binary matching the
 target architecture and operating system.  This search can be overriden
-by @code{set compile-gcc} @value{GDBN} command below.  @code{PATH} is
+by @code{set compile-gcc} @value{GDBN} command below.  @env{PATH} is
 taken from shell that executed @value{GDBN}, it is not the value set by
 @value{GDBN} command @code{set environment}).  @xref{Environment}.
 
 
-Specifically @code{PATH} is searched for binaries matching regular expression
+Specifically @env{PATH} is searched for binaries matching regular expression
 @code{@var{arch}(-[^-]*)?-@var{os}-gcc} according to the inferior target being
 debugged.  @var{arch} is processor name --- multiarch is supported, so for
 example both @code{i386} and @code{x86_64} targets look for pattern
@@ -20415,7 +20546,7 @@ pattern @code{linux(-gnu)?}.
 On Posix hosts the compiler driver @value{GDBN} needs to find also
 shared library @file{libcc1.so} from the compiler.  It is searched in
 default shared library search path (overridable with usual environment
-variable @code{LD_LIBRARY_PATH}), unrelated to @code{PATH} or @code{set
+variable @env{LD_LIBRARY_PATH}), unrelated to @env{PATH} or @code{set
 compile-gcc} settings.  Contrary to it @file{libcc1plugin.so} is found
 according to the installation of the found compiler --- as possibly
 specified by the @code{set compile-gcc} command.
@@ -20478,7 +20609,7 @@ Use @var{filename} as the program to be debugged.  It is read for its
 symbols and for the contents of pure memory.  It is also the program
 executed when you use the @code{run} command.  If you do not specify a
 directory and the file is not found in the @value{GDBN} working directory,
-@value{GDBN} uses the environment variable @code{PATH} as a list of
+@value{GDBN} uses the environment variable @env{PATH} as a list of
 directories to search, just as the shell does when looking for a program
 to run.  You can change the value of this variable, for both @value{GDBN}
 and your program, using the @code{path} command.
@@ -20501,13 +20632,13 @@ has on both executable file and the symbol table.
 @kindex exec-file
 @item exec-file @r{[} @var{filename} @r{]}
 Specify that the program to be run (but not the symbol table) is found
-in @var{filename}.  @value{GDBN} searches the environment variable @code{PATH}
+in @var{filename}.  @value{GDBN} searches the environment variable @env{PATH}
 if necessary to locate your program.  Omitting @var{filename} means to
 discard information on the executable file.
 
 @kindex symbol-file
 @item symbol-file @r{[} @var{filename} @r{[} -o @var{offset} @r{]]}
-Read symbol table information from file @var{filename}.  @code{PATH} is
+Read symbol table information from file @var{filename}.  @env{PATH} is
 searched when necessary.  Use the @code{file} command to get both symbol
 table and program to run from the same file.
 
@@ -25687,16 +25818,16 @@ This is the file where @value{GDBN} reads an initial command history
 list, and where it writes the command history from this session when it
 exits.  You can access this list through history expansion or through
 the history command editing characters listed below.  This file defaults
-to the value of the environment variable @code{GDBHISTFILE}, or to
+to the value of the environment variable @env{GDBHISTFILE}, or to
 @file{./.gdb_history} (@file{./_gdb_history} on MS-DOS) if this variable
 is not set.
 
-The @code{GDBHISTFILE} environment variable is read after processing
+The @env{GDBHISTFILE} environment variable is read after processing
 any @value{GDBN} initialization files (@pxref{Startup}) and after
 processing any commands passed using command line options (for
 example, @code{-ex}).
 
-If the @var{fname} argument is not given, or if the @code{GDBHISTFILE}
+If the @var{fname} argument is not given, or if the @env{GDBHISTFILE}
 is the empty string then @value{GDBN} will neither try to load an
 existing history file, nor will it try to save the history on exit.
 
@@ -25727,7 +25858,7 @@ are ignored.  If @var{size} is @code{unlimited} or if @env{GDBHISTSIZE} is
 either a negative number or the empty string, then the number of commands
 @value{GDBN} keeps in the history list is unlimited.
 
-The @code{GDBHISTSIZE} environment variable is read after processing
+The @env{GDBHISTSIZE} environment variable is read after processing
 any @value{GDBN} initialization files (@pxref{Startup}) and after
 processing any commands passed using command line options (for
 example, @code{-ex}).
@@ -25824,7 +25955,7 @@ following line.
 
 Normally @value{GDBN} knows the size of the screen from the terminal
 driver software.  For example, on Unix @value{GDBN} uses the termcap data base
-together with the value of the @code{TERM} environment variable and the
+together with the value of the @env{TERM} environment variable and the
 @code{stty rows} and @code{stty cols} settings.  If this is not correct,
 you can override it with the @code{set height} and @code{set
 width} commands:
@@ -25954,11 +26085,10 @@ default, this style's foreground color is magenta and it has bold
 intensity.  The version number is displayed in two places, the output
 of @command{show version}, and when @value{GDBN} starts up.
 
-Currently the version string displayed at startup is printed before
-@value{GDBN} has parsed any command line options, or parsed any
-command files, so there is currently no way to control the styling of
-this string.  However, @value{GDBN}'s @code{--quiet} command line option
-can be used to disable printing of the version string on startup.
+In order to control how @value{GDBN} styles the version number at
+startup, add the @code{set style version} family of commands to the
+early initialization command file (@pxref{Initialization
+Files}).
 
 @item title
 Control the styling of titles.  These are managed with the
@@ -28842,7 +28972,7 @@ gdb} argument, then Emacs sets your current working directory to where
 your program resides.  If you only specify the file name, then Emacs
 sets your current working directory to the directory associated
 with the previous buffer.  In this case, @value{GDBN} may find your
-program by searching your environment's @code{PATH} variable, but on
+program by searching your environment's @env{PATH} variable, but on
 some operating systems it might not find the source.  So, although the
 @value{GDBN} input and output session proceeds normally, the auxiliary
 buffer does not display the current source and line of execution.
@@ -30047,9 +30177,16 @@ number of the parent breakpoint.  The second digit is the number of the
 location within that breakpoint.
 
 @item enabled
-This indicates whether the location is enabled, in which case the
-value is @samp{y}, or disabled, in which case the value is @samp{n}.
-Note that this is not the same as the field @code{enable}.
+There are three possible values, with the following meanings:
+@table @code
+@item y
+The location is enabled.
+@item n
+The location is disabled by the user.
+@item N
+The location is disabled because the breakpoint condition is invalid
+at this location.
+@end table
 
 @item addr
 The address of this location as an hexidecimal number.
@@ -36513,7 +36650,7 @@ and only if there is a corresponding executable file.
 @subheading Example
 
 @smallexample
-@value{GDBP}
+(@value{GDBP})
 -list-thread-groups
 ^done,groups=[@{id="17",type="process",pid="yyy",num_children="2"@}]
 -list-thread-groups 17
@@ -36561,7 +36698,7 @@ When run on a @sc{gnu}/Linux system, the output will look something
 like this:
 
 @smallexample
-@value{GDBP}
+(@value{GDBP})
 -info-os
 ^done,OSDataTable=@{nr_rows="10",nr_cols="3",
 hdr=[@{width="10",alignment="-1",col_name="col0",colhdr="Type"@},
@@ -36587,7 +36724,7 @@ body=[item=@{col0="cpus",col1="Listing of all cpus/cores on the system",
             col2="Sockets"@},
       item=@{col0="threads",col1="Listing of all threads",
             col2="Threads"@}]
-@value{GDBP}
+(@value{GDBP})
 -info-os processes
 ^done,OSDataTable=@{nr_rows="190",nr_cols="4",
 hdr=[@{width="10",alignment="-1",col_name="col0",colhdr="pid"@},
@@ -36600,7 +36737,7 @@ body=[item=@{col0="1",col1="root",col2="/sbin/init",col3="0"@},
       ...
       item=@{col0="26446",col1="stan",col2="bash",col3="0"@},
       item=@{col0="28152",col1="stan",col2="bash",col3="1"@}]@}
-(gdb)
+(@value{GDBP})
 @end smallexample
 
 (Note that the MI output here includes a @code{"Title"} column that
@@ -36628,7 +36765,7 @@ thread group corresponding to the new inferior.
 @subheading Example
 
 @smallexample
-@value{GDBP}
+(@value{GDBP})
 -add-inferior
 ^done,inferior="i3"
 @end smallexample
@@ -46877,12 +47014,14 @@ Execute given @value{GDBN} @var{command}.
 Add @var{directory} to the path to search for source files.
 
 @item -nh
-Do not execute commands from @file{~/.config/gdb/gdbinit} or
-@file{~/.gdbinit}.
+Do not execute commands from @file{~/.config/gdb/gdbinit},
+@file{~/.gdbinit}, @file{~/.config/gdb/gdbearlyinit}, or
+@file{~/.gdbearlyinit}
 
 @item -nx
 @itemx -n
-Do not execute commands from any @file{.gdbinit} initialization files.
+Do not execute commands from any @file{.gdbinit} or
+@file{.gdbearlyinit} initialization files.
 
 @item -quiet
 @itemx -q

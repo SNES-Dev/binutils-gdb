@@ -3332,15 +3332,25 @@ riscv_version_mismatch (bfd *ibfd,
   if (in->major_version != out->major_version
       || in->minor_version != out->minor_version)
     {
-      _bfd_error_handler
-	(_("warning: %pB: mis-matched ISA version %d.%d for '%s' "
-	   "extension, the output version is %d.%d"),
-	 ibfd,
-	 in->major_version,
-	 in->minor_version,
-	 in->name,
-	 out->major_version,
-	 out->minor_version);
+      if ((in->major_version == RISCV_UNKNOWN_VERSION
+	   && in->minor_version == RISCV_UNKNOWN_VERSION)
+	  || (out->major_version == RISCV_UNKNOWN_VERSION
+	      && out->minor_version == RISCV_UNKNOWN_VERSION))
+	{
+	  /* Do not report the warning when the version of input
+	     or output is RISCV_UNKNOWN_VERSION, since the extension
+	     is added implicitly.  */
+	}
+      else
+	_bfd_error_handler
+	  (_("warning: %pB: mis-matched ISA version %d.%d for '%s' "
+	     "extension, the output version is %d.%d"),
+	   ibfd,
+	   in->major_version,
+	   in->minor_version,
+	   in->name,
+	   out->major_version,
+	   out->minor_version);
 
       /* Update the output ISA versions to the newest ones.  */
       if ((in->major_version > out->major_version)
@@ -5084,6 +5094,16 @@ riscv_elf_obj_attrs_arg_type (int tag)
   return (tag & 1) != 0 ? ATTR_TYPE_FLAG_STR_VAL : ATTR_TYPE_FLAG_INT_VAL;
 }
 
+/* PR27584, Omit local and empty symbols since they usually generated
+   for pcrel relocations.  */
+
+static bool
+riscv_elf_is_target_special_symbol (bfd *abfd, asymbol *sym)
+{
+  return (!strcmp (sym->name, "")
+	  || _bfd_elf_is_local_label_name (abfd, sym->name));
+}
+
 #define TARGET_LITTLE_SYM			riscv_elfNN_vec
 #define TARGET_LITTLE_NAME			"elfNN-littleriscv"
 #define TARGET_BIG_SYM				riscv_elfNN_be_vec
@@ -5096,6 +5116,7 @@ riscv_elf_obj_attrs_arg_type (int tag)
 #define bfd_elfNN_bfd_reloc_type_lookup		riscv_reloc_type_lookup
 #define bfd_elfNN_bfd_merge_private_bfd_data \
   _bfd_riscv_elf_merge_private_bfd_data
+#define bfd_elfNN_bfd_is_target_special_symbol	riscv_elf_is_target_special_symbol
 
 #define elf_backend_copy_indirect_symbol	riscv_elf_copy_indirect_symbol
 #define elf_backend_create_dynamic_sections	riscv_elf_create_dynamic_sections

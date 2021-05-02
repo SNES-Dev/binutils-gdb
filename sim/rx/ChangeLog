@@ -1,3 +1,67 @@
+2021-05-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* config.in, configure: Regenerate.
+
+2021-05-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* load.c (rx_load): Cast size to long.
+
+2021-04-26  Mike Frysinger  <vapier@gentoo.org>
+
+	* Makefile.in (NL_TARGET): Delete.
+
+2021-04-26  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4, config.in, configure: Regenerate.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* configure, config.in: Rebuild.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* Makefile.in (LIBS): Remove.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* Makefile.in (err.o, fpu.o, gdb-if.o, load.o, main.o, mem.o)
+	(misc.o, reg.o, rx.o, syscalls.o, trace.o): Remove.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* configure: Rebuild.
+
+2021-04-21  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4: Regenerate.
+
+2021-04-21  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* configure: Regenerate.
+
+2021-04-20  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.ac: Delete AC_CHECK_HEADERS_ONCE.
+	* main.c: Delete HAVE_GETOPT_H.
+	* config.in, configure: Regenerate.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.ac: Change AC_CHECK_HEADERS to AC_CHECK_HEADERS_ONCE.
+	* configure: Regenerate.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* Makefile.in (NL_TARGET): Define.
+	(syscalls.o): Delete syscall.h.
+	* syscalls.c: Change syscall.h include to targ-vals.h.
+	(rx_syscall): Add TARGET_ prefix to all SYS_ constants.
+	* syscall.h: Removed.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
 2021-04-09  Luis Machado  <luis.machado@linaro.org>
 
 	* fpu.c (rxfp_itof): Initialize structure.

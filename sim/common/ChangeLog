@@ -1,3 +1,105 @@
+2021-05-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* nrun.c (strsignal): New prototype.
+
+2021-05-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* callback.c (wrap): Delete.
+	(os_close): Replace wrap call with direct call & setting last_errno.
+	(os_isatty, os_lseek, os_read_stdin, os_write, os_rename, os_system,
+	os_time, os_unlink, os_stat, os_fstat, os_lstat): Likewise.
+
+2021-04-26  Mike Frysinger  <vapier@gentoo.org>
+
+	* gennltvals.py (TARGETS): Delete.  Update comment.
+	(gentvals): Unify common code paths.
+	(gen_targets): Change TARGETS to TARGETS_DIRS.  Call gentvals without
+	target argument.
+	* nltvals.def: Regenerate.
+
+2021-04-25  Tom Tromey  <tom@tromey.com>
+
+	* sim-options.c (compare_strings): New function.
+	(ARG_HASH_SIZE, ARG_HASH): Remove.
+	(dup_arg_p): Use htab_t.
+	(sim_parse_args): Remove assert.
+
+2021-04-24  Mike Frysinger  <vapier@gentoo.org>
+
+	* dv-cfi.c (attach_cfi_regs): Change %u to PRIiTC.
+
+2021-04-24  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-options.c (ARG_HASH_SIZE): Increase to 256.
+	(sim_parse_args): Call SIM_ASSERT.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* sim-utils.c: Update includes.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* Make-common.in: Require GNU make.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* Make-common.in (stamp-hw): New target.
+	(hw-config.h): Depend on stamp-hw.
+	(mostlyclean): Remove stamp-hw and hw-config.h.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* Make-common.in (mostlyclean): Now an alias for clean, not
+	distclean.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* sim-events.c (sim_events_schedule): Use
+	sim_events_schedule_tracef.
+
+2021-04-22  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* callback.c (os_printf_filtered, os_vprintf_filtered,
+	os_evprintf_filtered, os_error): Use ATTRIBUTE_PRINTF.
+	* sim-engine.h (sim_engine_abort, sim_engine_vabort): Likewise.
+	* sim-events.h (sim_events_schedule_tracef,
+	sim_events_schedule_vtracef): Use ATTRIBUTE_NULL_PRINTF.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* gennltvals.py (TARGETS): Add moxie.
+	* nltvals.def: Regenerate.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* gennltvals.py (TARGET_DIRS, TARGETS): Add sh.
+	* nltvals.def: Regenerate.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* gennltvals.py (TARGETS): Add rx.
+	* nltvals.def: Regenerate.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* gennltvals.py (TARGETS): Add m32c.
+	* nltvals.def: Regenerate.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* gennltvals.py (TARGETS): Add iq2000.
+	* nltvals.def: Regenerate.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* syscall.c (cb_syscall): Implement CB_SYS_getpid.
+
+2021-04-15  John Baldwin  <jhb@FreeBSD.org>
+
+	* Make-common.in (CONFIG_CFLAGS): Remove SIM_EXTRA_CFLAGS.
+	(ALL_CLAGS, COMMON_DEP_CFLAGS): Add SIM_EXTRA_CFLAGS after
+	CSEARCH.
+
 2021-04-12  Mike Frysinger  <vapier@gentoo.org>
 
 	* sim-cpu.c (sim_cpu_alloc_all): Delete 3rd arg.  Delete 2nd arg to

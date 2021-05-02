@@ -2387,7 +2387,7 @@ print_variable_and_value (const char *name, struct symbol *var,
       val = read_var_value (var, NULL, frame);
       get_user_print_options (&opts);
       opts.deref_ref = 1;
-      common_val_print (val, stream, indent, &opts, current_language);
+      common_val_print_checked (val, stream, indent, &opts, current_language);
 
       /* common_val_print invalidates FRAME when a pretty printer calls inferior
 	 function.  */
@@ -3186,7 +3186,8 @@ _initialize_printcmd ()
 
   current_display_number = -1;
 
-  gdb::observers::free_objfile.attach (clear_dangling_display_expressions);
+  gdb::observers::free_objfile.attach (clear_dangling_display_expressions,
+				       "printcmd");
 
   add_info ("address", info_address_command,
 	    _("Describe where symbol SYM is stored.\n\

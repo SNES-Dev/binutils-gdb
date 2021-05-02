@@ -1,3 +1,48 @@
+2021-05-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* config.in, configure: Regenerate.
+
+2021-05-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* Makefile.in (SIM_OBJS): Change armemu26.o to armemu.o.
+	(armemu26.o, armemu32.o): Delete targets.
+	* armemu32.c: New file.
+
+2021-04-26  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4, config.in, configure: Regenerate.
+
+2021-04-26  Nick Clifton  <nickc@redhat.com>
+
+	PR 22790
+	* armemu.c (Handle_Store_Double): Allow 4 byte alignment when
+	running in v6 mode.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* configure, config.in: Rebuild.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* Makefile.in (armemu26.o, armemu32.o): Use COMPILE and
+	POSTCOMPILE.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* configure: Rebuild.
+
+2021-04-21  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4: Regenerate.
+
+2021-04-21  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* configure: Regenerate.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
 2021-04-12  Mike Frysinger  <vapier@gentoo.org>
 
 	* wrapper.c (sim_open): Delete 3rd arg to sim_cpu_alloc_all.

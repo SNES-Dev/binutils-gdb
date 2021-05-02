@@ -719,6 +719,14 @@ ada_value_print_ptr (struct value *val,
 		     struct ui_file *stream, int recurse,
 		     const struct value_print_options *options)
 {
+  if (!options->format
+      && TYPE_TARGET_TYPE (value_type (val))->code () == TYPE_CODE_INT
+      && TYPE_LENGTH (TYPE_TARGET_TYPE (value_type (val))) == 0)
+    {
+      fputs_filtered ("null", stream);
+      return;
+    }
+
   common_val_print (val, stream, recurse, options, language_def (language_c));
 
   struct type *type = ada_check_typedef (value_type (val));
@@ -897,7 +905,10 @@ ada_value_print_array (struct value *val, struct ui_file *stream, int recurse,
 
   fprintf_filtered (stream, "(");
   print_optional_low_bound (stream, type, options);
-  if (TYPE_FIELD_BITSIZE (type, 0) > 0)
+
+  if (value_entirely_optimized_out (val))
+    val_print_optimized_out (val, stream);
+  else if (TYPE_FIELD_BITSIZE (type, 0) > 0)
     {
       const gdb_byte *valaddr = value_contents_for_printing (val);
       int offset_aligned = ada_aligned_value_addr (type, valaddr) - valaddr;
@@ -1093,8 +1104,11 @@ ada_value_print (struct value *val0, struct ui_file *stream,
   struct type *type = ada_check_typedef (value_type (val));
   struct value_print_options opts;
 
-  /* If it is a pointer, indicate what it points to.  */
-  if (type->code () == TYPE_CODE_PTR)
+  /* If it is a pointer, indicate what it points to; but not for
+     "void *" pointers.  */
+  if (type->code () == TYPE_CODE_PTR
+      && !(TYPE_TARGET_TYPE (type)->code () == TYPE_CODE_INT
+	   && TYPE_LENGTH (TYPE_TARGET_TYPE (type)) == 0))
     {
       /* Hack:  don't print (char *) for char strings.  Their
 	 type is indicated by the quoted string anyway.  */

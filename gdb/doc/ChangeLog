@@ -1,3 +1,55 @@
+2021-04-28  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.texinfo (Initialization Files): Use @env when referencing
+	environment variables.
+	(Shell Commands): Likewise.
+	(Starting): Likewise.
+	(Arguments): Likewise.
+	(Environment): Likewise.
+	(Edit): Likewise.
+	(Compiling and Injecting Code): Likewise.
+	(Files): Likewise.
+	(Command History): Likewise.
+	(Screen Size): Likewise.
+	(Emacs): Likewise.
+
+2021-04-28  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* python.texinfo (Python Commands): Mention new commands.
+
+2021-04-25  Lancelot Six  <lsix@lancelotsix.com>
+
+	PR gdb/22640
+	* gdb.texinfo (Symbols): Describe the 'x' and 'd' flags of the
+	ptype command, describe 'set print type hex' and 'show print
+	type hex' commands.  Update 'ptype/o' examples.
+
+2021-04-21  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* gdb.texinfo (GDB/MI Breakpoint Information): Update the
+	description for the 'enabled' field of breakpoint locations.
+
+2021-04-15  Tom Tromey  <tom@tromey.com>
+	    Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.texinfo (Mode Options): Mention "set startup-quietly".
+
+2021-04-15  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	PR cli/25956
+	* gdb.texinfo (File Options): Mention new command line options.
+	(Startup): Discuss when early init files are processed.
+	(Initialization Files): Add description of early init files.
+	(Output Styling): Update description of 'version' style.
+	(gdb man): Mention early init files.
+
+2021-04-14  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.texinfo (GDB/MI Miscellaneous Commands): Add missing
+	parentheses to GDB prompt in example, and replace '(gdb)' with
+	'(@value{GDBP})' in one example where the latter was already in
+	use.
+
 2021-03-29  Luis Machado  <luis.machado@linaro.org>
 
 	* gdb.textinfo (Memory Tagging): Make it a @section.

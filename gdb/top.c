@@ -2163,6 +2163,28 @@ set_history_filename (const char *args,
     }
 }
 
+/* Whether we're in quiet startup mode.  */
+
+static bool startup_quiet;
+
+/* See top.h.  */
+
+bool
+check_quiet_mode ()
+{
+  return startup_quiet;
+}
+
+/* Show whether GDB should start up in quiet mode.  */
+
+static void
+show_startup_quiet (struct ui_file *file, int from_tty,
+	      struct cmd_list_element *c, const char *value)
+{
+  fprintf_filtered (file, _("Whether to start up quietly is %s.\n"),
+		    value);
+}
+
 static void
 init_gdb_version_vars (void)
 {
@@ -2319,6 +2341,17 @@ input settings."),
 			show_interactive_mode,
 			&setlist, &showlist);
 
+  c = add_setshow_boolean_cmd ("startup-quietly", class_support,
+			       &startup_quiet, _("\
+Set whether GDB should start up quietly."), _("		\
+Show whether GDB should start up quietly."), _("\
+This setting will not affect the current session.  Instead this command\n\
+should be added to the .gdbearlyinit file in the users home directory to\n\
+affect future GDB sessions."),
+			       NULL,
+			       show_startup_quiet,
+			       &setlist, &showlist);
+
   c = add_cmd ("new-ui", class_support, new_ui_command, _("\
 Create a new UI.\n\
 Usage: new-ui INTERPRETER TTY\n\
@@ -2327,8 +2360,10 @@ The second argument is the terminal the UI runs on."), &cmdlist);
   set_cmd_completer (c, interpreter_completer);
 }
 
+/* See top.h.  */
+
 void
-gdb_init (char *argv0)
+gdb_init ()
 {
   saved_command_line = xstrdup ("");
   previous_saved_command_line = xstrdup ("");
@@ -2372,12 +2407,6 @@ gdb_init (char *argv0)
      during startup.  */
   set_language (language_c);
   expected_language = current_language;	/* Don't warn about the change.  */
-
-  /* Python initialization, for example, can require various commands to be
-     installed.  For example "info pretty-printer" needs the "info"
-     prefix to be installed.  Keep things simple and just do final
-     script initialization here.  */
-  finish_ext_lang_initialization ();
 
   /* Create $_gdb_major and $_gdb_minor convenience variables.  */
   init_gdb_version_vars ();

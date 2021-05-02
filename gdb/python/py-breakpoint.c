@@ -835,7 +835,7 @@ bppy_init (PyObject *self, PyObject *args, PyObject *kwargs)
 	      breakpoint_ops_for_event_location (location.get (), false);
 
 	    create_breakpoint (python_gdbarch,
-			       location.get (), NULL, -1, NULL,
+			       location.get (), NULL, -1, NULL, false,
 			       0,
 			       temporary_bp, type,
 			       0,
@@ -1125,9 +1125,12 @@ gdbpy_initialize_breakpoints (void)
 			      (PyObject *) &breakpoint_object_type) < 0)
     return -1;
 
-  gdb::observers::breakpoint_created.attach (gdbpy_breakpoint_created);
-  gdb::observers::breakpoint_deleted.attach (gdbpy_breakpoint_deleted);
-  gdb::observers::breakpoint_modified.attach (gdbpy_breakpoint_modified);
+  gdb::observers::breakpoint_created.attach (gdbpy_breakpoint_created,
+					     "py-breakpoint");
+  gdb::observers::breakpoint_deleted.attach (gdbpy_breakpoint_deleted,
+					     "py-breakpoint");
+  gdb::observers::breakpoint_modified.attach (gdbpy_breakpoint_modified,
+					      "py-breakpoint");
 
   /* Add breakpoint types constants.  */
   for (i = 0; pybp_codes[i].name; ++i)

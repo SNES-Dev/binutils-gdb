@@ -1,3 +1,203 @@
+2021-04-30  Tom Tromey  <tromey@adacore.com>
+
+	* gdb.ada/enum_idx_packed/pck.ads (My_Enum, My_Array_Type)
+	(Confused_Array): New types.
+	* gdb.ada/enum_idx_packed/foo.adb (Confused_Array): New variable.
+	* gdb.ada/enum_idx_packed.exp: Add new tests.
+
+2021-04-30  Tom de Vries  <tdevries@suse.de>
+
+	* gdb.mi/mi-sym-info.exp: Add with_timeout_factor, and increase
+	existing timeout factors.
+
+2021-04-30  Tom de Vries  <tdevries@suse.de>
+
+	* gdb.mi/mi-sym-info.exp: Remove duplicate test.
+
+2021-04-29  Tom de Vries  <tdevries@suse.de>
+
+	PR testsuite/27786
+	* lib/valgrind.exp (vgdb_start): Use set_remotetimeout.  Increase
+	remotetimeout to 4.
+
+2021-04-28  Tom Tromey  <tromey@adacore.com>
+
+	* gdb.ada/null_overload.exp: New file.
+	* gdb.ada/null_overload/foo.adb: New file.
+
+2021-04-28  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.python/py-startup-opt.exp: New file.
+
+2021-04-27  Luis Machado  <luis.machado@linaro.org>
+
+	* gdb.base/maint.exp: Drop a pattern that is not needed.
+	* lib/gdb.exp (readnow): Match line-by-line.
+
+2021-04-27  Luis Machado  <luis.machado@linaro.org>
+
+	* gdb.xml/tdesc-reload.exp: Pass -lbl.
+
+2021-04-27  Michael Weghorn  <m.weghorn@posteo.de>
+	    Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* gdb.python/libpy-autoloaded-pretty-printers-in-newobjfile-event.so-gdb.py: New test.
+	* gdb.python/py-autoloaded-pretty-printers-in-newobjfile-event-lib.cc: New test.
+	* gdb.python/py-autoloaded-pretty-printers-in-newobjfile-event-lib.h: New test.
+	* gdb.python/py-autoloaded-pretty-printers-in-newobjfile-event-main.cc: New test.
+	* gdb.python/py-autoloaded-pretty-printers-in-newobjfile-event.exp: New test.
+	* gdb.python/py-autoloaded-pretty-printers-in-newobjfile-event.py: New test.
+
+2021-04-26  Tom Tromey  <tromey@adacore.com>
+
+	PR gdb/27743:
+	* gdb.dwarf2/imported-unit-bp.exp: New file.
+	* gdb.dwarf2/imported-unit-bp-main.c: New file.
+	* gdb.dwarf2/imported-unit-bp-alt.c: New file.
+
+2021-04-26  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	PR gdb/27773
+	* gdb.base/dump.exp: Test dump to non-existent dir.
+
+2021-04-26  Luis Machado  <luis.machado@linaro.org>
+
+	* gdb.arch/aarch64-dbreg-contents.c (set_watchpoint): Fix arch level
+	comparison.
+
+2021-04-25  Lancelot Six  <lsix@lancelotsix.com>
+
+	PR gdb/22640
+	* gdb.base/ptype-offsets.exp: Add tests to verify the behavior
+	of 'ptype/ox' and 'ptype/od'. Check that 'set print type hex'
+	changes the default behavior of 'ptype/o'.  Update to take into
+	account new horizontal layout.
+	* gdb.rust/simple.exp: Update ptype test to check new horizontal
+	layout.
+	* gdb.rust/union.exp: Same.
+
+2021-04-23  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.base/info_sources.exp: Add new tests.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* gdb.base/ptype-offsets.cc (struct empty_member): New.
+	(main): Use empty_member.
+	* gdb.base/ptype-offsets.exp: Add new test.
+
+2021-04-22  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* gdb.python/flexible-array-member.exp: Add check for Python
+	support.
+
+2021-04-22  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	PR gdb/27757
+	* gdb.python/flexible-array-member.c: New test.
+	* gdb.python/flexible-array-member.exp: New test.
+	* gdb.guile/scm-type.exp (test_range): Add test for flexible
+	array member.
+	* gdb.guile/scm-type.c (struct flex_member): New.
+	(main): Use it.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* gdb.rust/modules.exp: Add checks for syntax errors.
+	* gdb.rust/expr.exp: Add checks for syntax errors.
+	* gdb.rust/simple.exp: Add checks for syntax errors.
+
+2021-04-21  Carl Love  <cel@us.ibm.com>
+
+	* gdb.base/valgrind-bt.exp: Add gdb_test "break main".
+	Update expected string for gdb_test "bt".
+
+	* lib/valgrind.exp: Add set remotetimeout 3.
+	Increase vgdb wait from 1 to 2.
+	Add max-invoke-ms option to vgdb command line.
+
+2021-04-21  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* gdb.mi/mi-break.exp: Extend with checks for invalid breakpoint
+	conditions.
+
+2021-04-21  Simon Marchi  <simon.marchi@polymtl.ca>
+	    Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* gdb.mi/mi-break.exp: Fix the duplicate test names.
+
+2021-04-20  Felix Willgerodt  <felix.willgerodt@intel.com>
+
+	* gdb.base/address_space_qualifier.exp: New file.
+
+2021-04-19  Tom Tromey  <tromey@adacore.com>
+
+	PR gdb/27742:
+	* gdb.opt/inline-locals.exp: Update kfail patterns.
+
+2021-04-17  Tom Tromey  <tom@tromey.com>
+
+	* gdb.dwarf2/gdb-index-nodebug.exp: New file.
+
+2021-04-16  Tom Tromey  <tom@tromey.com>
+
+	* gdb.rust/simple.exp: Change error text.
+	* gdb.rust/expr.exp: Change error text.
+
+2021-04-16  Tom Tromey  <tom@tromey.com>
+
+	* gdb.rust/simple.exp: Add parens to 'as' test.
+
+2021-04-16  Simon Marchi  <simon.marchi@efficios.com>
+
+	* boards/simavr.exp: Set debug_flags.
+
+2021-04-16  Luis Machado  <luis.machado@linaro.org>
+
+	* gdb.dwarf2/dw2-bfloat16.exp: New file.
+
+2021-04-15  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.python/py-parameter.exp: Give a test a proper name to avoid
+	including a path in the test name.
+
+2021-04-15  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* gdb.threads/fork-plus-threads.exp: Use foreach_with_prefix.
+
+2021-04-15  Tom Tromey  <tromey@adacore.com>
+
+	* gdb.dwarf2/arr-stride.exp: Add test.
+
+2021-04-15  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.base/startup-file.exp: Add more tests.
+
+2021-04-15  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	PR cli/25956
+	* gdb.base/early-init-file.c: New file.
+	* gdb.base/early-init-file.exp: New file.
+	* lib/gdb-utils.exp (style): Handle style 'none'.
+
+2021-04-14  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* gdb.dwarf2/dw2-inline-with-lexical-scope.exp: Use
+	@DW_INL_declared_inlined for the inline attribute.
+
+2021-04-14  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* gdb.opt/inline-locals.c (scoped): New function.
+	(main): Call 'scoped'.
+	* gdb.opt/inline-locals.exp: Update with "info locals" tests
+	for scoped variables.
+	* gdb.dwarf2/dw2-inline-with-lexical-scope.c: New file.
+	* gdb.dwarf2/dw2-inline-with-lexical-scope.exp: New file.
+
+2021-04-14  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* lib/dwarf.exp (_location): Recognize DW_OP_fbreg as an op.
+
 2021-04-12  Will Schmidt  <will_schmidt@vnet.ibm.com>
 
 	* gdb.arch/powerpc-vsx-regs.exp: Initialize vs* doublewords.

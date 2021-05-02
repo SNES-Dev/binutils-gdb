@@ -1,3 +1,150 @@
+2021-04-30  Nick Clifton  <nickc@redhat.com>
+
+	PR 27796
+	* dwarf.c (load_debug_sup_file): Allocate memory for filename in
+	.debug_sup section.
+
+2021-04-29  Nick Clifton  <nickc@redhat.com>
+
+	PR 27594
+	* doc/binutils.texi (windres): Correct the description of the
+	default value of the --preprocessor argument.
+
+2021-04-27  Nick Clifton  <nickc@redhat.com>
+
+	PR 27779
+	* dwarf.c (parse_gnu_debuglink): Reject empty names.
+	(parse_gnu_debugaltlink): Likewise.
+
+2021-04-22  Clément Chigot  <clement.chigot@atos.net>
+
+	* od-xcoff.c (dump_xcoff32_symbols): Adapt to new
+	aux structures.
+
+2021-04-21  Nick Lott  <nick.lott@gmail.com>
+
+	PR 27672
+	* readelf.c (sym_base): New variable.
+	(enum print_mode): Add more modes.
+	(print_vma): Add suport for new modes.
+	(options): Add sym-base.
+	(usage): Add sym-base.
+	(parse_args): Add support for --sym-base.
+	(print_dynamic_symbol_size): New function.
+	(print_dynamic_symbol): Use new function.
+	* doc/binutils.texi: Document the new feature.
+	* NEWS: Mention the new feature.
+
+2021-04-21  Nick Clifton  <nickc@redhat.com>
+
+	* testsuite/binutils-all/mips/global-local-symtab-sort-n64t.d:
+	Adjust expected output to allow for named section symbols.
+	* testsuite/binutils-all/mips/global-local-symtab-sort-o32t.d:
+	Likewise.
+	* testsuite/binutils-all/readelf.s-64: Likewise.
+	* testsuite/binutils-all/readelf.ss-64-unused: Likewise.
+	* testsuite/binutils-all/readelf.ss-tmips: Likewise.
+	* testsuite/binutils-all/readelf.ss-unused: Likewise.
+
+2021-04-21  Luo Longjun  <luolongjun@huawei.com>
+
+	* readelf.c (print_dynamic_symbol): Print the section name for
+	section symbols without a name of their own.
+
+2021-04-20  Andreas Krebbel  <krebbel@linux.ibm.com>
+
+	* MAINTAINERS: Remove Martin Schwidefsky as s390 maintainer and
+	add him to Past Maintainers.
+	Update my email address.
+
+2021-04-19  Nick Clifton  <nickc@redhat.com>
+
+	PR 21702
+	* arsup.c (ar_addmod): Enable plugin support, if available.
+
+2021-04-19  Nick Clifton  <nickc@redhat.com>
+
+	* rename.c: (get_stat_atime_ns): Add prototype.
+	(get_stat_mtime_ns): Add prototype.
+
+2021-04-16  Alan Modra  <amodra@gmail.com>
+
+	PR 27725
+	* rename.c (get_stat_atime, get_stat_mtime): Make static.
+	(get_stat_atime_ns, get_stat_mtime_ns): Likewise.
+
+2021-04-15  Pekka Seppänen  <pexu@sourceware.mail.kapsi.fi>
+
+	PR 27725
+	* rename.c (get_stat_atime_ns): Add ATTRIBUTE_UNUSED.
+	(get_stat_mtime_ns): Likewise.
+
+2021-04-15  Alan Modra  <amodra@gmail.com>
+
+	PR 27725
+	* configure.ac: Check for sys/time.h and utimensat.  Use standard
+	checks for mkstemp and mkdtemp.  Whitespace.  Check for nanosecond
+	members of struct stat.
+	* rename.c: Prefer sys/time.h for utimes over utime.h for utime.
+	(STAT_TIMESPEC, STAT_TIMESPEC_NS): Define
+	(get_stat_atime_ns, get_stat_mtime_ns): New inline functions.
+	(get_stat_atime, get_stat_mtime): Likewise.
+	(set_times): Choose first available of utimensat, utimes, utime.
+	Use above inline functions to set timespec and timeval values.
+	* configure: Regenerate.
+	* config.in: Regenerate.
+	* testsuite/binutils-all/objcopy.exp (objcopy_test): Add test of
+	file timestamp when --preserve-dates is used.
+
+2021-04-15  Alan Modra  <amodra@gmail.com>
+
+	PR 27456
+	* rename.c (smart_rename): When TO and FROM are equal, just set
+	file timestamp.
+	* objcopy.c (strip_main, copy_main): Always call smart_rename.
+
+2021-04-14  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR binutils/27708
+	* testsuite/binutils-all/x86-64/pr27708.dump: New file.
+	* testsuite/binutils-all/x86-64/pr27708.exe.bz2: Likewise.
+	* testsuite/binutils-all/x86-64/x86-64.exp: Run binutils/27708
+	test.
+
+2021-04-14  Mark Harmstone  <mark@harmstone.com>
+
+	PR 27686
+	* resbin.c (bin_to_res_version): Ignore any trailing bytes at the
+	end of the structure.
+
+2021-04-14  Frederic Cambus  <fred@statdns.com>
+
+	* readelf.c (get_netbsd_elfcore_note_type): Remove unneeded #ifdef
+	checks for NT_NETBSDCORE_AUXV and NT_NETBSDCORE_LWPSTATUS.
+
+2021-04-14  Alan Modra  <amodra@gmail.com>
+
+	PR 27716
+	* objdump.c (show_line): Don't limit paths to PATH_MAX.
+	* readelf.c (struct filedata): Change program_interpreter from
+	a char array to a char pointer.
+	(process_program_headers): Sanity check PT_INTERP p_filesz.
+	Malloc program_interpreter using p_filesz and read directly from
+	file.
+	(process_dynamic_section): Check program_interpreter is non-NULL.
+	(free_filedata): New function, split out from..
+	(process_object): ..here.
+	(close_debug_file): Call free_filedata.
+	* sysdep.h: Don't include sys/param.h.
+	(PATH_MAX): Don't define.
+	* configure.ac: Don't check for sys/param.h.
+	* configure: Regenerate.
+
+2021-04-13  Frederic Cambus  <fred@statdns.com>
+
+	* readelf.c (process_netbsd_elf_note): Remove now unneeded #ifdef
+	check for NT_NETBSD_PAX.
+
 2021-04-12  Alan Modra  <amodra@gmail.com>
 
 	* configure.ac (--enable-checking): Add support.

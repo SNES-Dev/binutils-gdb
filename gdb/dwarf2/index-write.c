@@ -94,13 +94,10 @@ file_write (FILE *file, const std::vector<Elem, Alloc> &vec)
 class data_buf
 {
 public:
-  /* Copy DATA to the end of the buffer.  */
-  template<typename T>
-  void append_data (const T &data)
+  /* Copy ARRAY to the end of the buffer.  */
+  void append_array (gdb::array_view<const gdb_byte> array)
   {
-    std::copy (reinterpret_cast<const gdb_byte *> (&data),
-	       reinterpret_cast<const gdb_byte *> (&data + 1),
-	       grow (sizeof (data)));
+    std::copy (array.begin (), array.end (), grow (array.size ()));
   }
 
   /* Copy CSTR (a zero-terminated string) to the end of buffer.  The
@@ -120,7 +117,7 @@ public:
 	input >>= 7;
 	if (input)
 	  output |= 0x80;
-	append_data (output);
+	m_vec.push_back (output);
 	if (input == 0)
 	  break;
       }
@@ -131,6 +128,12 @@ public:
   void append_uint (size_t len, bfd_endian byte_order, ULONGEST val)
   {
     ::store_unsigned_integer (grow (len), len, byte_order, val);
+  }
+
+  /* Copy VALUE to the end of the buffer, little-endian.  */
+  void append_offset (offset_type value)
+  {
+    append_uint (sizeof (value), BFD_ENDIAN_LITTLE, value);
   }
 
   /* Return the size of the buffer.  */
@@ -371,9 +374,9 @@ write_hash_table (mapped_symtab *symtab, data_buf &output, data_buf &cpool)
 
 	symbol_hash_table.emplace (entry.cu_indices, cpool.size ());
 	entry.index_offset = cpool.size ();
-	cpool.append_data (MAYBE_SWAP (entry.cu_indices.size ()));
+	cpool.append_offset (entry.cu_indices.size ());
 	for (const auto index : entry.cu_indices)
-	  cpool.append_data (MAYBE_SWAP (index));
+	  cpool.append_offset (index);
       }
   }
 
@@ -399,8 +402,8 @@ write_hash_table (mapped_symtab *symtab, data_buf &output, data_buf &cpool)
 	  vec_off = 0;
 	}
 
-      output.append_data (MAYBE_SWAP (str_off));
-      output.append_data (MAYBE_SWAP (vec_off));
+      output.append_offset (str_off);
+      output.append_offset (vec_off);
     }
 }
 
@@ -434,7 +437,7 @@ add_address_entry (data_buf &addr_vec,
 {
   addr_vec.append_uint (8, BFD_ENDIAN_LITTLE, start);
   addr_vec.append_uint (8, BFD_ENDIAN_LITTLE, end);
-  addr_vec.append_data (MAYBE_SWAP (cu_index));
+  addr_vec.append_offset (cu_index);
 }
 
 /* Worker function for traversing an addrmap to build the address table.  */
@@ -612,7 +615,7 @@ write_one_signatured_type (void **slot, void *d)
   struct signatured_type_index_data *info
     = (struct signatured_type_index_data *) d;
   struct signatured_type *entry = (struct signatured_type *) *slot;
-  partial_symtab *psymtab = entry->per_cu.v.psymtab;
+  partial_symtab *psymtab = entry->v.psymtab;
 
   if (psymtab == nullptr)
     {
@@ -630,7 +633,7 @@ write_one_signatured_type (void **slot, void *d)
 		  1);
 
   info->types_list.append_uint (8, BFD_ENDIAN_LITTLE,
-				to_underlying (entry->per_cu.sect_off));
+				to_underlying (entry->sect_off));
   info->types_list.append_uint (8, BFD_ENDIAN_LITTLE,
 				to_underlying (entry->type_offset_in_tu));
   info->types_list.append_uint (8, BFD_ENDIAN_LITTLE, entry->signature);
@@ -1256,7 +1259,7 @@ private:
   write_one_signatured_type (struct signatured_type *entry,
 			     struct signatured_type_index_data *info)
   {
-    partial_symtab *psymtab = entry->per_cu.v.psymtab;
+    partial_symtab *psymtab = entry->v.psymtab;
 
     write_psymbols (info->psyms_seen, psymtab->global_psymbols,
 		    info->cu_index, false, unit_kind::tu);
@@ -1264,7 +1267,7 @@ private:
 		    info->cu_index, true, unit_kind::tu);
 
     info->types_list.append_uint (dwarf5_offset_size (), m_dwarf5_byte_order,
-				  to_underlying (entry->per_cu.sect_off));
+				  to_underlying (entry->sect_off));
 
     ++info->cu_index;
   }
@@ -1309,16 +1312,10 @@ private:
 static bool
 check_dwarf64_offsets (dwarf2_per_objfile *per_objfile)
 {
-  for (dwarf2_per_cu_data *per_cu : per_objfile->per_bfd->all_comp_units)
+  for (const auto &per_cu : per_objfile->per_bfd->all_comp_units)
     {
-      if (to_underlying (per_cu->sect_off) >= (static_cast<uint64_t> (1) << 32))
-	return true;
-    }
-  for (const signatured_type *sigtype : per_objfile->per_bfd->all_type_units)
-    {
-      const dwarf2_per_cu_data &per_cu = sigtype->per_cu;
-
-      if (to_underlying (per_cu.sect_off) >= (static_cast<uint64_t> (1) << 32))
+      if (to_underlying (per_cu->sect_off)
+	  >= (static_cast<uint64_t> (1) << 32))
 	return true;
     }
   return false;
@@ -1334,7 +1331,7 @@ static size_t
 psyms_seen_size (dwarf2_per_objfile *per_objfile)
 {
   size_t psyms_count = 0;
-  for (dwarf2_per_cu_data *per_cu : per_objfile->per_bfd->all_comp_units)
+  for (const auto &per_cu : per_objfile->per_bfd->all_comp_units)
     {
       partial_symtab *psymtab = per_cu->v.psymtab;
 
@@ -1374,26 +1371,26 @@ write_gdbindex_1 (FILE *out_file,
   offset_type total_len = size_of_header;
 
   /* The version number.  */
-  contents.append_data (MAYBE_SWAP (8));
+  contents.append_offset (8);
 
   /* The offset of the CU list from the start of the file.  */
-  contents.append_data (MAYBE_SWAP (total_len));
+  contents.append_offset (total_len);
   total_len += cu_list.size ();
 
   /* The offset of the types CU list from the start of the file.  */
-  contents.append_data (MAYBE_SWAP (total_len));
+  contents.append_offset (total_len);
   total_len += types_cu_list.size ();
 
   /* The offset of the address table from the start of the file.  */
-  contents.append_data (MAYBE_SWAP (total_len));
+  contents.append_offset (total_len);
   total_len += addr_vec.size ();
 
   /* The offset of the symbol table from the start of the file.  */
-  contents.append_data (MAYBE_SWAP (total_len));
+  contents.append_offset (total_len);
   total_len += symtab_vec.size ();
 
   /* The offset of the constant pool from the start of the file.  */
-  contents.append_data (MAYBE_SWAP (total_len));
+  contents.append_offset (total_len);
   total_len += constant_pool.size ();
 
   gdb_assert (contents.size () == size_of_header);
@@ -1435,9 +1432,14 @@ write_gdbindex (dwarf2_per_objfile *per_objfile, FILE *out_file,
 
   std::unordered_set<partial_symbol *> psyms_seen
     (psyms_seen_size (per_objfile));
+  int counter = 0;
   for (int i = 0; i < per_objfile->per_bfd->all_comp_units.size (); ++i)
     {
-      dwarf2_per_cu_data *per_cu = per_objfile->per_bfd->all_comp_units[i];
+      dwarf2_per_cu_data *per_cu
+	= per_objfile->per_bfd->all_comp_units[i].get ();
+      if (per_cu->is_debug_types)
+	continue;
+
       partial_symtab *psymtab = per_cu->v.psymtab;
 
       if (psymtab != NULL)
@@ -1446,7 +1448,7 @@ write_gdbindex (dwarf2_per_objfile *per_objfile, FILE *out_file,
 	    recursively_write_psymbols (objfile, psymtab, &symtab,
 					psyms_seen, i);
 
-	  const auto insertpair = cu_index_htab.emplace (psymtab, i);
+	  const auto insertpair = cu_index_htab.emplace (psymtab, counter);
 	  gdb_assert (insertpair.second);
 	}
 
@@ -1457,6 +1459,7 @@ write_gdbindex (dwarf2_per_objfile *per_objfile, FILE *out_file,
       cu_list.append_uint (8, BFD_ENDIAN_LITTLE,
 			   to_underlying (per_cu->sect_off));
       cu_list.append_uint (8, BFD_ENDIAN_LITTLE, per_cu->length);
+      ++counter;
     }
 
   /* Dump the address map.  */
@@ -1472,7 +1475,8 @@ write_gdbindex (dwarf2_per_objfile *per_objfile, FILE *out_file,
 
       sig_data.objfile = objfile;
       sig_data.symtab = &symtab;
-      sig_data.cu_index = per_objfile->per_bfd->all_comp_units.size ();
+      sig_data.cu_index = (per_objfile->per_bfd->all_comp_units.size ()
+			   - per_objfile->per_bfd->tu_stats.nr_tus);
       htab_traverse_noresize (per_objfile->per_bfd->signatured_types.get (),
 			      write_one_signatured_type, &sig_data);
     }
@@ -1516,9 +1520,14 @@ write_debug_names (dwarf2_per_objfile *per_objfile,
   debug_names nametable (per_objfile, dwarf5_is_dwarf64, dwarf5_byte_order);
   std::unordered_set<partial_symbol *>
     psyms_seen (psyms_seen_size (per_objfile));
+  int counter = 0;
   for (int i = 0; i < per_objfile->per_bfd->all_comp_units.size (); ++i)
     {
-      const dwarf2_per_cu_data *per_cu = per_objfile->per_bfd->all_comp_units[i];
+      const dwarf2_per_cu_data *per_cu
+	= per_objfile->per_bfd->all_comp_units[i].get ();
+      if (per_cu->is_debug_types)
+	continue;
+
       partial_symtab *psymtab = per_cu->v.psymtab;
 
       /* CU of a shared file from 'dwz -m' may be unused by this main
@@ -1528,10 +1537,12 @@ write_debug_names (dwarf2_per_objfile *per_objfile,
 	continue;
 
       if (psymtab->user == NULL)
-	nametable.recursively_write_psymbols (objfile, psymtab, psyms_seen, i);
+	nametable.recursively_write_psymbols (objfile, psymtab, psyms_seen,
+					      counter);
 
       cu_list.append_uint (nametable.dwarf5_offset_size (), dwarf5_byte_order,
 			   to_underlying (per_cu->sect_off));
+      ++counter;
     }
 
   /* Write out the .debug_type entries, if any.  */
@@ -1585,12 +1596,13 @@ write_debug_names (dwarf2_per_objfile *per_objfile,
 
   /* comp_unit_count - The number of CUs in the CU list.  */
   header.append_uint (4, dwarf5_byte_order,
-		      per_objfile->per_bfd->all_comp_units.size ());
+		      per_objfile->per_bfd->all_comp_units.size ()
+		      - per_objfile->per_bfd->tu_stats.nr_tus);
 
   /* local_type_unit_count - The number of TUs in the local TU
      list.  */
   header.append_uint (4, dwarf5_byte_order,
-		      per_objfile->per_bfd->all_type_units.size ());
+		      per_objfile->per_bfd->tu_stats.nr_tus);
 
   /* foreign_type_unit_count - The number of TUs in the foreign TU
      list.  */
@@ -1611,7 +1623,7 @@ write_debug_names (dwarf2_per_objfile *per_objfile,
      string.  This value is rounded up to a multiple of 4.  */
   static_assert (sizeof (dwarf5_gdb_augmentation) % 4 == 0, "");
   header.append_uint (4, dwarf5_byte_order, sizeof (dwarf5_gdb_augmentation));
-  header.append_data (dwarf5_gdb_augmentation);
+  header.append_array (dwarf5_gdb_augmentation);
 
   gdb_assert (header.size () == bytes_of_header);
 
@@ -1693,7 +1705,8 @@ write_psymtabs_to_index (dwarf2_per_objfile *per_objfile, const char *dir,
   if (per_objfile->per_bfd->types.size () > 1)
     error (_("Cannot make an index when the file has multiple .debug_types sections"));
 
-  if (!per_bfd->partial_symtabs->psymtabs
+  if (per_bfd->partial_symtabs == nullptr
+      || !per_bfd->partial_symtabs->psymtabs
       || !per_bfd->partial_symtabs->psymtabs_addrmap)
     return;
 

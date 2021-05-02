@@ -592,8 +592,15 @@ typy_range (PyObject *self, PyObject *args)
     case TYPE_CODE_ARRAY:
     case TYPE_CODE_STRING:
     case TYPE_CODE_RANGE:
-      low = type->bounds ()->low.const_val ();
-      high = type->bounds ()->high.const_val ();;
+      if (type->bounds ()->low.kind () == PROP_CONST)
+	low = type->bounds ()->low.const_val ();
+      else
+	low = 0;
+
+      if (type->bounds ()->high.kind () == PROP_CONST)
+	high = type->bounds ()->high.const_val ();
+      else
+	high = 0;
       break;
     }
 
@@ -1417,13 +1424,18 @@ gdbpy_lookup_type (PyObject *self, PyObject *args, PyObject *kw)
   return type_to_type_object (type);
 }
 
+void _initialize_py_type ();
+void
+_initialize_py_type ()
+{
+  typy_objfile_data_key
+    = register_objfile_data_with_cleanup (save_objfile_types, NULL);
+}
+
 int
 gdbpy_initialize_types (void)
 {
   int i;
-
-  typy_objfile_data_key
-    = register_objfile_data_with_cleanup (save_objfile_types, NULL);
 
   if (PyType_Ready (&type_object_type) < 0)
     return -1;

@@ -1,3 +1,61 @@
+2021-04-30  Tom Tromey  <tromey@adacore.com>
+
+	* win32-low.cc (do_initial_child_stuff): Update.
+	(windows_nat::handle_load_dll): Rename from win32_add_one_solib.
+	Change parameter type.
+	(win32_add_dll, win32_add_all_dlls)
+	(windows_nat::handle_load_dll): Remove.
+	(get_child_debug_event): Call dll_loaded_event.
+
+2021-04-30  Tom Tromey  <tromey@adacore.com>
+
+	* win32-low.cc (GETPROCADDRESS): Remove.
+	(winapi_DebugActiveProcessStop, winapi_DebugSetProcessKillOnExit)
+	(winapi_DebugBreakProcess, winapi_GenerateConsoleCtrlEvent)
+	(winapi_Wow64SetThreadContext, win32_Wow64GetThreadContext)
+	(win32_Wow64SetThreadContext): Remove.
+	(win32_set_thread_context, do_initial_child_stuff)
+	(win32_process_target::attach, win32_process_target::detach):
+	Update.
+	(winapi_EnumProcessModules, winapi_EnumProcessModulesEx)
+	(winapi_GetModuleInformation, winapi_GetModuleInformationA):
+	Remove.
+	(win32_EnumProcessModules, win32_EnumProcessModulesEx)
+	(win32_GetModuleInformation, win32_GetModuleInformationA):
+	Remove.
+	(load_psapi): Remove.
+	(win32_add_dll, win32_process_target::request_interrupt): Update.
+	(initialize_low): Call initialize_loadable.
+
+2021-04-14  Tom Tromey  <tromey@adacore.com>
+
+	* win32-low.cc (windows_nat::handle_load_dll): Don't check
+	_WIN32_WCE.
+
+2021-04-13  Pedro Alves  <pedro@palves.net>
+
+	* gdbreplay.c [__MINGW32CE__] (COUNTOF, errno, strerror): Remove.
+
+2021-04-13  Tom Tromey  <tromey@adacore.com>
+
+	* win32-low.cc (winapi_CreateToolhelp32Snapshot)
+	(winapi_Module32First, winapi_Module32Next): Remove typedefs.
+
+2021-04-13  Pedro Alves  <pedro@palves.net>
+
+	* Makefile.in (SFILES): Remove hostio-errno.cc.
+	* configure: Regenerate.
+	* configure.ac (GDBSERVER_DEPFILES): No longer add
+	$srv_hostio_err_objs.
+	* configure.srv (srv_hostio_err_objs): Delete.
+	* hostio-errno.cc: Delete.
+	* hostio.cc (hostio_error): Inline hostio_last_error_from_errno
+	here.
+	* hostio.h (hostio_last_error_from_errno): Delete.
+	* target.cc (process_stratum_target::hostio_last_error): Delete.
+	* target.h (class process_stratum_target) <hostio_last_error>:
+	Delete.
+
 2021-04-12  Simon Marchi  <simon.marchi@polymtl.ca>
 
 	* win32-low.cc: Remove all code guarded by _WIN32_WCE.

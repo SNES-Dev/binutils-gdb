@@ -35,16 +35,6 @@ AC_SUBST(PACKAGE)
 ZW_CREATE_DEPDIR
 ZW_PROG_COMPILER_DEPENDENCIES([CC])
 
-# Check for the 'make' the user wants to use.
-AC_CHECK_PROGS(MAKE, make)
-MAKE_IS_GNU=
-case "`$MAKE --version 2>&1 | sed 1q`" in
-  *GNU*)
-    MAKE_IS_GNU=yes
-    ;;
-esac
-AM_CONDITIONAL(GMAKE, test "$MAKE_IS_GNU" = yes)
-
 dnl We don't use gettext, but bfd does.  So we do the appropriate checks
 dnl to see if there are intl libraries we should link against.
 ALL_LINGUAS=
@@ -52,12 +42,28 @@ ZW_GNU_GETTEXT_SISTER_DIR(../../intl)
 
 # Check for common headers.
 # NB: You can assume C11 headers exist.
-AC_CHECK_HEADERS(unistd.h)
-AC_CHECK_HEADERS(sys/time.h sys/times.h sys/resource.h sys/mman.h)
-AC_CHECK_HEADERS(fcntl.h fpu_control.h)
-AC_CHECK_HEADERS(dlfcn.h sys/stat.h)
-AC_CHECK_FUNCS(getrusage time sigaction __setfpucw)
-AC_CHECK_FUNCS(mmap munmap lstat truncate ftruncate posix_fallocate)
+AC_CHECK_HEADERS_ONCE(m4_flatten([
+  dlfcn.h
+  fcntl.h
+  fpu_control.h
+  unistd.h
+  sys/mman.h
+  sys/resource.h
+  sys/stat.h
+]))
+AC_CHECK_FUNCS_ONCE(m4_flatten([
+  __setfpucw
+  ftruncate
+  getrusage
+  lstat
+  mmap
+  munmap
+  posix_fallocate
+  sigaction
+  strsignal
+  time
+  truncate
+]))
 AC_CHECK_MEMBERS([[struct stat.st_dev], [struct stat.st_ino],
 [struct stat.st_mode], [struct stat.st_nlink], [struct stat.st_uid],
 [struct stat.st_gid], [struct stat.st_rdev], [struct stat.st_size],

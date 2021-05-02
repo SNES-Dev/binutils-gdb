@@ -1,3 +1,102 @@
+2021-04-28  Nick Clifton  <nickc@redhat.com>
+
+	* testsuite/ld-elf/anno-sym.s: New test source file.
+	* testsuite/ld-elf/anno-sym.d: New test driver.
+	* testsuite/ld-elf/anno-sym.l: New test error output.
+
+2021-04-26  Jan Beulich  <jbeulich@suse.com>
+
+	* testsuite/ld-i386/pcrel16-2.s, testsuite/ld-i386/pcrel16-2.d,
+	testsuite/ld-x86-64/pcrel16-2.d: New.
+	* testsuite/ld-i386/i386.exp: Run new test.
+	* testsuite/ld-x86-64/x86-64.exp: Likewise.
+
+2021-04-23  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27771
+	* testsuite/ld-bootstrap/bootstrap.exp: Create a symbolic link
+	to tmpdir/ldscripts only if it doesn't exist.
+
+2021-04-22  Jan Beulich  <jbeulich@suse.com>
+
+	PR ld/26659
+	* testsuite/ld-pe/pr26659-weak-undef-sym.d: Relax for Cygwin.
+
+2021-04-21  Nick Clifton  <nickc@redhat.com>
+
+	* testsuite/ld-aarch64/variant_pcs-now.d: Adjust expected output
+	to allow for named section symbols.
+	* testsuite/ld-aarch64/variant_pcs-r.d: Likewise.
+	* testsuite/ld-aarch64/variant_pcs-shared.d: Likewise.
+	* testsuite/ld-alpha/tlsbin.rd: Likewise.
+	* testsuite/ld-alpha/tlsbinr.rd: Likewise.
+	* testsuite/ld-alpha/tlspic.rd: Likewise.
+	* testsuite/ld-arm/rodata-merge-map.sym: Likewise.
+	* testsuite/ld-arm/script-type.sym: Likewise.
+	* testsuite/ld-cris/libdso-2.d: Likewise.
+	* testsuite/ld-cris/pr16044.d: Likewise.
+	* testsuite/ld-elf/sec64k.exp: Likewise.
+	* testsuite/ld-ia64/tlsbin.rd: Likewise.
+	* testsuite/ld-ia64/tlspic.rd: Likewise.
+	* testsuite/ld-mips-elf/global-local-symtab-sort-n64t.d: Likewise.
+	* testsuite/ld-mips-elf/global-local-symtab-sort-o32t.d: Likewise.
+	* testsuite/ld-mmix/bspec1.d: Likewise.
+	* testsuite/ld-mmix/bspec2.d: Likewise.
+	* testsuite/ld-mmix/local1.d: Likewise.
+	* testsuite/ld-mmix/local3.d: Likewise.
+	* testsuite/ld-mmix/local5.d: Likewise.
+	* testsuite/ld-mmix/local7.d: Likewise.
+	* testsuite/ld-mmix/undef-3.d: Likewise.
+	* testsuite/ld-powerpc/tlsso.r: Likewise.
+	* testsuite/ld-powerpc/tlsso32.r: Likewise.
+	* testsuite/ld-powerpc/tlstocso.r: Likewise.
+	* testsuite/ld-s390/tlsbin.rd: Likewise.
+	* testsuite/ld-s390/tlsbin_64.rd: Likewise.
+	* testsuite/ld-s390/tlspic.rd: Likewise.
+	* testsuite/ld-s390/tlspic_64.rd: Likewise.
+	* testsuite/ld-sparc/gotop32.rd: Likewise.
+	* testsuite/ld-sparc/gotop64.rd: Likewise.
+	* testsuite/ld-sparc/tlssunbin32.rd: Likewise.
+	* testsuite/ld-sparc/tlssunbin64.rd: Likewise.
+	* testsuite/ld-sparc/tlssunnopic32.rd: Likewise.
+	* testsuite/ld-sparc/tlssunnopic64.rd: Likewise.
+	* testsuite/ld-sparc/tlssunpic32.rd: Likewise.
+	* testsuite/ld-sparc/tlssunpic64.rd: Likewise.
+	* testsuite/ld-tic6x/common.d: Likewise.
+	* testsuite/ld-tic6x/shlib-1.rd: Likewise.
+	* testsuite/ld-tic6x/shlib-1b.rd: Likewise.
+	* testsuite/ld-tic6x/shlib-1r.rd: Likewise.
+	* testsuite/ld-tic6x/shlib-1rb.rd: Likewise.
+	* testsuite/ld-tic6x/shlib-app-1.rd: Likewise.
+	* testsuite/ld-tic6x/shlib-app-1b.rd: Likewise.
+	* testsuite/ld-tic6x/shlib-app-1r.rd: Likewise.
+	* testsuite/ld-tic6x/shlib-app-1rb.rd: Likewise.
+	* testsuite/ld-tic6x/shlib-noindex.rd: Likewise.
+	* testsuite/ld-tic6x/static-app-1.rd: Likewise.
+	* testsuite/ld-tic6x/static-app-1b.rd: Likewise.
+	* testsuite/ld-tic6x/static-app-1r.rd: Likewise.
+	* testsuite/ld-tic6x/static-app-1rb.rd: Likewise.
+
+2021-04-20  Clément Chigot  <clement.chigot@atos.net>
+
+	PR binutils/21700
+	* testsuite/ld-powerpc/aix52.exp: Add new test.
+	* testsuite/ld-powerpc/aix-neg-reloc-32.d: New test.
+	* testsuite/ld-powerpc/aix-neg-reloc-64.d: New test.
+	* testsuite/ld-powerpc/aix-neg-reloc.ex: New test.
+	* testsuite/ld-powerpc/aix-neg-reloc.s: New test.
+
+2021-04-13  Nick Clifton  <nickc@redhat.com>
+
+	* ld.texi (Options): Add note about the effect of --as-needed on
+	the --rpath and --rpath-link options on Linux based systems.
+
+2021-04-13  Alan Modra  <amodra@gmail.com>
+
+	PR 27722
+	* libdep_plugin.c (str2vec): Don't pass a potentially signed char
+	to isspace.
+
 2021-04-12  Alan Modra  <amodra@gmail.com>
 
 	* configure.ac (--enable-checking): Add support.

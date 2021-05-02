@@ -1,3 +1,54 @@
+2021-05-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* config.in, configure: Regenerate.
+
+2021-04-26  Mike Frysinger  <vapier@gentoo.org>
+
+	* Makefile.in (NL_TARGET): Delete.
+
+2021-04-26  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.ac (SIM_AC_OPTION_HARDWARE): Delete call.
+	* configure: Regenerate.
+
+2021-04-23  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.ac (SIM_AC_OPTION_HARDWARE): Delete arguments.
+	* configure: Regenerate.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* configure, config.in: Rebuild.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* Makefile.in (arch.o, devices.o, frv.o, traps.o, pipeline.o)
+	(interrupts.o, memory.o, cache.o, options.o, reset.o)
+	(registers.o, profile.o, profile-fr400.o, profile-fr450.o)
+	(profile-fr500.o, profile-fr550.o, sim-if.o, mloop.o, cpu.o)
+	(decode.o, sem.o, model.o): Remove.
+	(SIM_EXTRA_DEPS): Add eng.h.
+
+2021-04-22  Tom Tromey  <tom@tromey.com>
+
+	* configure: Rebuild.
+
+2021-04-21  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4: Regenerate.
+
+2021-04-21  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* configure: Regenerate.
+
+2021-04-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
+2021-04-15  John Baldwin  <jhb@FreeBSD.org>
+
+	* traps.c (frvbf_check_acc_range): Add missing return value.
+
 2021-04-12  Mike Frysinger  <vapier@gentoo.org>
 
 	* sim-if.c (sim_open): Delete 3rd arg to sim_cpu_alloc_all.

@@ -238,6 +238,7 @@ static bool do_not_show_symbol_truncation = false;
 static bool do_demangle = false;	/* Pretty print C++ symbol names.  */
 static bool process_links = false;
 static int demangle_flags = DMGL_ANSI | DMGL_PARAMS;
+static int sym_base = 0;
 
 static char *dump_ctf_parent_name;
 static char *dump_ctf_symtab_name;
@@ -292,7 +293,7 @@ typedef struct filedata
   bfd_vma *            gnuchains;
   bfd_vma *            mipsxlat;
   bfd_vma              gnusymidx;
-  char                 program_interpreter[PATH_MAX];
+  char *               program_interpreter;
   bfd_vma              dynamic_info[DT_ENCODING];
   bfd_vma              dynamic_info_DT_GNU_HASH;
   bfd_vma              dynamic_info_DT_MIPS_XHASH;
@@ -312,12 +313,17 @@ typedef struct filedata
 typedef enum print_mode
 {
   HEX,
+  HEX_5,
   DEC,
   DEC_5,
   UNSIGNED,
+  UNSIGNED_5,
   PREFIX_HEX,
+  PREFIX_HEX_5,
   FULL_HEX,
-  LONG_HEX
+  LONG_HEX,
+  OCTAL,
+  OCTAL_5
 }
 print_mode;
 
@@ -529,17 +535,33 @@ print_vma (bfd_vma vma, print_mode mode)
     case HEX:
       return nc + printf ("%" BFD_VMA_FMT "x", vma);
 
+    case PREFIX_HEX_5:
+      nc = printf ("0x");
+      /* Fall through.  */
+    case HEX_5:
+      return nc + printf ("%05" BFD_VMA_FMT "x", vma);
+
     case DEC:
       return printf ("%" BFD_VMA_FMT "d", vma);
 
     case UNSIGNED:
       return printf ("%" BFD_VMA_FMT "u", vma);
 
+    case UNSIGNED_5:
+      return printf ("%5" BFD_VMA_FMT "u", vma);
+
+    case OCTAL:
+      return printf ("%" BFD_VMA_FMT "o", vma);
+
+    case OCTAL_5:
+      return printf ("%5" BFD_VMA_FMT "o", vma);
+
     default:
       /* FIXME: Report unrecognised mode ?  */
       return 0;
     }
 }
+
 
 /* Display a symbol on stdout.  Handles the display of control characters and
    multibye characters (assuming the host environment supports them).
@@ -4523,7 +4545,8 @@ enum long_option_values
   OPTION_WITH_SYMBOL_VERSIONS,
   OPTION_RECURSE_LIMIT,
   OPTION_NO_RECURSE_LIMIT,
-  OPTION_NO_DEMANGLING
+  OPTION_NO_DEMANGLING,
+  OPTION_SYM_BASE
 };
 
 static struct option options[] =
@@ -4580,6 +4603,7 @@ static struct option options[] =
   {"ctf-strings",      required_argument, 0, OPTION_CTF_STRINGS},
   {"ctf-parent",       required_argument, 0, OPTION_CTF_PARENT},
 #endif
+  {"sym-base",	       optional_argument, 0, OPTION_SYM_BASE},
 
   {0,		       no_argument, 0, 0}
 };
@@ -4603,6 +4627,9 @@ usage (FILE * stream)
      --symbols           An alias for --syms\n\
      --dyn-syms          Display the dynamic symbol table\n\
      --lto-syms          Display LTO symbol tables\n\
+     --sym-base=[0|8|10|16] \n\
+                         Force base for symbol sizes.  The options are \n\
+                         mixed (the default), octal, decimal, hexadecimal.\n\
   -C --demangle[=STYLE]  Decode low-level symbol names into user-level names\n\
                           The STYLE, if specified, can be `auto' (the default),\n\
                           `gnu', `lucid', `arm', `hp', `edg', `gnu-v3', `java'\n\
@@ -4960,6 +4987,26 @@ parse_args (struct dump_data *dumpdata, int argc, char ** argv)
 	  break;
 	case OPTION_WITH_SYMBOL_VERSIONS:
 	  /* Ignored for backward compatibility.  */
+	  break;
+
+	case OPTION_SYM_BASE:
+	  sym_base = 0;
+	  if (optarg != NULL)
+	    {
+	      sym_base = strtoul (optarg, NULL, 0);
+	      switch (sym_base)
+		{
+		  case 0:
+		  case 8:
+		  case 10:
+		  case 16:
+		    break;
+
+		  default:
+		    sym_base = 0;
+		    break;
+		}
+	    }
 	  break;
 
 	default:
@@ -5538,22 +5585,21 @@ the .dynamic section is not the same as the dynamic segment\n"));
 	  break;
 
 	case PT_INTERP:
-	  if (fseek (filedata->handle,
-		     filedata->archive_file_offset + (long) segment->p_offset,
-		     SEEK_SET))
+	  if (segment->p_offset >= filedata->file_size
+	      || segment->p_filesz > filedata->file_size - segment->p_offset
+	      || segment->p_filesz - 1 >= (size_t) -2
+	      || fseek (filedata->handle,
+			filedata->archive_file_offset + (long) segment->p_offset,
+			SEEK_SET))
 	    error (_("Unable to find program interpreter name\n"));
 	  else
 	    {
-	      char fmt [32];
-	      int ret = snprintf (fmt, sizeof (fmt), "%%%ds", PATH_MAX - 1);
-
-	      if (ret >= (int) sizeof (fmt) || ret < 0)
-		error (_("Internal error: failed to create format string to display program interpreter\n"));
-
-	      filedata->program_interpreter[0] = 0;
-	      if (fscanf (filedata->handle, fmt,
-			  filedata->program_interpreter) <= 0)
-		error (_("Unable to read program interpreter name\n"));
+	      size_t len = segment->p_filesz;
+	      free (filedata->program_interpreter);
+	      filedata->program_interpreter = xmalloc (len + 1);
+	      len = fread (filedata->program_interpreter, 1, len,
+			   filedata->handle);
+	      filedata->program_interpreter[len] = 0;
 
 	      if (do_segments)
 		printf (_("      [Requesting program interpreter: %s]\n"),
@@ -7214,7 +7260,7 @@ process_section_groups (Filedata * filedata)
 
   if (filedata->is_separate)
     printf (_("Section groups in linked file '%s'\n"), filedata->file_name);
-      
+
   for (i = 0, section = filedata->section_headers, group = filedata->section_groups;
        i < filedata->file_header.e_shnum;
        i++, section++)
@@ -7665,7 +7711,6 @@ process_relocs (Filedata * filedata)
 		printf
 		  (_("\n'%s' relocation section at offset 0x%lx contains %ld bytes:\n"),
 		   name, rel_offset, rel_size);
-		
 
 	      dump_relocations (filedata,
 				offset_from_vma (filedata, rel_offset, rel_size),
@@ -11094,7 +11139,8 @@ the .dynstr section doesn't match the DT_STRTAB and DT_STRSZ tags\n"));
 		    case DT_NEEDED:
 		      printf (_("Shared library: [%s]"), name);
 
-		      if (streq (name, filedata->program_interpreter))
+		      if (filedata->program_interpreter
+			  && streq (name, filedata->program_interpreter))
 			printf (_(" program interpreter"));
 		      break;
 
@@ -11353,7 +11399,7 @@ process_version_sections (Filedata * filedata)
 				section->sh_info),
 		      printable_section_name (filedata, section),
 		      section->sh_info);
-	      
+
 	    printf (_(" Addr: 0x"));
 	    printf_vma (section->sh_addr);
 	    printf (_("  Offset: %#08lx  Link: %u (%s)\n"),
@@ -11500,7 +11546,7 @@ process_version_sections (Filedata * filedata)
 				section->sh_info),
 		      printable_section_name (filedata, section),
 		      section->sh_info);
-	      
+
 	    printf (_(" Addr: 0x"));
 	    printf_vma (section->sh_addr);
 	    printf (_("  Offset: %#08lx  Link: %u (%s)\n"),
@@ -12372,6 +12418,28 @@ get_symbol_version_string (Filedata *                   filedata,
   return NULL;
 }
 
+/* Display a symbol size on stdout.  Format is based on --sym-base setting.  */
+
+static unsigned int
+print_dynamic_symbol_size (bfd_vma vma, int base)
+{
+  switch (base)
+    {
+    case 8:
+      return print_vma (vma, OCTAL_5);
+
+    case 10:
+      return print_vma (vma, UNSIGNED_5);
+
+    case 16:
+      return print_vma (vma, PREFIX_HEX_5);
+
+    case 0:
+    default:
+      return print_vma (vma, DEC_5);
+    }
+}
+
 static void
 print_dynamic_symbol (Filedata *filedata, unsigned long si,
 		      Elf_Internal_Sym *symtab,
@@ -12381,12 +12449,14 @@ print_dynamic_symbol (Filedata *filedata, unsigned long si,
   const char *version_string;
   enum versioned_symbol_info sym_info;
   unsigned short vna_other;
+  bool is_valid;
+  const char * sstr;
   Elf_Internal_Sym *psym = symtab + si;
 
   printf ("%6ld: ", si);
   print_vma (psym->st_value, LONG_HEX);
   putchar (' ');
-  print_vma (psym->st_size, DEC_5);
+  print_dynamic_symbol_size (psym->st_size, sym_base);
   printf (" %-7s", get_symbol_type (filedata, ELF_ST_TYPE (psym->st_info)));
   printf (" %-6s", get_symbol_binding (filedata, ELF_ST_BIND (psym->st_info)));
   if (filedata->file_header.e_ident[EI_OSABI] == ELFOSABI_SOLARIS)
@@ -12404,8 +12474,20 @@ print_dynamic_symbol (Filedata *filedata, unsigned long si,
     }
   printf (" %4s ", get_symbol_index_type (filedata, psym->st_shndx));
 
-  bool is_valid = VALID_SYMBOL_NAME (strtab, strtab_size, psym->st_name);
-  const char * sstr = is_valid  ? strtab + psym->st_name : _("<corrupt>");
+  if (ELF_ST_TYPE (psym->st_info) == STT_SECTION
+      && psym->st_shndx < filedata->file_header.e_shnum
+      && psym->st_name == 0)
+    {
+      is_valid = SECTION_NAME_VALID (filedata->section_headers + psym->st_shndx);
+      sstr = is_valid ?
+	SECTION_NAME_PRINT (filedata->section_headers + psym->st_shndx)
+	: _("<corrupt>");
+    }
+  else
+    {
+      is_valid = VALID_SYMBOL_NAME (strtab, strtab_size, psym->st_name);
+      sstr = is_valid  ? strtab + psym->st_name : _("<corrupt>");
+    }
 
   version_string
     = get_symbol_version_string (filedata,
@@ -12526,7 +12608,7 @@ display_lto_symtab (Filedata *           filedata,
       else
 	printf (_("\nLTO Symbol table '%s' is empty!\n"),
 		printable_section_name (filedata, section));
-      
+
       return true;
     }
 
@@ -15522,7 +15604,7 @@ process_section_contents (Filedata * filedata)
 
       if (filedata->is_separate && ! process_links)
 	dump &= DEBUG_DUMP;
-      
+
 #ifdef SUPPORT_DISASSEMBLY
       if (dump & DISASS_DUMP)
 	{
@@ -19522,7 +19604,6 @@ process_netbsd_elf_note (Elf_Internal_Note * pnote)
 	      pnote->descdata);
       return true;
 
-#ifdef   NT_NETBSD_PAX
     case NT_NETBSD_PAX:
       if (pnote->descsz < 1)
 	break;
@@ -19535,7 +19616,6 @@ process_netbsd_elf_note (Elf_Internal_Note * pnote)
 	      ((version & NT_NETBSD_PAX_ASLR) ? "+ASLR" : ""),
 	      ((version & NT_NETBSD_PAX_NOASLR) ? "-ASLR" : ""));
       return true;
-#endif
     }
 
   printf ("  NetBSD\t0x%08lx\tUnknown note type: (0x%08lx)\n",
@@ -19585,15 +19665,11 @@ get_netbsd_elfcore_note_type (Filedata * filedata, unsigned e_type)
       /* NetBSD core "procinfo" structure.  */
       return _("NetBSD procinfo structure");
 
-#ifdef NT_NETBSDCORE_AUXV
     case NT_NETBSDCORE_AUXV:
       return _("NetBSD ELF auxiliary vector data");
-#endif
 
-#ifdef NT_NETBSDCORE_LWPSTATUS
     case NT_NETBSDCORE_LWPSTATUS:
       return _("PT_LWPSTATUS (ptrace_lwpstatus structure)");
-#endif
 
     default:
       /* As of Jan 2020 there are no other machine-independent notes
@@ -21053,6 +21129,70 @@ get_file_header (Filedata * filedata)
 }
 
 static void
+free_filedata (Filedata *filedata)
+{
+  free (filedata->program_interpreter);
+  filedata->program_interpreter = NULL;
+
+  free (filedata->program_headers);
+  filedata->program_headers = NULL;
+
+  free (filedata->section_headers);
+  filedata->section_headers = NULL;
+
+  free (filedata->string_table);
+  filedata->string_table = NULL;
+  filedata->string_table_length = 0;
+
+  free (filedata->dump.dump_sects);
+  filedata->dump.dump_sects = NULL;
+  filedata->dump.num_dump_sects = 0;
+
+  free (filedata->dynamic_strings);
+  filedata->dynamic_strings = NULL;
+  filedata->dynamic_strings_length = 0;
+
+  free (filedata->dynamic_symbols);
+  filedata->dynamic_symbols = NULL;
+  filedata->num_dynamic_syms = 0;
+
+  free (filedata->dynamic_syminfo);
+  filedata->dynamic_syminfo = NULL;
+
+  free (filedata->dynamic_section);
+  filedata->dynamic_section = NULL;
+
+  while (filedata->symtab_shndx_list != NULL)
+    {
+      elf_section_list *next = filedata->symtab_shndx_list->next;
+      free (filedata->symtab_shndx_list);
+      filedata->symtab_shndx_list = next;
+    }
+
+  free (filedata->section_headers_groups);
+  filedata->section_headers_groups = NULL;
+
+  if (filedata->section_groups)
+    {
+      size_t i;
+      struct group_list * g;
+      struct group_list * next;
+
+      for (i = 0; i < filedata->group_count; i++)
+	{
+	  for (g = filedata->section_groups [i].root; g != NULL; g = next)
+	    {
+	      next = g->next;
+	      free (g);
+	    }
+	}
+
+      free (filedata->section_groups);
+      filedata->section_groups = NULL;
+    }
+}
+
+static void
 close_file (Filedata * filedata)
 {
   if (filedata)
@@ -21066,6 +21206,7 @@ close_file (Filedata * filedata)
 void
 close_debug_file (void * data)
 {
+  free_filedata ((Filedata *) data);
   close_file ((Filedata *) data);
 }
 
@@ -21279,61 +21420,7 @@ process_object (Filedata * filedata)
   if (! process_arch_specific (filedata))
     res = false;
 
-  free (filedata->program_headers);
-  filedata->program_headers = NULL;
-
-  free (filedata->section_headers);
-  filedata->section_headers = NULL;
-
-  free (filedata->string_table);
-  filedata->string_table = NULL;
-  filedata->string_table_length = 0;
-
-  free (filedata->dump.dump_sects);
-  filedata->dump.dump_sects = NULL;
-  filedata->dump.num_dump_sects = 0;
-
-  free (filedata->dynamic_strings);
-  filedata->dynamic_strings = NULL;
-  filedata->dynamic_strings_length = 0;
-
-  free (filedata->dynamic_symbols);
-  filedata->dynamic_symbols = NULL;
-  filedata->num_dynamic_syms = 0;
-
-  free (filedata->dynamic_syminfo);
-  filedata->dynamic_syminfo = NULL;
-
-  free (filedata->dynamic_section);
-  filedata->dynamic_section = NULL;
-
-  while (filedata->symtab_shndx_list != NULL)
-    {
-      elf_section_list *next = filedata->symtab_shndx_list->next;
-      free (filedata->symtab_shndx_list);
-      filedata->symtab_shndx_list = next;
-    }
-
-  free (filedata->section_headers_groups);
-  filedata->section_headers_groups = NULL;
-
-  if (filedata->section_groups)
-    {
-      struct group_list * g;
-      struct group_list * next;
-
-      for (i = 0; i < filedata->group_count; i++)
-	{
-	  for (g = filedata->section_groups [i].root; g != NULL; g = next)
-	    {
-	      next = g->next;
-	      free (g);
-	    }
-	}
-
-      free (filedata->section_groups);
-      filedata->section_groups = NULL;
-    }
+  free_filedata (filedata);
 
   free_debug_memory ();
 
