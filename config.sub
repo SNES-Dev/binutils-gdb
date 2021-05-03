@@ -2,7 +2,8 @@
 # Configuration validation subroutine script.
 #   Copyright 1992-2021 Free Software Foundation, Inc.
 
-timestamp='2021-01-28'
+timestamp='2021-03-10'
+
 
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
@@ -134,7 +135,9 @@ case $1 in
 			nto-qnx* | linux-* | uclinux-uclibc* \
 			| uclinux-gnu* | kfreebsd*-gnu* | knetbsd*-gnu* | netbsd*-gnu* \
 			| netbsd*-eabi* | kopensolaris*-gnu* | cloudabi*-eabi* \
-			| storm-chaos* | os2-emx* | rtmk-nova*)
+			| storm-chaos* | os2-emx* | rtmk-nova* \
+			| phantom-kernel* | phantom-user* \
+			| snes*-elf* | snes*-xo65* | nes*-xo65*)
 				basic_machine=$field1
 				basic_os=$maybe_os
 				;;
@@ -172,7 +175,7 @@ case $1 in
 					| ultra | tti* | harris | dolphin | highlevel | gould \
 					| cbm | ns | masscomp | apple | axis | knuth | cray \
 					| microblaze* | sim | cisco \
-					| oki | wec | wrs | winbond)
+					| oki | wec | wrs | winbond )
 						basic_machine=$field1-$field2
 						basic_os=
 						;;
@@ -507,6 +510,10 @@ case $1 in
 			sequent)
 				basic_machine=i386-sequent
 				basic_os=
+				;;
+			snesdev)
+				basic_machine=wc65c816-snes
+				basic_os=elf
 				;;
 			sps7)
 				basic_machine=m68k-bull
@@ -919,7 +926,6 @@ case $basic_machine in
 		cpu=sparc
 		vendor=$(echo "$basic_machine" | sed 's/-.*//')
 		;;
-
 	*-*)
 		# shellcheck disable=SC2162
 		IFS="-" read cpu vendor <<EOF
@@ -1008,7 +1014,6 @@ case $cpu-$vendor in
 		vendor=bull
 		basic_os=${basic_os:-bosx}
 		;;
-
 	# Here we normalize CPU types irrespective of the vendor
 	amd64-*)
 		cpu=x86_64
@@ -1107,7 +1112,6 @@ case $cpu-$vendor in
 	arm64-*)
 		cpu=aarch64
 		;;
-
 	# Recognize the canonical CPU Types that limit and/or modify the
 	# company names they are paired with.
 	cr16-*)
@@ -1151,7 +1155,9 @@ case $cpu-$vendor in
 	tile*-*)
 		basic_os=${basic_os:-linux-gnu}
 		;;
-
+	wc65c816-* | wdc65c816-* | 65816-* | 65C816-* | 65c816-* )
+		cpu=65816
+		;;
 	*)
 		# Recognize the canonical CPU types that are allowed with any
 		# company name.
@@ -1312,6 +1318,14 @@ EOF
 	linux*)
 		kernel=linux
 		os=$(echo $basic_os | sed -e 's|linux|gnu|')
+		;;
+	phantom*)
+		kernel=phantom
+		os=$(echo $basic_os | sed -e 's|phantom|user|')
+		;;
+	snes*)
+		kernel=$basic_os
+		os=elf
 		;;
 	*)
 		kernel=
@@ -1683,11 +1697,14 @@ fi
 
 # Now, validate our (potentially fixed-up) OS.
 case $os in
-	# Sometimes we do "kernel-abi", so those need to count as OSes.
+	# Sometimes we do "kernel-libc", so those need to count as OSes.
 	musl* | newlib* | uclibc*)
 		;;
-	# Likewise for "kernel-libc"
+	# Likewise for "kernel-abi"
 	eabi* | gnueabi*)
+		;;
+	# VxWorks passes extra cpu info in the 4th filed.
+	simlinux | simwindows | spe)
 		;;
 	# Now accept the basic system types.
 	# The portable systems comes first.
@@ -1709,7 +1726,7 @@ case $os in
 	     | bosx* | nextstep* | cxux* | aout* | elf* | oabi* \
 	     | ptx* | coff* | ecoff* | winnt* | domain* | vsta* \
 	     | udi* | lites* | ieee* | go32* | aux* | hcos* \
-	     | chorusrdb* | cegcc* | glidix* \
+	     | chorusrdb* | cegcc* | glidix* | serenity* \
 	     | cygwin* | msys* | pe* | moss* | proelf* | rtems* \
 	     | midipix* | mingw32* | mingw64* | mint* \
 	     | uxpv* | beos* | mpeix* | udk* | moxiebox* \
@@ -1723,7 +1740,7 @@ case $os in
 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
 	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* \
-		 | kernel* | user* )
+		 | user* | kernel* | xo65* )
 		;;
 	# This one is extra strict with allowed versions
 	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
@@ -1752,12 +1769,16 @@ case $kernel-$os in
 		;;
 	kfreebsd*-gnu* | kopensolaris*-gnu*)
 		;;
+	vxworks-simlinux | vxworks-simwindows | vxworks-spe)
+		;;
 	nto-qnx*)
 		;;
 	os2-emx)
 		;;
 	phantom-kernel* | phantom-user*)
 		;;
+	snes*-elf* | snes*-xo65* | nes*-xo65* )
+		;; 
 	*-eabi* | *-gnueabi*)
 		;;
 	-*)

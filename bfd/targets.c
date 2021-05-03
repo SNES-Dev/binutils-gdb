@@ -941,6 +941,7 @@ extern const bfd_target xtensa_elf32_le_vec;
 extern const bfd_target z80_coff_vec;
 extern const bfd_target z80_elf32_vec;
 extern const bfd_target z8k_coff_vec;
+extern const bfd_target wdc65816_elf32_vec;
 
 /* These are always included.  */
 extern const bfd_target srec_vec;
@@ -1359,6 +1360,8 @@ static const bfd_target * const _bfd_target_vector[] =
 	&z80_elf32_vec,
 
 	&z8k_coff_vec,
+
+	&wdc65816_elf32_vec,
 #endif /* not SELECT_VECS */
 
 /* Always support S-records, for convenience.  */

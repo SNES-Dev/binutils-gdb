@@ -1932,6 +1932,7 @@ enum bfd_architecture
 #define bfd_mach_ck807         6
 #define bfd_mach_ck810         7
 #define bfd_mach_ck860         8
+  bfd_arch_65816,    /* WDC 65816 Processor */
   bfd_arch_last
   };
 
@@ -6262,6 +6263,10 @@ assembler and not (currently) written to any object files.  */
 
 /* S12Z relocations.  */
   BFD_RELOC_S12Z_OPR,
+
+/* wdc65c816 relocations.  */
+  BFD_RELOC_WDC65816_BANK,
+  BFD_RELOC_WDC65816_DIR,
   BFD_RELOC_UNUSED };
 
 typedef enum bfd_reloc_code_real bfd_reloc_code_real_type;
