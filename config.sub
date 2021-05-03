@@ -2,7 +2,7 @@
 # Configuration validation subroutine script.
 #   Copyright 1992-2021 Free Software Foundation, Inc.
 
-timestamp='2021-03-10'
+timestamp='2021-05-03'
 
 
 # This file is free software; you can redistribute it and/or modify it
@@ -905,7 +905,7 @@ case $basic_machine in
 		cpu=f301
 		vendor=fujitsu
 		;;
-	w65)
+	w65 | 65816 | 65c816 | wdc65c816 | wc65c816 | wdc65816 | wc65816)
 		cpu=w65
 		vendor=wdc
 		;;
@@ -1155,9 +1155,10 @@ case $cpu-$vendor in
 	tile*-*)
 		basic_os=${basic_os:-linux-gnu}
 		;;
-	wc65c816-* | wdc65c816-* | 65816-* | 65C816-* | 65c816-* )
-		cpu=65816
-		;;
+		
+    65c816-* | wdc65c816-* | wc65c816-* | wdc65816-* | wc65816-* | 65816-*)
+       cpu=w65
+        ;;
 	*)
 		# Recognize the canonical CPU types that are allowed with any
 		# company name.
@@ -1255,7 +1256,7 @@ case $cpu-$vendor in
 			| v70 | v850 | v850e | v850e1 | v850es | v850e2 | v850e2v3 \
 			| vax \
 			| visium \
-			| w65 \
+			| w65 | 65816 | 65c816 | w65c816 | wdc65c816 | wdc65816 \
 			| wasm32 | wasm64 \
 			| we32k \
 			| x86 | x86_64 | xc16x | xgate | xps100 \

@@ -23,15 +23,15 @@
 #include "libbfd.h"
 
 
-const bfd_arch_info_type bfd_cr16_arch =
+const bfd_arch_info_type bfd_w65_arch =
 {
   16,			/* Bits in a word.  */
   24,			/* Bits in an address.  */
   8,			/* Bits in a byte.  */
-  bfd_arch_65816,	/* Architecture number.  */
+  bfd_arch_w65,	/* Architecture number.  */
   0,
-  "wdc65816",		/* Arch name.  */
-  "wdc8616",		/* Printable name.  */
+  "w65",		/* Arch name.  */
+  "wdc65816",		/* Printable name.  */
   1,			/* Section alignment power.  */
   true,			/* The one and only.  */
   bfd_default_compatible,

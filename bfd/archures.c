@@ -555,7 +555,7 @@ DESCRIPTION
 .#define bfd_mach_ck807		6
 .#define bfd_mach_ck810		7
 .#define bfd_mach_ck860		8
-.  bfd_arch_65816,    {* WDC 65816 Processor *}
+.  bfd_arch_w65,    {* WDC 65816 Processor *}
 .  bfd_arch_last
 .  };
 */
@@ -692,7 +692,7 @@ extern const bfd_arch_info_type bfd_xc16x_arch;
 extern const bfd_arch_info_type bfd_xgate_arch;
 extern const bfd_arch_info_type bfd_z80_arch;
 extern const bfd_arch_info_type bfd_z8k_arch;
-extern const bfd_arch_info_type bfd_65816_arch;
+extern const bfd_arch_info_type bfd_w65_arch;
 
 static const bfd_arch_info_type * const bfd_archures_list[] =
   {
@@ -780,7 +780,7 @@ static const bfd_arch_info_type * const bfd_archures_list[] =
     &bfd_xgate_arch,
     &bfd_z80_arch,
     &bfd_z8k_arch,
-    &bfd_65816_arch,
+    &bfd_w65_arch,
 #endif
   0
 };

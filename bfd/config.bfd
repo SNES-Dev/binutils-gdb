@@ -151,7 +151,6 @@ case $targ in
  sparc-*-openbsd[0-2].* | sparc-*-openbsd3.[0-1] | \
  tahoe-*-* | \
  vax-*-bsd* | vax-*-ultrix* | vax-*-vms* | \
- w65-*-* | \
  we32k-*-* | \
  xc16x-*-* | \
  null)
@@ -163,7 +162,6 @@ esac
 
 targ_cpu=`echo $targ | sed 's/^\([^-]*\)-\([^-]*\)-\(.*\)$/\1/'`
 case "${targ_cpu}" in
-65816 | wc65c816 ) targ_archs="bfd_65816_arch";;
 aarch64*)	 targ_archs="bfd_aarch64_arch bfd_arm_arch";;
 alpha*)		 targ_archs=bfd_alpha_arch ;;
 am33_2.0*)	 targ_archs=bfd_mn10300_arch ;;
@@ -317,7 +315,7 @@ case "${targ}" in
     ;;
 #endif /* BFD64 */
 
-  65816-*-*-elf*)
+  w65-*-*-elf*)
     targ_defvec=wdc65816_elf32_vec
     ;;
 

@@ -487,7 +487,7 @@ elf32_wdc65816_get_relocated_section_contents (bfd *output_bfd,
 
 
 
-#define ELF_ARCH		bfd_arch_65816
+#define ELF_ARCH		bfd_arch_w65
 #define ELF_TARGET_ID		WDC65816_ELF_DATA
 #define ELF_MACHINE_CODE	EM_65816
 #define ELF_MAXPAGESIZE		4096
