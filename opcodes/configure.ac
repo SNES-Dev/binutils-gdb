@@ -355,6 +355,7 @@ if test x${all_targets} = xfalse ; then
 	bfd_z80_arch)		ta="$ta z80-dis.lo" ;;
 	bfd_z8k_arch)		ta="$ta z8k-dis.lo" ;;
 	bfd_bpf_arch)		ta="$ta bpf-asm.lo bpf-desc.lo bpf-dis.lo bpf-ibld.lo bpf-opc.lo" using_cgen=yes ;;
+	bfd_w65_arch)       ta="$ta w65-opc.lo" ;;
 
 	"")			;;
 	*)		AC_MSG_ERROR(*** unknown target architecture $arch) ;;

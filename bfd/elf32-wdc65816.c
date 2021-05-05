@@ -24,7 +24,7 @@
 #include "libbfd.h"
 #include "elf-bfd.h"
 
-#include "elf/wdc65816.h"
+#include "elf/w65.h"
 
 static reloc_howto_type elf_wdc65816_howto_table[] =
 {
