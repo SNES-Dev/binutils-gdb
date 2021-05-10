@@ -370,7 +370,9 @@ ALL_EMULATION_SOURCES = \
 	exgateelf.c \
 	ez80.c \
 	ez8001.c \
-	ez8002.c
+	ez8002.c \
+	eelf32w65.c \
+	ecoffw65.c 
 
 ALL_EMULATIONS = $(ALL_EMULATION_SOURCES:.c=.@OBJEXT@)
 

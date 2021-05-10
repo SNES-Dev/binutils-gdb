@@ -1033,6 +1033,12 @@ z8k-*-coff)		targ_emul=z8002
 *-*-ieee*)		targ_emul=vanilla
 			targ_extra_ofiles=
 			;;
+w65-*-*-elf) targ_emul=elf32w65
+	targ_extra_emuls=coffw65
+	;;
+w65-*-*-*) targ_emul=coffw65
+	targ_extra_emuls=elf32w65
+	;;
 *)
   echo 2>&1 "*** ld does not support target ${targ}"
   echo 2>&1 "*** see ld/configure.tgt for supported targets"
