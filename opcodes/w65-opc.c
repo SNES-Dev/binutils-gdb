@@ -24,7 +24,7 @@
 #include "opcode/w65.h"
 #include "w65-opc.h"
 
-int length_by_addr_mode(w65_addr_mode md,w65_prg_flags flg){
+int w65_length_by_addr_mode(w65_addr_mode md,w65_prg_flags flg){
   switch(md&0xff){
     case ABS:
     case REL16:
@@ -281,6 +281,7 @@ const w65_insn w65_insn_tab[] ={
     {"tsc",0x3B,IMPLIED},
     {"xba",0xEB,IMPLIED},
     {"xce",0xFB,IMPLIED},
+    {NULL,0,0},
 };
 
 

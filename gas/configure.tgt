@@ -413,6 +413,9 @@ case ${generic_target} in
 
   wasm32-*-*)                           fmt=elf ;;
 
+  w65-*-*-elf)        fmt=elf ;;
+  w65-*-*)            fmt=coff ;;                  
+
   xstormy16-*-*)			fmt=elf ;;
   
   xgate-*-*)    			fmt=elf ;;

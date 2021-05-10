@@ -317,6 +317,11 @@ case "${targ}" in
 
   w65-*-*-elf*)
     targ_defvec=wdc65816_elf32_vec
+    targ_selvecs=w65_coff_vec
+    ;;
+  w65-*-*-*)
+    targ_defvec=w65_coff_vec
+    targ_selvecs=wdc65816_elf32_vec
     ;;
 
   am33_2.0-*-linux*)

@@ -22,6 +22,16 @@
 #include "bfd.h"
 #include "libbfd.h"
 
+static bool
+scan_mach (const struct bfd_arch_info *info ATTRIBUTE_UNUSED,
+	   const char *string)
+{
+  if (strcmp(string,"w65") == 0)
+    return true;
+  if (strcmp(string,"w65816") == 0)
+    return true;
+  return false;
+}
 
 const bfd_arch_info_type bfd_w65_arch =
 {
@@ -35,7 +45,7 @@ const bfd_arch_info_type bfd_w65_arch =
   1,			/* Section alignment power.  */
   true,			/* The one and only.  */
   bfd_default_compatible,
-  bfd_default_scan,
+  scan_mach,
   bfd_arch_default_fill,
   NULL,
   0 /* Maximum offset of a reloc from the start of an insn.  */

@@ -88,4 +88,6 @@ typedef struct{
     unsigned char mode_and_number;
 }w65_trap_entry;
 
+int w65_length_by_addr_mode(w65_addr_mode md,w65_prg_flags flg);
+
 #endif /* _W65_H */
