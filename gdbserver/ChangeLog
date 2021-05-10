@@ -1,3 +1,32 @@
+2021-05-08  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* linux-low.cc (linux_process_target::wait_for_event_filtered):
+	Adjust to status_to_str returning std::string.
+
+2021-05-08  Pedro Alves  <pedro@palves.net>
+
+	* linux-low.cc:
+	(linux_process_target::supports_disable_randomization): Remove
+	reference to HAVE_PERSONALITY.
+	* config.in, configure: Regenerate.
+
+2021-05-08  Pedro Alves  <pedro@palves.net>
+
+	* linux-low.cc: Don't include sys/personality.h or define
+	ADDR_NO_RANDOMIZE.
+
+2021-05-06  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* server.cc (handle_v_attach)
+	(handle_v_run)
+	(handle_v_kill): Make void.
+
+2021-05-03  Tom Tromey  <tromey@adacore.com>
+
+	PR build/27807:
+	* win32-i386-low.cc (i386_get_thread_context): Call
+	Wow64GetThreadContext, not win32_Wow64GetThreadContext.
+
 2021-04-30  Tom Tromey  <tromey@adacore.com>
 
 	* win32-low.cc (do_initial_child_stuff): Update.

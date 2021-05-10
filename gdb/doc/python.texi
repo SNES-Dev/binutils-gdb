@@ -153,6 +153,24 @@ to recognize the script language based on filename extension using
 the @code{script-extension} setting.  @xref{Extending GDB, ,Extending GDB}.
 @end table
 
+The following commands are intended to help debug @value{GDBN} itself:
+
+@table @code
+@kindex set debug py-breakpoint
+@kindex show debug py-breakpoint
+@item set debug py-breakpoint on@r{|}off
+@itemx show debug py-breakpoint
+When @samp{on}, @value{GDBN} prints debug messages related to the
+Python breakpoint API.  This is @samp{off} by default.
+
+@kindex set debug py-unwind
+@kindex show debug py-unwind
+@item set debug py-unwind on@r{|}off
+@itemx show debug py-unwind
+When @samp{on}, @value{GDBN} prints debug messages related to the
+Python unwinder API.  This is @samp{off} by default.
+@end table
+
 @node Python API
 @subsection Python API
 @cindex python api
@@ -1163,12 +1181,32 @@ there is no associated objfile.
 The following methods are provided:
 
 @defun Type.fields ()
-For structure and union types, this method returns the fields.  Range
-types have two fields, the minimum and maximum values.  Enum types
-have one field per enum constant.  Function and method types have one
-field per parameter.  The base types of C@t{++} classes are also
-represented as fields.  If the type has no fields, or does not fit
-into one of these categories, an empty sequence will be returned.
+
+Return the fields of this type.  The behavior depends on the type code:
+
+@itemize @bullet
+
+@item
+For structure and union types, this method returns the fields.
+
+@item
+Range types have two fields, the minimum and maximum values.
+
+@item
+Enum types have one field per enum constant.
+
+@item
+Function and method types have one field per parameter.  The base types of
+C@t{++} classes are also represented as fields.
+
+@item
+Array types have one field representing the array's range.
+
+@item
+If the type does not fit into one of these categories, a @code{TypeError}
+is raised.
+
+@end itemize
 
 Each field is a @code{gdb.Field} object, with some pre-defined attributes:
 @table @code

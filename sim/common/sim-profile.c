@@ -454,7 +454,7 @@ profile_option_handler (SIM_DESC sd,
 
 /* Profiling output hooks.  */
 
-static void
+static void ATTRIBUTE_PRINTF (3, 0)
 profile_vprintf (SIM_DESC sd, sim_cpu *cpu, const char *fmt, va_list ap)
 {
   FILE *fp = PROFILE_FILE (CPU_PROFILE_DATA (cpu));
@@ -466,7 +466,7 @@ profile_vprintf (SIM_DESC sd, sim_cpu *cpu, const char *fmt, va_list ap)
     sim_io_evprintf (sd, fmt, ap);
 }
 
-__attribute__ ((format (printf, 3, 4)))
+ATTRIBUTE_PRINTF (3, 4)
 static void
 profile_printf (SIM_DESC sd, sim_cpu *cpu, const char *fmt, ...)
 {

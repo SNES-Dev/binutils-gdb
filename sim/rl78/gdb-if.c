@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <stdlib.h>
 
 #include "ansidecl.h"
+#include "libiberty.h"
 #include "gdb/callback.h"
 #include "gdb/remote-sim.h"
 #include "gdb/signals.h"
@@ -403,7 +404,7 @@ int siggnal;
 /* Given a signal number used by the rl78 bsp (that is, newlib),
    return the corresponding signal numbers.  */
 
-int
+static int
 rl78_signal_to_target (int sig)
 {
   switch (sig)
@@ -442,7 +443,7 @@ rl78_signal_to_target (int sig)
 /* Take a step return code RC and set up the variables consulted by
    sim_stop_reason appropriately.  */
 
-void
+static void
 handle_step (int rc)
 {
   if (RL78_STEPPED (rc) || RL78_HIT_BREAK (rc))
@@ -533,45 +534,25 @@ sim_stop_reason (SIM_DESC sd, enum sim_stop *reason_p, int *sigrc_p)
 void
 sim_do_command (SIM_DESC sd, const char *cmd)
 {
-  const char *args;
-  char *p = strdup (cmd);
+  const char *arg;
+  char **argv = buildargv (cmd);
 
   check_desc (sd);
 
-  if (cmd == NULL)
+  cmd = arg = "";
+  if (argv != NULL)
     {
-      cmd = "";
-      args = "";
-    }
-  else
-    {
-      /* Skip leading whitespace.  */
-      while (isspace (*p))
-	p++;
-
-      /* Find the extent of the command word.  */
-      for (p = cmd; *p; p++)
-	if (isspace (*p))
-	  break;
-
-      /* Null-terminate the command word, and record the start of any
-	 further arguments.  */
-      if (*p)
-	{
-	  *p = '\0';
-	  args = p + 1;
-	  while (isspace (*args))
-	    args++;
-	}
-      else
-	args = p;
+      if (argv[0] != NULL)
+	cmd = argv[0];
+      if (argv[1] != NULL)
+	arg = argv[1];
     }
 
   if (strcmp (cmd, "trace") == 0)
     {
-      if (strcmp (args, "on") == 0)
+      if (strcmp (arg, "on") == 0)
 	trace = 1;
-      else if (strcmp (args, "off") == 0)
+      else if (strcmp (arg, "off") == 0)
 	trace = 0;
       else
 	printf ("The 'sim trace' command expects 'on' or 'off' "
@@ -579,11 +560,11 @@ sim_do_command (SIM_DESC sd, const char *cmd)
     }
   else if (strcmp (cmd, "verbose") == 0)
     {
-      if (strcmp (args, "on") == 0)
+      if (strcmp (arg, "on") == 0)
 	verbose = 1;
-      else if (strcmp (args, "noisy") == 0)
+      else if (strcmp (arg, "noisy") == 0)
 	verbose = 2;
-      else if (strcmp (args, "off") == 0)
+      else if (strcmp (arg, "off") == 0)
 	verbose = 0;
       else
 	printf ("The 'sim verbose' command expects 'on', 'noisy', or 'off'"
@@ -593,7 +574,7 @@ sim_do_command (SIM_DESC sd, const char *cmd)
     printf ("The 'sim' command expects either 'trace' or 'verbose'"
 	    " as a subcommand.\n");
 
-  free (p);
+  freeargv (argv);
 }
 
 /* Stub for command completion.  */

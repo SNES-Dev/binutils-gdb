@@ -1,3 +1,20 @@
+2021-05-05  Mike Frysinger  <vapier@gentoo.org>
+
+	* gdb-if.c: Include libiberty.h.
+	(sim_do_command): Rewrite to use buildargv.
+
+2021-05-04  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
+2021-05-04  Mike Frysinger  <vapier@gentoo.org>
+
+	* load.c (rx_load): Use BFD_VMA_FMT and drop casts.
+
+2021-05-03  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* trace.c (op_printf): Likewise.
+
 2021-05-01  Mike Frysinger  <vapier@gentoo.org>
 
 	* config.in, configure: Regenerate.

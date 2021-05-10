@@ -1,3 +1,129 @@
+2021-05-08  Mike Frysinger  <vapier@gentoo.org>
+
+	* doc/Makefile.am (html-local, bfd/index.html): New targets.
+	* doc/Makefile.in: Regenerate.
+
+2021-05-08  Mike Frysinger  <vapier@gentoo.org>
+
+	* doc/Makefile.am (AM_MAKEINFOFLAGS): Define.
+	* doc/Makefile.in: Regenerate.
+
+2021-05-07  Clément Chigot  <clement.chigot@atos.net>
+
+	* coff-rs6000.c (xcoff_dwsect_names): Add new DWARF
+	sections.
+	* coffgen.c (coff_pointerize_aux): Handle C_DWARF.
+	(coff_print_symbol): Likewise.
+	* libxcoff.h (XCOFF_DWSECT_NBR_NAMES): Update.
+
+2021-05-07  Jan Beulich  <jbeulich@suse.com>
+
+	* elf64-x86-64.c (x86_64_elf_howto_table): Set src_mask fields
+	to zero.
+
+2021-05-07  Alan Modra  <amodra@gmail.com>
+
+	* bfd-in2.h: Regenerate.
+	* libbfd.h: Regenerate.
+
+2021-05-06  Stafford Horne  <shorne@gmail.com>
+
+	PR 27746
+	* elf32-or1k.c (PLT_ENTRY_SIZE_LARGE, PLT_MAX_INSN_COUNT,
+	OR1K_ADD, OR1K_ORI): New macros to help with plt creation.
+	(elf_or1k_link_hash_table): New field plt_count.
+	(elf_or1k_link_hash_entry): New field plt_index.
+	(elf_or1k_plt_entry_size): New function.
+	(or1k_write_plt_entry): Update to support variable size PLTs.
+	(or1k_elf_finish_dynamic_sections): Use new or1k_write_plt_entry
+	API.
+	(or1k_elf_finish_dynamic_symbol): Update to write large PLTs
+	when needed.
+	(allocate_dynrelocs): Use elf_or1k_plt_entry_size to account for
+	PLT size.
+
+2021-05-06  Stafford Horne  <shorne@gmail.com>
+
+	PR 21464
+	* elf32-or1k.c (or1k_elf_relocate_section): Relax R_OR1K_GOT16
+	overflow check if we have R_OR1K_GOT_AHI16 followed by
+	R_OR1K_GOT16.
+
+2021-05-06  Stafford Horne  <shorne@gmail.com>
+
+	PR 21464
+	* bfd-in2.h: Add BFD_RELOC_OR1K_GOT_AHI16 relocation.
+	* elf32-or1k.c (or1k_elf_howto_table, or1k_reloc_map): Likewise.
+	(or1k_final_link_relocate, or1k_elf_relocate_section,
+	or1k_elf_check_relocs): Likewise.
+	* libbfd.h (bfd_reloc_code_real_names): Likewise.
+	* reloc.c: Likewise.
+
+2021-05-06  Stafford Horne  <shorne@gmail.com>
+
+	PR 27624
+	* elf32-or1k.c (or1k_elf_adjust_dynamic_symbol): Change
+	condition used to cleanup plt entries to cleanup forced local
+	entries.
+
+2021-05-05  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27825
+	* elflink.c (elf_link_output_symstrtab): Always append ".COUNT"
+	to local symbols.
+
+2021-05-05  Alan Modra  <amodra@gmail.com>
+
+	* vms-lib.c (vms_traverse_index): Account for vms_kbn size when
+	sanity checking keylen.
+
+2021-05-04  Nick Clifton  <nickc@redhat.com>
+
+	* libbfd.c (bfd_malloc): Provide some documenation.  Treat a size
+	of 0 as 1.
+	(bfd_realloc): Likewise.
+	(bfd_zmalloc): Likewise.
+	(bfd_realloc_or_free): Provide some documentation.  Treat a size
+	of 0 as a request to free.
+	* libbfd-in.h (bfd_realloc): Remove prototype.
+	(bfd_realloc_or_free): Remove prototype.
+	(bfd_zmalloc): Remove prototype.
+	* libbfd.h: Regenerate.
+
+2021-05-03  Jan Beulich  <jbeulich@suse.com>
+
+	* elf32-i386.c (elf_howto_table): Switch all 32-bit relocs to
+	complain_overflow_dont.
+	* elf64-x86-64.c (x86_64_elf_howto_table): Switch all 64-bit
+	relocs to complain_overflow_dont.
+
+2021-05-03  Alan Modra  <amodra@gmail.com>
+
+	* elf32-ppc.c (allocate_dynrelocs): Keep dyn_relocs for undefweak
+	symbols when -z dynamic-undefined-weak or when there are no
+	dynamic relocs in read-only sections and -z nodynamic-undefined-weak
+	is not given.
+	* elf64-ppc.c (allocate_dynrelocs): Likewise.
+
+2021-05-03  Alan Modra  <amodra@gmail.com>
+
+	* elf32-ppc.c (allocate_dynrelocs): Call ensure_undef_dynamic for
+	weak undefined symols that only appear on PLT relocs.
+	* elf64-ppc.c (allocate_dynrelocs): Likewise.
+
+2021-05-03  Alan Modra  <amodra@gmail.com>
+
+	PR 27755
+	* elf32-ppc.c (ppc_elf_inline_plt): Do increment rel in loop.
+
+2021-05-03  Alan Modra  <amodra@gmail.com>
+
+	* elf32-csky.c (is_mapping_symbol_name): New function.
+	(csky_elf_is_target_special_symbol): Likewise.
+	(csky_elf_maybe_function_sym): Likewise.
+	(bfd_elf32_bfd_is_target_special_symbol): Define.
+	(elf_backend_maybe_function_sym): Define.
+
 2021-04-30  Nick Clifton  <nickc@redhat.com>
 
 	PR 27801

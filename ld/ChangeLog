@@ -1,3 +1,84 @@
+2021-05-08  Mike Frysinger  <vapier@gentoo.org>
+
+	* Makefile.am (html-local, doc/ld/index.html): New targets.
+	* Makefile.in: Regenerate.
+
+2021-05-08  Mike Frysinger  <vapier@gentoo.org>
+
+	* Makefile.am (AM_MAKEINFOFLAGS): Add --no-split.
+	* Makefile.in: Regenerate.
+
+2021-05-07  Jan Beulich  <jbeulich@suse.com>
+
+	* testsuite/ld-x86-64/rela.d: New.
+	* testsuite/ld-x86-64/x86-64.exp: Run new test.
+
+2021-05-07  Nick Clifton  <nickc@redhat.com>
+
+	* ldelfgen.c (compare_link_order): Ignore section size when
+	performing a relocateable link.
+
+2021-05-07  Alan Modra  <amodra@gmail.com>
+
+	* ldexp.c (update_definedness): Don't return false for absolute
+	symbols.
+	* ldmain.c (multiple_definition): Print "warning: " in message
+	when not a hard error.
+
+2021-05-07  Alan Modra  <amodra@gmail.com>
+
+	* testsuite/ld-elf/pr27825-1.d: Correct xfail.
+	* testsuite/ld-elf/pr27825-2.d: Likewise.
+
+2021-05-06  Stafford Horne  <shorne@gmail.com>
+
+	PR 27746
+	testsuite/ld-or1k/or1k.exp (or1kplttests): Add tests for linking
+	along with gotha() relocations.
+	testsuite/ld-or1k/gotha1.dd: New file.
+	testsuite/ld-or1k/gotha1.s: New file.
+	testsuite/ld-or1k/gotha2.dd: New file.
+	testsuite/ld-or1k/gotha2.s: New file
+	testsuite/ld-or1k/pltlib.s (x): Define size to avoid link
+	failure.
+
+2021-05-06  Nick Alcock  <nick.alcock@oracle.com>
+
+	* testsuite/ld-ctf/ctf.exp: Use -gctf, not -gt.
+	* testsuite/lib/ld-lib.exp: Likewise.
+	* testsuite/ld-ctf/nonrepresentable-1.c: New test for nonrepresentable types.
+	* testsuite/ld-ctf/nonrepresentable-2.c: Likewise.
+	* testsuite/ld-ctf/nonrepresentable.d: Likewise.
+	* testsuite/ld-ctf/array.d: Larger type section.
+	* testsuite/ld-ctf/data-func-conflicted.d: Likewise.
+	* testsuite/ld-ctf/enums.d: Likewise.
+	* testsuite/ld-ctf/conflicting-enums.d: Don't compare types.
+	* testsuite/ld-ctf/cross-tu-cyclic-conflicting.d: Changed type order.
+	* testsuite/ld-ctf/cross-tu-noncyclic.d: Likewise.
+	* testsuite/ld-ctf/slice.d: Adjust for improved slice emission.
+
+2021-05-05  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27825
+	* testsuite/ld-elf/pr27825-1.d: New file.
+	* testsuite/ld-elf/pr27825-1a.s: Likewise.
+	* testsuite/ld-elf/pr27825-1b.s: Likewise.
+	* testsuite/ld-elf/pr27825-2.d: Likewise.
+	* testsuite/ld-elf/pr27825-2a.s: Likewise.
+	* testsuite/ld-elf/pr27825-2b.s: Likewise.
+
+2021-05-05  Alan Modra  <amodra@gmail.com>
+
+	* testsuite/ld-powerpc/empty.s: New file.
+	* testsuite/ld-powerpc/undefweak.d,
+	* testsuite/ld-powerpc/undefweak.s: New testcase.
+	* testsuite/ld-powerpc/powerpc.exp: Run it.
+
+2021-05-03  Alan Modra  <amodra@gmail.com>
+
+	* testsuite/ld-s390/tlspic_64.rd: Adjust expected output for
+	named section symbols.
+
 2021-04-28  Nick Clifton  <nickc@redhat.com>
 
 	* testsuite/ld-elf/anno-sym.s: New test source file.
