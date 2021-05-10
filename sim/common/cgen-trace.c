@@ -340,8 +340,8 @@ sim_disasm_perror_memory (int status, bfd_vma memaddr,
     /* Actually, address between memaddr and memaddr + len was
        out of bounds.  */
     info->fprintf_func (info->stream,
-			"Address 0x%x is out of bounds.",
-			(int) memaddr);
+			"Address 0x%" BFD_VMA_FMT "x is out of bounds.",
+			memaddr);
 }
 
 /* Disassemble using the CGEN opcode table.
@@ -384,7 +384,7 @@ sim_cgen_disassemble_insn (SIM_CPU *cpu, const CGEN_INSN *insn,
 
   if (length != insn_length)
   {
-    sim_io_error (sd, "unable to read address %x", pc);
+    sim_io_error (sd, "unable to read address %" PRIxTA, pc);
   }
 
   /* If the entire insn will fit into an integer, then do it. Otherwise, just

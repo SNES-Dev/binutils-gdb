@@ -1,3 +1,221 @@
+2021-05-09  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* python/py-breakpoint.c (pybp_debug): New static global.
+	(show_pybp_debug): New function.
+	(pybp_debug_printf): Define.
+	(PYBP_SCOPED_DEBUG_ENTER_EXIT): Define.
+	(gdbpy_breakpoint_created): Add some debugging.
+	(gdbpy_breakpoint_deleted): Likewise.
+	(gdbpy_breakpoint_modified): Likewise.
+	(_initialize_py_breakpoint): New function.
+
+2021-05-09  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* python/py-unwind.c (pyuw_debug): Convert to bool.
+	(show_pyuw_debug): New function.
+	(pyuw_debug_printf): Define.
+	(PYUW_SCOPED_DEBUG_ENTER_EXIT): Define.
+	(pyuw_this_id): Convert to new debug print macros.
+	(pyuw_prev_register): Likewise.
+	(pyuw_sniffer): Likewise.
+	(pyuw_dealloc_cache): Likewise.
+	(_initialize_py_unwind): Update now pyuw_debug is a bool, and add
+	show function when registering.
+
+2021-05-09  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* dummy-frame.c (fprint_dummy_frames): Convert use of
+	fprint_frame_id to use frame_id::to_string.
+	* frame.c (fprint_field): Delete.
+	(fprint_frame_id): Moved to...
+	(frame_id::to_string): ...this, rewritten to return a string.
+	(fprint_frame): Convert use of fprint_frame_id to use
+	frame_id::to_string.
+	(compute_frame_id): Likewise.
+	(frame_id_p): Likewise.
+	(frame_id_eq): Likewise.
+	(frame_id_inner): Likewise.
+	* frame.h (struct frame_id) <to_string>: New member function.
+	(fprint_frame_id): Delete declaration.
+	* guile/scm-frame.c (frscm_print_frame_smob): Convert use of
+	fprint_frame_id to use frame_id::to_string.
+	* python/py-frame.c (frame_object_to_frame_info): Likewise.
+	* python/py-unwind.c (unwind_infopy_str): Likewise.
+	(pyuw_this_id): Likewise.
+
+2021-05-08  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* nat/linux-waitpid.c (status_to_str): Return std::string.
+	* nat/linux-waitpid.h (status_to_str): Likewise.
+	* linux-nat.c (linux_nat_post_attach_wait): Adjust.
+	(linux_nat_target::attach): Adjust.
+	(linux_handle_extended_wait): Adjust.
+	(wait_lwp): Adjust.
+	(stop_wait_callback): Adjust.
+	(linux_nat_filter_event): Adjust.
+	(linux_nat_wait_1): Adjust.
+	* nat/linux-waitpid.c (status_to_str): Adjust.
+	* nat/linux-waitpid.h (status_to_str): Adjust.
+
+2021-05-08  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* infrun.h (infrun_debug_printf): Add missing space.
+
+2021-05-08  Pedro Alves  <pedro@palves.net>
+
+	* linux-nat.c (linux_nat_target::supports_disable_randomization):
+	Remove references to HAVE_PERSONALITY.
+	* nat/linux-personality.c: Remove references to HAVE_PERSONALITY.
+	(maybe_disable_address_space_randomization)
+	(~maybe_disable_address_space_randomizatio): Remove references to
+	HAVE_PERSONALITY.
+	* config.in, configure: Regenerate.
+
+2021-05-07  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* cli/cli-cmds.c: Add 'gdbsupport/gdb_tilde_expand.h'
+	include.
+	(source_script_with_search): Perform tilde expansion.
+
+2021-05-07  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* target-descriptions.c (struct target_desc_info) <filename>:
+	Make std::string.
+	(copy_inferior_target_desc_info): Adjust.
+	(target_desc_info_free): Adjust.
+	(target_find_description): Adjust.
+	(set_tdesc_filename_cmd): Adjust.
+	(show_tdesc_filename_cmd): Adjust.
+	(unset_tdesc_filename_cmd): Adjust.
+	(maint_print_c_tdesc_cmd): Adjust.
+
+2021-05-07  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* target-descriptions.c (struct target_desc_info): Initialize
+	fields.
+	(get_tdesc_info): Use new.
+	(target_desc_info_free): Use delete.
+
+2021-05-07  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* target-descriptions.c (struct target_desc_info) <fetched>:
+	bool.
+	(target_find_description): Adjust.
+	(target_clear_description): Adjust.
+
+2021-05-07  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* target-descriptions.c (struct target_desc_info) <tdesc>:
+	Adjust doc.
+	(target_desc_fetched): Remove.
+	(current_target_desc): Remove.
+	(target_description_filename): Remove.
+	(target_find_description): Adjust.
+	(target_clear_description): Adjust.
+	(target_current_description): Adjust.
+	(set_tdesc_filename_cmd): Adjust.
+	(show_tdesc_filename_cmd): Adjust.
+	(unset_tdesc_filename_cmd): Adjust.
+	(maint_print_c_tdesc_cmd): Adjust.
+	(maint_print_xml_tdesc_cmd): Adjust.
+
+2021-05-07  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* infcmd.c (notice_new_inferior): Change parameter type.
+	* inferior.h (notice_new_inferior): Change parameter type.
+	* remote.c (remote_notice_new_inferior): Change parameter type to
+	bool.  Also update type of local variable to bool.
+	(remote_target::update_thread_list): Change type of local variable
+	to bool.
+	(remote_target::process_stop_reply): Pass bool instead of int to
+	remote_notice_new_inferior.
+
+2021-05-07  Simon Marchi  <simon.marchi@efficios.com>
+
+	* target.c (target_stack::unpush): Call target_ops::find_beneath
+	to get the target beneath `t`.
+
+2021-05-07  Simon Marchi  <simon.marchi@efficios.com>
+
+	* target.c (target_close): Check in all inferiors that the
+	target is not pushed.
+
+2021-05-07  Aaron Merey  <amerey@redhat.com>
+
+	* debuginfod-support.c (debuginfod_init): Remove.
+	(get_debuginfod_client): New function.
+
+2021-05-07  Tom Tromey  <tom@tromey.com>
+
+	* breakpoint.c (ambiguous_names_p): Use htab_eq_string.
+	* utils.c (streq_hash): Remove.
+	* utils.h (streq_hash): Don't declare.
+	* completer.c (completion_tracker::discard_completions): Update
+	comment.
+	* ada-lang.c (_initialize_ada_language): Use htab_eq_string.
+
+2021-05-07  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* Re-format all Python files using black.
+
+2021-05-07  Tom de Vries  <tdevries@suse.de>
+
+	PR symtab/26327
+	* dwarf2/read.c (struct dwarf2_cu): Remove ancestor.
+	(dwarf2_cu::get_builder): Remove ancestor-related code.
+	(new_symbol): Remove code supporting pre-4.1 gcc that show arguments
+	of inlined functions as locals.
+	(follow_die_offset, follow_die_sig_1): Remove setting of ancestor.
+
+2021-05-07  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* guile/guile-internal.h (gdbscm_safe_source_script): Change
+	function return type.
+	* guile/guile.c (gdbscm_source_script): Update to handle change in
+	gdbscm_safe_source_script.
+	* guile/scm-objfile.c (gdbscm_source_objfile_script): Likewise.
+	* guile/scm-safe-call.c (gdbscm_safe_source_script): Change return
+	type.
+
+2021-05-06  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* inferior.h (class inferior) <args>: Change type to
+	unique_xmalloc_ptr.
+	* inferior.c (inferior::~inferior): Don't free args.
+	* infcmd.c (get_inferior_args): Adjust.
+	(set_inferior_args): Adjust.
+
+2021-05-06  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* guile/scm-breakpoint.c (bpscm_print_breakpoint_smob): Only print
+	breakpoint locations when the breakpoint actually has a location.
+
+2021-05-06  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* mi/mi-cmd-break.c (mi_cmd_break_condition): New function.
+	* mi/mi-cmds.c: Change the binding of "-break-condition" to
+	mi_cmd_break_condition.
+	* mi/mi-cmds.h (mi_cmd_break_condition): Declare.
+	* breakpoint.h (set_breakpoint_condition): Declare a new
+	overload.
+	* breakpoint.c (set_breakpoint_condition): New overloaded function
+	extracted out from ...
+	(condition_command): ... this.
+	* NEWS: Mention the change.
+
+2021-05-06  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* mi/mi-cmd-break.c (mi_cmd_break_insert_1): Recognize the
+	'--force-condition' flag to force the condition in the
+	'-break-insert' and '-dprintf-insert' commands.
+	* NEWS: Mention the change.
+
+2021-05-04  Tom de Vries  <tdevries@suse.de>
+
+	PR guile/27806
+	* guile/guile.c	(gdbscm_initialize): Don't let guile change libgmp
+	memory functions.
+
 2021-04-30  Tom Tromey  <tom@tromey.com>
 
 	* dwarf2/read.c (dwarf2_initialize_objfile): Update.

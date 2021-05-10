@@ -236,6 +236,7 @@ standard_option_handler (SIM_DESC sd, sim_cpu *cpu, int opt,
 	    case USER_ENVIRONMENT: type = "user"; break;
 	    case VIRTUAL_ENVIRONMENT: type = "virtual"; break;
 	    case OPERATING_ENVIRONMENT: type = "operating"; break;
+	    default: abort ();
 	    }
 	  sim_io_eprintf (sd, "Simulator compiled for the %s environment only.\n",
 			  type);
@@ -284,6 +285,7 @@ standard_option_handler (SIM_DESC sd, sim_cpu *cpu, int opt,
 	case FORCED_ALIGNMENT:
 	  sim_io_eprintf (sd, "Simulator compiled for forced alignment only.\n");
 	  break;
+	default: abort ();
 	}
       return SIM_RC_FAIL;
 
@@ -414,14 +416,6 @@ standard_install (SIM_DESC sd)
   return SIM_RC_OK;
 }
 
-/* Equality function for arguments.  */
-
-static int
-compare_strings (const void *a, const void *b)
-{
-  return strcmp (a, b) == 0;
-}
-
 /* Return non-zero if arg is a duplicate argument.
    If ARG is NULL, initialize.  */
 
@@ -435,8 +429,9 @@ dup_arg_p (const char *arg)
     {
       if (arg_table == NULL)
 	arg_table = htab_create_alloc (10, htab_hash_string,
-				       compare_strings, NULL,
+				       htab_eq_string, NULL,
 				       xcalloc, free);
+      htab_empty (arg_table);
       return 0;
     }
 

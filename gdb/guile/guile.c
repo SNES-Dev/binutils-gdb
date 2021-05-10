@@ -270,13 +270,10 @@ static void
 gdbscm_source_script (const struct extension_language_defn *extlang,
 		      FILE *file, const char *filename)
 {
-  char *msg = gdbscm_safe_source_script (filename);
+  gdb::unique_xmalloc_ptr<char> msg = gdbscm_safe_source_script (filename);
 
   if (msg != NULL)
-    {
-      fprintf_filtered (gdb_stderr, "%s\n", msg);
-      xfree (msg);
-    }
+    fprintf_filtered (gdb_stderr, "%s\n", msg.get ());
 }
 
 /* (execute string [#:from-tty boolean] [#:to-string boolean])
@@ -661,6 +658,22 @@ gdbscm_initialize (const struct extension_language_defn *extlang)
      Guile should do this, but we need to work with libgc 7.4.x.  */
   {
     gdb::block_signals blocker;
+
+    /* There are libguile versions (f.i. v3.0.5) that by default call
+       mp_get_memory_functions during initialization to install custom
+       libgmp memory functions.  This is considered a bug and should be
+       fixed starting v3.0.6.
+       Before gdb commit 880ae75a2b7 "gdb delay guile initialization until
+       gdbscm_finish_initialization", that bug had no effect for gdb,
+       because gdb subsequently called mp_get_memory_functions to install
+       its own custom functions in _initialize_gmp_utils.  However, since
+       aforementioned gdb commit the initialization order is reversed,
+       allowing libguile to install a custom malloc that is incompatible
+       with the custom free as used in gmp-utils.c, resulting in a
+       "double free or corruption (out)" error.
+       Work around the libguile bug by disabling the installation of the
+       libgmp memory functions by guile initialization.  */
+    scm_install_gmp_memory_functions = 0;
 
     /* scm_with_guile is the most portable way to initialize Guile.  Plus
        we need to initialize the Guile support while in Guile mode (e.g.,
