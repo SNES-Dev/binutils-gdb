@@ -262,13 +262,12 @@ am__depfiles_remade = ./$(DEPDIR)/deffilep.Po \
 	./$(DEPDIR)/eavrxmega2.Po ./$(DEPDIR)/eavrxmega3.Po \
 	./$(DEPDIR)/eavrxmega4.Po ./$(DEPDIR)/eavrxmega5.Po \
 	./$(DEPDIR)/eavrxmega6.Po ./$(DEPDIR)/eavrxmega7.Po \
-	./$(DEPDIR)/ecoffw65.Po ./$(DEPDIR)/ecrisaout.Po \
-	./$(DEPDIR)/ecriself.Po ./$(DEPDIR)/ecrislinux.Po \
-	./$(DEPDIR)/ecskyelf.Po ./$(DEPDIR)/ecskyelf_linux.Po \
-	./$(DEPDIR)/ed10velf.Po ./$(DEPDIR)/ed30v_e.Po \
-	./$(DEPDIR)/ed30v_o.Po ./$(DEPDIR)/ed30velf.Po \
-	./$(DEPDIR)/eelf32_dlx.Po ./$(DEPDIR)/eelf32_sparc.Po \
-	./$(DEPDIR)/eelf32_sparc_sol2.Po \
+	./$(DEPDIR)/ecrisaout.Po ./$(DEPDIR)/ecriself.Po \
+	./$(DEPDIR)/ecrislinux.Po ./$(DEPDIR)/ecskyelf.Po \
+	./$(DEPDIR)/ecskyelf_linux.Po ./$(DEPDIR)/ed10velf.Po \
+	./$(DEPDIR)/ed30v_e.Po ./$(DEPDIR)/ed30v_o.Po \
+	./$(DEPDIR)/ed30velf.Po ./$(DEPDIR)/eelf32_dlx.Po \
+	./$(DEPDIR)/eelf32_sparc.Po ./$(DEPDIR)/eelf32_sparc_sol2.Po \
 	./$(DEPDIR)/eelf32_sparc_vxworks.Po ./$(DEPDIR)/eelf32_spu.Po \
 	./$(DEPDIR)/eelf32_tic6x_be.Po \
 	./$(DEPDIR)/eelf32_tic6x_elf_be.Po \
@@ -1042,9 +1041,9 @@ ALL_EMULATION_SOURCES = \
 	ez80.c \
 	ez8001.c \
 	ez8002.c \
-	eelf32w65.c \
-	ecoffw65.c 
+	eelf32w65.c 
 
+#	ecoffw65.c 
 ALL_EMULATIONS = $(ALL_EMULATION_SOURCES:.c=.@OBJEXT@)
 ALL_64_EMULATION_SOURCES = \
 	eaarch64elf.c \
@@ -1171,6 +1170,7 @@ BLD_POTFILES = $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES)
 @AMDEP_TRUE@GENDEPDIR = $(DEPDIR)
 GENSCRIPTS = $(SHELL) $(srcdir)/genscripts.sh "${srcdir}" "${libdir}" "${prefix}" "${exec_prefix}" @host@ @target@ @target_alias@ "$(GENDEPDIR)" "${LIB_PATH}" "@EMULATION_LIBPATH@" "@NATIVE_LIB_DIRS@" @use_sysroot@ @enable_initfini_array@
 GEN_DEPENDS = $(srcdir)/genscripts.sh stringify.sed
+# @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ecoffw65.Pc@am__quote@
 
 # We need this for automake to use YLWRAP.
 # Allow dependency tracking to work for these files, too.
@@ -1479,7 +1479,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eavrxmega5.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eavrxmega6.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eavrxmega7.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ecoffw65.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ecrisaout.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ecriself.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ecrislinux.Po@am__quote@ # am--include-marker
@@ -2256,7 +2255,6 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/eavrxmega5.Po
 	-rm -f ./$(DEPDIR)/eavrxmega6.Po
 	-rm -f ./$(DEPDIR)/eavrxmega7.Po
-	-rm -f ./$(DEPDIR)/ecoffw65.Po
 	-rm -f ./$(DEPDIR)/ecrisaout.Po
 	-rm -f ./$(DEPDIR)/ecriself.Po
 	-rm -f ./$(DEPDIR)/ecrislinux.Po
@@ -2728,7 +2726,6 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/eavrxmega5.Po
 	-rm -f ./$(DEPDIR)/eavrxmega6.Po
 	-rm -f ./$(DEPDIR)/eavrxmega7.Po
-	-rm -f ./$(DEPDIR)/ecoffw65.Po
 	-rm -f ./$(DEPDIR)/ecrisaout.Po
 	-rm -f ./$(DEPDIR)/ecriself.Po
 	-rm -f ./$(DEPDIR)/ecrislinux.Po
@@ -3458,6 +3455,7 @@ $(ALL_EMULATION_SOURCES) $(ALL_64_EMULATION_SOURCES): $(GEN_DEPENDS)
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ehppa64linux.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ei386pep.Pc@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/emmo.Pc@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf32w65.Pc@am__quote@
 
 check-DEJAGNU: site.exp
 	(cd .libs; test -e ldscripts || test ! -e ld-new || $(LN_S) ../ldscripts .)
