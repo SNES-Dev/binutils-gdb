@@ -484,6 +484,10 @@ elf32_wdc65816_get_relocated_section_contents (bfd *output_bfd,
   return NULL;
 }
 
+// static _Bool w65_new_section_hook(bfd * abfd ATTRIBUTE_UNUSED, sec_ptr ptr ATTRIBUTE_UNUSED){
+// 	return true;
+// }
+
 
 
 
@@ -506,10 +510,9 @@ elf32_wdc65816_get_relocated_section_contents (bfd *output_bfd,
 					bfd_elf_wdc65816_final_write_processing
 #define elf_backend_object_p		elf32_wdc65816_object_p
 
-#define bfd_elf32_bfd_relax_section NULL
 #define bfd_elf32_bfd_get_relocated_section_contents \
 					elf32_wdc65816_get_relocated_section_contents
-#define bfd_elf32_new_section_hook	NULL
+// #define bfd_elf32_new_section_hook	w65_new_section_hook
 #define elf_backend_special_sections	elf_wdc65816_special_sections
 
 #include "elf32-target.h"
