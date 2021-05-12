@@ -335,17 +335,23 @@ w65_assemble(char *op,char *size,char *param)
   else if(strcmp(size,"direct")==0)
     opr.md |= DIRECT;
   else if(*size==0); // pass
-  else
+  else{
     as_bad (_("Unknown size suffix: `%s'"), size);
-
+    return;
+  }
   const w65_insn* actual_insn = (const w65_insn*)str_hash_find(insn_htab,op_real);
+  if(!actual_insn){
+    as_bad(_("Unknown Instruction: `%s'"),op_real);
+    return;
+  }else{
+    while(streq(actual_insn->mnemonic,op)&&!compatible_with(actual_insn->oprs,&opr.md))actual_insn++;
 
-  while(streq(actual_insn->mnemonic,op)&&!compatible_with(actual_insn->oprs,&opr.md))actual_insn++;
-
-  if(!streq(actual_insn->mnemonic,op_real))
-    as_bad(_("Cannot assemble instruction, no such opcode, or invalid parameter"));
-
-  print_insn(actual_insn,&opr);
+    if(!streq(actual_insn->mnemonic,op_real)){
+      as_bad(_("Cannot assemble instruction, no such opcode, or invalid parameter"));
+      return;
+    }
+    print_insn(actual_insn,&opr);
+  }
 }
 
 void
@@ -397,6 +403,7 @@ md_assemble (char *op)
       const w65_insn* actual_insn = (const w65_insn*)str_hash_find(insn_htab,op);
       char* frag = frag_more(1);
       *frag = actual_insn->opc;
+      return;
     }
   }
 
@@ -404,7 +411,7 @@ md_assemble (char *op)
   for(size = op;*size != 0 && *size != '.';size++);
 
   if(*size)
-    *size++ = '.';
+    *size++ = '\0';
 
   w65_assemble(op,param,size);
 }
