@@ -499,8 +499,6 @@ elf32_wdc65816_get_relocated_section_contents (bfd *output_bfd,
 #define TARGET_LITTLE_SYM	wdc65816_elf32_vec
 #define TARGET_LITTLE_NAME	"elf32-w65"
 
-#define bfd_elf32_bfd_link_hash_table_create NULL
-
 #define elf_info_to_howto		     wdc65816_info_to_howto_rela
 #define elf_info_to_howto_rel		     NULL
 #define elf_backend_relocate_section	     elf32_wdc65816_relocate_section
