@@ -493,7 +493,7 @@ elf32_wdc65816_get_relocated_section_contents (bfd *output_bfd,
 #define ELF_MAXPAGESIZE		4096
 
 #define TARGET_LITTLE_SYM	wdc65816_elf32_vec
-#define TARGET_LITTLE_NAME	"elf32-wdc65816"
+#define TARGET_LITTLE_NAME	"elf32-w65"
 
 #define bfd_elf32_bfd_link_hash_table_create NULL
 
