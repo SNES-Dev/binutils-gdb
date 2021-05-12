@@ -394,6 +394,9 @@ md_assemble (char *op)
   char *param;
   reset_vars(op);
 
+  while(*op&&ISSPACE(*op))
+    op++;
+
   for (param = op; *param != 0 && !ISSPACE (*param); param++)
     ; // strip opcode, except for addr-mode selector
   *param++ = '\0';
@@ -413,5 +416,5 @@ md_assemble (char *op)
   if(*size)
     *size++ = '\0';
 
-  w65_assemble(op,param,size);
+  w65_assemble(op,size,param);
 }
