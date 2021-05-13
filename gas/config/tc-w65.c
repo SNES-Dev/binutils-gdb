@@ -180,6 +180,18 @@ w65_op_from_param(char *param){
      *look = '\0';
      op = w65_op_from_param(param);
      op.md |= INDIRECT_LONG;
+     ++look;
+     while(*look&&ISSPACE(*look)) look++;
+     if(*look==','){
+       look++;
+       while(*look&&ISSPACE(*look))look++;
+       if(*look=='%')
+        look++;
+       if(*look=='Y'||*look=='y')
+        op.md |= INDIRECT_Y;
+        else
+          as_bad(_("Invalid Index: %s"),look);
+     }
    }else if(*param=='('){
      param++;
      char *look = param;
@@ -265,15 +277,17 @@ w65_op_from_param(char *param){
             op.md |= INDEXED_Y;
           else if(*tail=='d'||*tail=='D'){
             op.md = DIRECT;
+            tail++;
             while(*tail&&ISSPACE(*tail))tail++;
             if(*tail!=','||*tail=='+'){
+              tail++;
               while(*tail&&ISSPACE(*tail))tail++;
               continue;
             }
           }else if(*tail=='s'||*tail=='S')
             op.md = STACK;
           else
-            as_bad(_("Invalid Index: %s"),tail);
+            as_bad(_("Invalid Index: `%s'"),tail);
           break;
         }
       }
