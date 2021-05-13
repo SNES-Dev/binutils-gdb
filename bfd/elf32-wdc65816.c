@@ -26,6 +26,7 @@
 
 #include "elf/w65.h"
 
+
 static reloc_howto_type elf_wdc65816_howto_table[] =
 {
 	 HOWTO (R_WDC65816_NONE,		/* type */
@@ -69,7 +70,7 @@ static reloc_howto_type elf_wdc65816_howto_table[] =
 	 false),		/* pcrel_offset */
 	HOWTO (R_WDC65816_REL8,		/* type */
 	 0,			/* rightshift */
-	 1,			/* size (0 = byte, 1 = short, 2 = long) */
+	 0,			/* size (0 = byte, 1 = short, 2 = long) */
 	 8,			/* bitsize */
 	 true,			/* pc_relative */
 	 0,			/* bitpos */

@@ -128,7 +128,7 @@ md_atof (int type, char *litP, int *sizeP)
 
 symbolS *
 md_undefined_symbol (char *name ATTRIBUTE_UNUSED){
-  return 0;
+  return NULL;
 }
 
 void
@@ -142,9 +142,9 @@ md_section_align (segT seg ATTRIBUTE_UNUSED, valueT val){
 }
 
 long
-md_pcrel_from (fixS *fixp)
+md_pcrel_from (fixS *fixP)
 {
-  return fixp->fx_frag->fr_address + fixp->fx_where;
+  return fixP->fx_size + fixP->fx_where + fixP->fx_frag->fr_address;
 }
 
 static void
@@ -356,14 +356,23 @@ print_insn(const w65_insn* insn,const struct w65_operand* op){
   frag[0] = insn->opc;
   frag++;
 
-  
-
   if(op->symbol!=0){
     bfd_reloc_code_real_type reloc_ty = w65_addr_mode_to_reloc_code(op->md);
     reloc_howto_type* howto = bfd_reloc_type_lookup(stdoutput,reloc_ty);
     md_number_to_chars(frag,0xffffff,insn_size-1);
     symbolS* sym = symbol_find_or_make(op->symbol);
-    fix_new(frag_now,frag - frag_now->fr_literal,insn_size-1,sym,0,howto->pc_relative,reloc_ty);
+    
+    fixS *fix =fix_new(frag_now,frag - frag_now->fr_literal,insn_size-1,sym,0,howto->pc_relative,reloc_ty);
+    if(reloc_ty==BFD_RELOC_8_PCREL)
+      fix->fx_signed = 1; // rel8 is signed
+  }else if(((op->md&0xff)==REL8)||((op->md&0xff)==REL16)){
+    bfd_reloc_code_real_type reloc_ty = w65_addr_mode_to_reloc_code(op->md);
+    reloc_howto_type* howto = bfd_reloc_type_lookup(stdoutput,reloc_ty);
+    symbolS* sym = frag_now->fr_symbol;
+    offsetT off = (op->value-frag_now->fr_offset);
+    fixS *fix =fix_new(frag_now,frag - frag_now->fr_literal,insn_size-1,sym,off,howto->pc_relative,reloc_ty);
+    if(reloc_ty==BFD_RELOC_8_PCREL)
+      fix->fx_signed = 1; // rel8 is signed
   }else{
     md_number_to_chars(frag,op->value,insn_size-1);
   }
@@ -436,7 +445,12 @@ tc_gen_reloc (asection *section ATTRIBUTE_UNUSED, fixS * fixP )
 }
 
 void
-md_apply_fix (fixS *fixP ATTRIBUTE_UNUSED, valueT *valP ATTRIBUTE_UNUSED, segT seg ATTRIBUTE_UNUSED){}
+md_apply_fix (fixS *fixP ATTRIBUTE_UNUSED, valueT *valP ATTRIBUTE_UNUSED, segT seg ATTRIBUTE_UNUSED){\
+  char *p = fixP->fx_where + fixP->fx_frag->fr_literal;
+  valueT value = *valP;
+  
+  md_number_to_chars(p,value,fixP->fx_size);
+}
 
 int
 md_estimate_size_before_relax (fragS *fragp ATTRIBUTE_UNUSED, asection *seg ATTRIBUTE_UNUSED){
