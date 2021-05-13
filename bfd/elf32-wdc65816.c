@@ -67,32 +67,6 @@ static reloc_howto_type elf_wdc65816_howto_table[] =
 	 0xffff,			/* src_mask */
 	 0xffff,			/* dst_mask */
 	 false),		/* pcrel_offset */
-	HOWTO (R_WDC65816_ABS8,		/* type */
-	 0,			/* rightshift */
-	 0,			/* size (0 = byte, 1 = short, 2 = long) */
-	 8,			/* bitsize */
-	 false,			/* pc_relative */
-	 0,			/* bitpos */
-	 complain_overflow_dont, /* complain_on_overflow */
-	 bfd_elf_generic_reloc,	/* special_function */
-	 "R_WDC65816_ABS8",		/* name */
-	 false,			/* partial_inplace */
-	 0xff,			/* src_mask */
-	 0xff,			/* dst_mask */
-	 false),		/* pcrel_offset */
-	HOWTO (R_WDC65816_REL8,		/* type */
-	 0,			/* rightshift */
-	 1,			/* size (0 = byte, 1 = short, 2 = long) */
-	 8,			/* bitsize */
-	 true,			/* pc_relative */
-	 0,			/* bitpos */
-	 complain_overflow_unsigned, /* complain_on_overflow */
-	 bfd_elf_generic_reloc,	/* special_function */
-	 "R_WDC65816_REL8",		/* name */
-	 false,			/* partial_inplace */
-	 0xffffff,			/* src_mask */
-	 0xffffff,			/* dst_mask */
-	 true),		/* pcrel_offset */
 	HOWTO (R_WDC65816_REL8,		/* type */
 	 0,			/* rightshift */
 	 1,			/* size (0 = byte, 1 = short, 2 = long) */
@@ -106,19 +80,19 @@ static reloc_howto_type elf_wdc65816_howto_table[] =
 	 0xffffff,			/* src_mask */
 	 0xffffff,			/* dst_mask */
 	 true),		/* pcrel_offset */
-	HOWTO (R_WDC65816_DIR,		/* type */
+	HOWTO (R_WDC65816_REL16,		/* type */
 	 0,			/* rightshift */
-	 2,			/* size (0 = byte, 1 = short, 2 = long) */
-	 16,			/* bitsize */
-	 false,			/* pc_relative */
+	 1,			/* size (0 = byte, 1 = short, 2 = long) */
+	 8,			/* bitsize */
+	 true,			/* pc_relative */
 	 0,			/* bitpos */
-	 complain_overflow_dont, /* complain_on_overflow */
+	 complain_overflow_signed, /* complain_on_overflow */
 	 bfd_elf_generic_reloc,	/* special_function */
-	 "R_WDC65816_DIR",		/* name */
+	 "R_WDC65816_REL16",		/* name */
 	 false,			/* partial_inplace */
-	 0xff00,			/* src_mask */
-	 0xff00,			/* dst_mask */
-	 false),		/* pcrel_offset */
+	 0xffffff,			/* src_mask */
+	 0xffffff,			/* dst_mask */
+	 true),		/* pcrel_offset */
 	 HOWTO (R_WDC65816_BANK,		/* type */
 	 16,			/* rightshift */
 	 0,			/* size (0 = byte, 1 = short, 2 = long) */
@@ -131,6 +105,32 @@ static reloc_howto_type elf_wdc65816_howto_table[] =
 	 false,			/* partial_inplace */
 	 0xffffff,			/* src_mask */
 	 0xffffff,			/* dst_mask */
+	 false),		/* pcrel_offset */
+	 HOWTO (R_WDC65816_ABS8,		/* type */
+	 0,			/* rightshift */
+	 0,			/* size (0 = byte, 1 = short, 2 = long) */
+	 8,			/* bitsize */
+	 false,			/* pc_relative */
+	 0,			/* bitpos */
+	 complain_overflow_dont, /* complain_on_overflow */
+	 bfd_elf_generic_reloc,	/* special_function */
+	 "R_WDC65816_ABS8",		/* name */
+	 false,			/* partial_inplace */
+	 0xff,			/* src_mask */
+	 0xff,			/* dst_mask */
+	 false),		/* pcrel_offset */
+	 HOWTO (R_WDC65816_DIR,		/* type */
+	 0,			/* rightshift */
+	 2,			/* size (0 = byte, 1 = short, 2 = long) */
+	 16,			/* bitsize */
+	 false,			/* pc_relative */
+	 0,			/* bitpos */
+	 complain_overflow_dont, /* complain_on_overflow */
+	 bfd_elf_generic_reloc,	/* special_function */
+	 "R_WDC65816_DIR",		/* name */
+	 false,			/* partial_inplace */
+	 0xff00,			/* src_mask */
+	 0xff00,			/* dst_mask */
 	 false),		/* pcrel_offset */
 };
 

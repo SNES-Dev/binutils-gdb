@@ -36,16 +36,18 @@ char ins_parse[256];
 /* The current processed argument number.  */
 int cur_arg_num;
 
+const char w65_comment_chars[] = ";";
+
 /* Generic assembler global variables which must be defined by all targets.  */
 
 /* Characters which always start a comment.  */
-const char comment_chars[] = "#";
+const char comment_chars[] = ";";
 
 /* Characters which start a comment at the beginning of a line.  */
-const char line_comment_chars[] = "#";
+const char line_comment_chars[] = ";";
 
 /* This array holds machine specific line separator characters.  */
-const char line_separator_chars[] = ";";
+const char line_separator_chars[] = "";
 
 /* Chars that can be used to separate mant from exp in floating point nums.  */
 const char EXP_CHARS[] = "eE";
@@ -191,9 +193,13 @@ w65_op_from_param(char *param){
      ++look;
      while(*look&&ISSPACE(*look)) look++;
      if(*look==','){
-       if(*++look=='X')
+       look++;
+       while(*look&&ISSPACE(*look))look++;
+       if(*look=='%')
+        look++;
+       if(*look=='X'||*look=='x')
         op.md |= INDIRECT_X;
-       else if(*look=='Y')
+       else if(*look=='Y'||*look=='y')
         op.md |= INDIRECT_Y;
         else
           as_bad(_("Invalid Index: %s"),look);
@@ -204,11 +210,12 @@ w65_op_from_param(char *param){
       ++param;
       op.md = IMM16; // This will be fixed when searching for opcodes. 
       if(ISDIGIT(*param)||*param=='-')
-        op.value = atoi(param);
+        op.value = strtol(param,NULL,0);
       else if(*param=='$')
         op.value = strtol(++param,NULL,16);
       else{
         char* look = param;
+        while(*look&&ISSPACE(*look))look++;
         while(*look&&(ISALNUM(*look)||*look=='$'||*look=='.'||*look=='_'))
           look++;
         *look = '\0';
@@ -221,19 +228,55 @@ w65_op_from_param(char *param){
       _Bool idx = 0;
       op.md = ABS;
       if(ISDIGIT(*param)||*param=='-')
-        op.value = strtol(param,&tail,10);
+        op.value = strtol(param,&tail,0);
       else if(*param=='$')
         op.value = strtol(++param,NULL,16);
       else{
         tail = param;
         while(*tail&&(ISALNUM(*tail)||*tail=='$'||*tail=='.'||*tail=='_'))
           tail++;
-        if(*tail==',')
+        if(ISSPACE(*tail)){
+          char* tail2 = tail++;
+          *tail = '\0';
+          while(*tail2&&ISSPACE(*tail2))tail2++;
+          if(*tail2==',')
+            idx=1;
+        }
+        else if(*tail==',')
           idx = 1;
         *tail = '\0';
         op.symbol = param;
       }
-      (void)idx;
+      if(idx||ISSPACE(*tail)||*tail==','){
+        idx |= *tail==',';
+        tail++;
+        while(*tail&&ISSPACE(*tail))tail++;
+        if(!idx||*tail==','){
+          idx = 1;
+          tail++;
+        }
+        while(*tail&&ISSPACE(*tail))tail++;
+        while(idx){
+          if(*tail=='%')
+            tail++;
+          if(*tail=='x'||*tail=='X')
+            op.md |= INDEXED_X;
+          else if(*tail=='y'||*tail=='Y')
+            op.md |= INDEXED_Y;
+          else if(*tail=='d'||*tail=='D'){
+            op.md = DIRECT;
+            while(*tail&&ISSPACE(*tail))tail++;
+            if(*tail!=','||*tail=='+'){
+              while(*tail&&ISSPACE(*tail))tail++;
+              continue;
+            }
+          }else if(*tail=='s'||*tail=='S')
+            op.md = STACK;
+          else
+            as_bad(_("Invalid Index: %s"),tail);
+          break;
+        }
+      }
     }
   
    return op;
@@ -304,7 +347,7 @@ print_insn(const w65_insn* insn,const struct w65_operand* op){
   if(op->symbol!=0){
     bfd_reloc_code_real_type reloc_ty = w65_addr_mode_to_reloc_code(op->md);
     reloc_howto_type* howto = bfd_reloc_type_lookup(stdoutput,reloc_ty);
-    md_number_to_chars(frag,0,insn_size-1);
+    md_number_to_chars(frag,0xffffff,insn_size-1);
     symbolS* sym = symbol_find_or_make(op->symbol);
     fix_new(frag_now,frag - frag_now->fr_literal,insn_size-1,sym,0,howto->pc_relative,reloc_ty);
   }else{
@@ -325,7 +368,7 @@ w65_assemble(char *op,char *size,char *param)
   }else{
     for(char* c = op;*c;c++)
       *c = _tolower(*c);
-    w65_op_from_param(param);
+    opr = w65_op_from_param(param);
   }
 
 
@@ -374,6 +417,7 @@ tc_gen_reloc (asection *section ATTRIBUTE_UNUSED, fixS * fixP )
   *reloc->sym_ptr_ptr = symbol_get_bfdsym (fixP->fx_addsy);
   reloc->address = fixP->fx_frag->fr_address + fixP->fx_where;
   reloc->addend = fixP->fx_offset;
+  reloc->howto = bfd_reloc_type_lookup(stdoutput,fixP->fx_r_type);
   return reloc;
 }
 

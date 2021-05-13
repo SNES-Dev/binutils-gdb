@@ -26,4 +26,8 @@
 #define TARGET_BYTES_BIG_ENDIAN                          0
 #define md_number_to_chars    number_to_chars_littleendian
 
+#define tc_comment_chars w65_comment_chars
+
+extern const char w65_comment_chars[];
+
 #define WORKING_DOT_WORD

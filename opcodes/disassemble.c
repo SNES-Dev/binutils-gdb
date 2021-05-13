@@ -552,6 +552,11 @@ disassembler (enum bfd_architecture a,
       disassemble = print_insn_tilepro;
       break;
 #endif
+#ifdef ARCH_w65
+    case bfd_arch_w65:
+      disassemble = print_insn_w65;
+      break;
+#endif
     default:
       return 0;
     }
