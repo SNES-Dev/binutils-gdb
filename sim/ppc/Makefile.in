@@ -64,6 +64,7 @@ AR = @AR@
 AR_FLAGS = rc
 CC = @CC@
 CFLAGS = @CFLAGS@
+WERROR_CFLAGS = @WERROR_CFLAGS@
 CC_FOR_BUILD = @CC_FOR_BUILD@
 CFLAGS_FOR_BUILD = @CFLAGS_FOR_BUILD@
 BISON = bison
@@ -103,7 +104,7 @@ CONFIG_CFLAGS = \
   $(DEVZERO_CFLAGS)
 SIM_FPU_CFLAGS = @sim_fpu_cflags@
 
-STD_CFLAGS	= $(CFLAGS) $(INLINE_CFLAGS) $(CONFIG_CFLAGS) $(WARNING_CFLAGS) $(INCLUDES) $(INTL_CFLAGS) $(SIM_FPU_CFLAGS)
+STD_CFLAGS	= $(CFLAGS) $(WERROR_CFLAGS) $(INLINE_CFLAGS) $(CONFIG_CFLAGS) $(WARNING_CFLAGS) $(INCLUDES) $(INTL_CFLAGS) $(SIM_FPU_CFLAGS)
 NOWARN_CFLAGS	= $(CFLAGS) $(INLINE_CFLAGS) $(CONFIG_CFLAGS) $(INCLUDES) $(SIM_FPU_CFLAGS)
 BUILD_CFLAGS	= $(CFLAGS_FOR_BUILD) $(INCLUDES) $(WARNING_CFLAGS)
 
@@ -168,8 +169,8 @@ all:	run $(TARGETLIB) $(GDB_OBJ)
 # Headers outside sim/ppc.
 ANSIDECL_H = $(srcroot)/include/ansidecl.h
 BFD_H = ../../bfd/bfd.h
-GDB_CALLBACK_H = $(srcroot)/include/gdb/callback.h
-GDB_REMOTE_SIM_H = $(srcroot)/include/gdb/remote-sim.h
+GDB_CALLBACK_H = $(srcroot)/include/sim/callback.h
+GDB_REMOTE_SIM_H = $(srcroot)/include/sim/sim.h
 GDB_SIM_PPC_H = $(srcroot)/include/gdb/sim-ppc.h
 COMMON_SIM_BASE_H = $(srcroot)/sim/common/sim-base.h
 COMMON_SIM_BASICS_H = $(srcroot)/sim/common/sim-basics.h
@@ -628,7 +629,7 @@ mon.o: mon.c $(BASICS_H) $(CPU_H) $(MON_H)
 # As a kludge, build the common stuff here for now.
 gentmap: $(srcdir)/../common/gentmap.c Makefile targ-vals.def
 	$(LINK_FOR_BUILD) -I. -I../common -I$(srcdir)/../common \
-		$(srcdir)/../common/gentmap.c
+		$(srcdir)/../common/gentmap.c -DUSE_CONFIG_H
 
 targ-vals.def: $(srcdir)/../common/nltvals.def
 	rm -f targ-vals.def tmp-def

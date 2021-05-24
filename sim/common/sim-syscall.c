@@ -17,7 +17,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
+/* This must come before any other includes.  */
+#include "defs.h"
 
 #include <errno.h>
 
@@ -71,8 +72,8 @@ sim_syscall_multi (SIM_CPU *cpu, int func, long arg1, long arg2, long arg3,
   sc.arg3 = arg3;
   sc.arg4 = arg4;
 
-  sc.p1 = (PTR) sd;
-  sc.p2 = (PTR) cpu;
+  sc.p1 = sd;
+  sc.p2 = cpu;
   sc.read_mem = sim_syscall_read_mem;
   sc.write_mem = sim_syscall_write_mem;
 

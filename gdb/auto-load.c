@@ -1427,8 +1427,7 @@ auto_load_set_cmdlist_get (void)
 Auto-loading specific settings.\n\
 Configure various auto-load-specific variables such as\n\
 automatic loading of Python scripts."),
-		    &retval, "set auto-load ",
-		    1/*allow-unknown*/, &setlist);
+		    &retval, 1/*allow-unknown*/, &setlist);
 
   return &retval;
 }
@@ -1445,8 +1444,7 @@ auto_load_show_cmdlist_get (void)
 Show auto-loading specific settings.\n\
 Show configuration of various auto-load-specific variables such as\n\
 automatic loading of Python scripts."),
-			 &retval, "show auto-load ",
-			 0/*allow-unknown*/, &showlist);
+			 &retval, 0/*allow-unknown*/, &showlist);
 
   return &retval;
 }
@@ -1467,7 +1465,7 @@ info_auto_load_cmd (const char *args, int from_tty)
     {
       ui_out_emit_tuple option_emitter (uiout, "option");
 
-      gdb_assert (!list->prefixlist);
+      gdb_assert (!list->is_prefix ());
       gdb_assert (list->type == not_set_cmd);
 
       uiout->field_string ("name", list->name);
@@ -1488,8 +1486,7 @@ auto_load_info_cmdlist_get (void)
 Print current status of auto-loaded files.\n\
 Print whether various files like Python scripts or .gdbinit files have been\n\
 found and/or loaded."),
-		    &retval, "info auto-load ",
-		    0/*allow-unknown*/, &infolist);
+		    &retval, 0/*allow-unknown*/, &infolist);
 
   return &retval;
 }

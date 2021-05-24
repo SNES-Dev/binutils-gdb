@@ -2829,6 +2829,8 @@ extern char *elfcore_write_aarch_sve
   (bfd *, char *, int *, const void *, int);
 extern char *elfcore_write_aarch_pauth
   (bfd *, char *, int *, const void *, int);
+extern char *elfcore_write_aarch_mte
+  (bfd *, char *, int *, const void *, int);
 extern char *elfcore_write_arc_v2
   (bfd *, char *, int *, const void *, int);
 extern char *elfcore_write_riscv_csr

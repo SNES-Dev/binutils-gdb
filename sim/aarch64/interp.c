@@ -19,7 +19,9 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
+/* This must come before any other includes.  */
+#include "defs.h"
+
 #include <stdio.h>
 #include <assert.h>
 #include <signal.h>
@@ -29,8 +31,8 @@
 
 #include "ansidecl.h"
 #include "bfd.h"
-#include "gdb/callback.h"
-#include "gdb/remote-sim.h"
+#include "sim/callback.h"
+#include "sim/sim.h"
 #include "gdb/signals.h"
 #include "gdb/sim-aarch64.h"
 

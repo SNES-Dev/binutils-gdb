@@ -647,22 +647,26 @@ execute_command (const char *p, int from_tty)
       if (c->theclass == class_user && c->user_commands)
 	execute_user_command (c, arg);
       else if (c->theclass == class_user
-	       && c->prefixlist && !c->allow_unknown)
+	       && c->is_prefix () && !c->allow_unknown)
 	/* If this is a user defined prefix that does not allow unknown
 	   (in other words, C is a prefix command and not a command
 	   that can be followed by its args), report the list of
 	   subcommands.  */
 	{
+	  std::string prefixname = c->prefixname ();
+          std::string prefixname_no_space
+	    = prefixname.substr (0, prefixname.length () - 1);
 	  printf_unfiltered
-	    ("\"%.*s\" must be followed by the name of a subcommand.\n",
-	     (int) strlen (c->prefixname) - 1, c->prefixname);
-	  help_list (*c->prefixlist, c->prefixname, all_commands, gdb_stdout);
+	    ("\"%s\" must be followed by the name of a subcommand.\n",
+	     prefixname_no_space.c_str ());
+	  help_list (*c->subcommands, prefixname.c_str (), all_commands,
+		     gdb_stdout);
 	}
       else if (c->type == set_cmd)
 	do_set_command (arg, from_tty, c);
       else if (c->type == show_cmd)
 	do_show_command (arg, from_tty, c);
-      else if (!cmd_func_p (c))
+      else if (c->is_command_class_help ())
 	error (_("That is not a command, just a help topic."));
       else if (deprecated_call_command_hook)
 	deprecated_call_command_hook (c, arg, from_tty);

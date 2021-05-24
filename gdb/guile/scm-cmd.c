@@ -524,10 +524,10 @@ gdbscm_parse_command_name (const char *name,
 				 gdbscm_scm_from_c_string (name), msg);
     }
 
-  if (elt->prefixlist)
+  if (elt->is_prefix ())
     {
       xfree (prefix_text);
-      *base_list = elt->prefixlist;
+      *base_list = elt->subcommands;
       return result;
     }
 
@@ -766,7 +766,7 @@ gdbscm_register_command_x (SCM self)
 
 	  cmd = add_prefix_cmd (c_smob->cmd_name, c_smob->cmd_class,
 				NULL, c_smob->doc, &c_smob->sub_list,
-				c_smob->name, allow_unknown, cmd_list);
+				allow_unknown, cmd_list);
 	}
       else
 	{

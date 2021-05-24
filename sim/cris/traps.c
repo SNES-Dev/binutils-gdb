@@ -17,6 +17,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
+/* This must come before any other includes.  */
+#include "defs.h"
+
 #include "sim-main.h"
 #include "sim-syscall.h"
 #include "sim-options.h"
@@ -2234,7 +2237,7 @@ cris_break_13_handler (SIM_CPU *current_cpu, USI callnum, USI arg1,
 
 	case TARGET_SYS_time:
 	  {
-	    retval = (int) (*cb->time) (cb, 0L);
+	    retval = (int) (*cb->time) (cb);
 
 	    /* At time of this writing, CB_SYSCALL_time doesn't do the
 	       part of setting *arg1 to the return value.  */
@@ -3327,13 +3330,10 @@ cris_pipe_empty (host_callback *cb,
 
 /* We have a simulator-specific notion of time.  See TARGET_TIME.  */
 
-static long
-cris_time (host_callback *cb ATTRIBUTE_UNUSED, long *t)
+static int64_t
+cris_time (host_callback *cb ATTRIBUTE_UNUSED)
 {
-  long retval = TARGET_TIME (current_cpu_for_cb_callback);
-  if (t)
-    *t = retval;
-  return retval;
+  return TARGET_TIME (current_cpu_for_cb_callback);
 }
 
 /* Set target-specific callback data. */

@@ -18,7 +18,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
+/* This must come before any other includes.  */
+#include "defs.h"
+
 #include <stdio.h>
 #include <assert.h>
 #include <signal.h>
@@ -28,8 +30,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "ansidecl.h"
 #include "libiberty.h"
-#include "gdb/callback.h"
-#include "gdb/remote-sim.h"
+#include "sim/callback.h"
+#include "sim/sim.h"
 #include "gdb/signals.h"
 #include "gdb/sim-rl78.h"
 
@@ -54,7 +56,7 @@ static struct sim_state the_minisim = {
   "This is the sole rl78 minisim instance."
 };
 
-static int open;
+static int is_open;
 
 static struct host_callback_struct *host_callbacks;
 
@@ -67,7 +69,7 @@ sim_open (SIM_OPEN_KIND kind,
 	  struct host_callback_struct *callback,
 	  struct bfd *abfd, char * const *argv)
 {
-  if (open)
+  if (is_open)
     fprintf (stderr, "rl78 minisim: re-opened sim\n");
 
   /* The 'run' interface doesn't use this function, so we don't care
@@ -86,7 +88,7 @@ sim_open (SIM_OPEN_KIND kind,
   trace = 0;
 
   sim_disasm_init (abfd);
-  open = 1;
+  is_open = 1;
 
   while (argv != NULL && *argv != NULL)
     {
@@ -143,7 +145,7 @@ sim_close (SIM_DESC sd, int quitting)
   /* Not much to do.  At least free up our memory.  */
   init_mem ();
 
-  open = 0;
+  is_open = 0;
 }
 
 /* Open the program to run; print a message if the program cannot

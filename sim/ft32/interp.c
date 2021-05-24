@@ -18,16 +18,18 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
+/* This must come before any other includes.  */
+#include "defs.h"
+
 #include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <stdint.h>
 
 #include "bfd.h"
-#include "gdb/callback.h"
+#include "sim/callback.h"
 #include "libiberty.h"
-#include "gdb/remote-sim.h"
+#include "sim/sim.h"
 
 #include "sim-main.h"
 #include "sim-options.h"

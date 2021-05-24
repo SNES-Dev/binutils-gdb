@@ -9597,6 +9597,23 @@ elfcore_make_auxv_note_section (bfd *abfd, Elf_Internal_Note *note,
   return true;
 }
 
+static bool
+elfcore_make_memtag_note_section (bfd *abfd, Elf_Internal_Note *note,
+				  size_t offs)
+{
+  asection *sect = bfd_make_section_anyway_with_flags (abfd, ".memtag",
+						       SEC_HAS_CONTENTS);
+
+  if (sect == NULL)
+    return false;
+
+  sect->size = note->descsz - offs;
+  sect->filepos = note->descpos + offs;
+  sect->alignment_power = 1 + bfd_get_arch_size (abfd) / 32;
+
+  return true;
+}
+
 /* prstatus_t exists on:
      solaris 2.5+
      linux 2.[01] + glibc
@@ -9923,6 +9940,13 @@ static bool
 elfcore_grok_aarch_pauth (bfd *abfd, Elf_Internal_Note *note)
 {
   return elfcore_make_note_pseudosection (abfd, ".reg-aarch-pauth", note);
+}
+
+static bool
+elfcore_grok_aarch_mte (bfd *abfd, Elf_Internal_Note *note)
+{
+  return elfcore_make_note_pseudosection (abfd, ".reg-aarch-mte",
+					  note);
 }
 
 static bool
@@ -10607,6 +10631,13 @@ elfcore_grok_note (bfd *abfd, Elf_Internal_Note *note)
       else
 	return true;
 
+    case NT_ARM_TAGGED_ADDR_CTRL:
+      if (note->namesz == 6
+	  && strcmp (note->namedata, "LINUX") == 0)
+	return elfcore_grok_aarch_mte (abfd, note);
+      else
+	return true;
+
     case NT_GDB_TDESC:
       if (note->namesz == 4
           && strcmp (note->namedata, "GDB") == 0)
@@ -10643,6 +10674,8 @@ elfcore_grok_note (bfd *abfd, Elf_Internal_Note *note)
       return elfcore_make_note_pseudosection (abfd, ".note.linuxcore.siginfo",
 					      note);
 
+    case NT_MEMTAG:
+      return elfcore_make_memtag_note_section (abfd, note, 0);
     }
 }
 
@@ -11987,6 +12020,20 @@ elfcore_write_aarch_pauth (bfd *abfd,
 }
 
 char *
+elfcore_write_aarch_mte (bfd *abfd,
+				      char *buf,
+				      int *bufsiz,
+				      const void *aarch_mte,
+				      int size)
+{
+  char *note_name = "LINUX";
+  return elfcore_write_note (abfd, buf, bufsiz,
+			     note_name, NT_ARM_TAGGED_ADDR_CTRL,
+			     aarch_mte,
+			     size);
+}
+
+char *
 elfcore_write_arc_v2 (bfd *abfd,
 		      char *buf,
 		      int *bufsiz,
@@ -12114,6 +12161,8 @@ elfcore_write_register_note (bfd *abfd,
     return elfcore_write_aarch_sve (abfd, buf, bufsiz, data, size);
   if (strcmp (section, ".reg-aarch-pauth") == 0)
     return elfcore_write_aarch_pauth (abfd, buf, bufsiz, data, size);
+  if (strcmp (section, ".reg-aarch-mte") == 0)
+    return elfcore_write_aarch_mte (abfd, buf, bufsiz, data, size);
   if (strcmp (section, ".reg-arc-v2") == 0)
     return elfcore_write_arc_v2 (abfd, buf, bufsiz, data, size);
   if (strcmp (section, ".gdb-tdesc") == 0)

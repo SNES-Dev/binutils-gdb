@@ -3678,7 +3678,7 @@ print_one_static_tracepoint_marker (int count,
      identifier!  */
   uiout->field_signed ("count", count);
 
-  uiout->field_string ("marker-id", marker.str_id.c_str ());
+  uiout->field_string ("marker-id", marker.str_id);
 
   uiout->field_fmt ("enabled", "%c",
 		    !tracepoints.empty () ? 'y' : 'n');
@@ -3735,7 +3735,7 @@ print_one_static_tracepoint_marker (int count,
   uiout->text ("\n");
   uiout->text (extra_field_indent);
   uiout->text (_("Data: \""));
-  uiout->field_string ("extra-data", marker.extra.c_str ());
+  uiout->field_string ("extra-data", marker.extra);
   uiout->text ("\"\n");
 
   if (!tracepoints.empty ())
@@ -4046,7 +4046,7 @@ List target static tracepoints markers."));
   add_prefix_cmd ("tfind", class_trace, tfind_command, _("\
 Select a trace frame.\n\
 No argument means forward by one frame; '-' means backward by one frame."),
-		  &tfindlist, "tfind ", 1, &cmdlist);
+		  &tfindlist, 1, &cmdlist);
 
   add_cmd ("outside", class_trace, tfind_outside_command, _("\
 Select a trace frame whose PC is outside the given range (exclusive).\n\

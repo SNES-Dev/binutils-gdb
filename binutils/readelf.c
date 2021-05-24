@@ -2605,7 +2605,7 @@ get_machine_name (unsigned e_machine)
     case EM_ARC_COMPACT3:	return "Synopsys ARCv2.3 32-bit";
     case EM_KVX:		return "Kalray VLIW core of the MPPA processor family";
     case EM_65816:		return "WDC 65816/65C816";
-    case EM_LOONGARCH:		return "Loongson Loongarch";
+    case EM_LOONGARCH:		return "LoongArch";
     case EM_KF32:		return "ChipON KungFu32";
 
       /* Large numbers...  */
@@ -18676,6 +18676,12 @@ get_note_type (Filedata * filedata, unsigned e_type)
 	return _("NT_ARM_HW_BREAK (AArch hardware breakpoint registers)");
       case NT_ARM_HW_WATCH:
 	return _("NT_ARM_HW_WATCH (AArch hardware watchpoint registers)");
+      case NT_ARM_SVE:
+	return _("NT_ARM_SVE (AArch SVE registers)");
+      case NT_ARM_PAC_MASK:
+	return _("NT_ARM_PAC_MASK (AArch pointer authentication code masks)");
+      case NT_ARM_TAGGED_ADDR_CTRL:
+	return _("NT_ARM_TAGGED_ADDR_CTRL (AArch tagged address control)");
       case NT_ARC_V2:
 	return _("NT_ARC_V2 (ARC HS accumulator/extra registers)");
       case NT_RISCV_CSR:
@@ -18696,6 +18702,8 @@ get_note_type (Filedata * filedata, unsigned e_type)
 	return _("NT_SIGINFO (siginfo_t data)");
       case NT_FILE:
 	return _("NT_FILE (mapped files)");
+      case NT_MEMTAG:
+	return _("NT_MEMTAG (memory tags)");
       default:
 	break;
       }
