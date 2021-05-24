@@ -872,7 +872,7 @@ The first argument is the type or protocol of the target machine.\n\
 Remaining arguments are interpreted by the target protocol.  For more\n\
 information on the arguments for a particular protocol, type\n\
 `help target ' followed by the protocol name."),
-			  &targetlist, "target ", 0, &cmdlist);
+			  &targetlist, 0, &cmdlist);
   c = add_cmd (t.shortname, no_class, t.doc, &targetlist);
   set_cmd_context (c, (void *) &t);
   set_cmd_sfunc (c, open_target);
@@ -2718,12 +2718,14 @@ target_follow_fork (bool follow_child, bool detach_fork)
   return target->follow_fork (follow_child, detach_fork);
 }
 
-/* Target wrapper for follow exec hook.  */
+/* See target.h.  */
 
 void
-target_follow_exec (struct inferior *inf, const char *execd_pathname)
+target_follow_exec (inferior *follow_inf, ptid_t ptid,
+		    const char *execd_pathname)
 {
-  current_inferior ()->top_target ()->follow_exec (inf, execd_pathname);
+  current_inferior ()->top_target ()->follow_exec (follow_inf, ptid,
+						   execd_pathname);
 }
 
 static void

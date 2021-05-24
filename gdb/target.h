@@ -642,7 +642,7 @@ struct target_ops
       TARGET_DEFAULT_RETURN (1);
     virtual int remove_exec_catchpoint (int)
       TARGET_DEFAULT_RETURN (1);
-    virtual void follow_exec (struct inferior *, const char *)
+    virtual void follow_exec (inferior *, ptid_t, const char *)
       TARGET_DEFAULT_IGNORE ();
     virtual int set_syscall_catchpoint (int, bool, int,
 					gdb::array_view<const int>)
@@ -838,10 +838,17 @@ struct target_ops
     virtual void flash_done ()
       TARGET_DEFAULT_NORETURN (tcomplain ());
 
-    /* Describe the architecture-specific features of this target.  If
-       OPS doesn't have a description, this should delegate to the
-       "beneath" target.  Returns the description found, or NULL if no
-       description was available.  */
+    /* Describe the architecture-specific features of the current
+       inferior.
+
+       Returns the description found, or nullptr if no description was
+       available.
+
+       If some target features differ between threads, the description
+       returned by read_description (and the resulting gdbarch) won't
+       accurately describe all threads.  In this case, the
+       thread_architecture method can be used to obtain gdbarches that
+       accurately describe each thread.  */
     virtual const struct target_desc *read_description ()
 	 TARGET_DEFAULT_RETURN (NULL);
 
@@ -1714,10 +1721,20 @@ extern int target_remove_vfork_catchpoint (int pid);
 
 void target_follow_fork (bool follow_child, bool detach_fork);
 
-/* Handle the target-specific bookkeeping required when the inferior
-   makes an exec call.  INF is the exec'd inferior.  */
+/* Handle the target-specific bookkeeping required when the inferior makes an
+   exec call.
 
-void target_follow_exec (struct inferior *inf, const char *execd_pathname);
+   The current inferior at the time of the call is the inferior that did the
+   exec.  FOLLOW_INF is the inferior in which execution continues post-exec.
+   If "follow-exec-mode" is "same", FOLLOW_INF is the same as the current
+   inferior, meaning that execution continues with the same inferior.  If
+   "follow-exec-mode" is "new", FOLLOW_INF is a different inferior, meaning
+   that execution continues in a new inferior.
+
+   On exit, the target must leave FOLLOW_INF as the current inferior.  */
+
+void target_follow_exec (inferior *follow_inf, ptid_t ptid,
+			 const char *execd_pathname);
 
 /* On some targets, we can catch an inferior exec event when it
    occurs.  These functions insert/remove an already-created

@@ -1,3 +1,59 @@
+2021-05-22  Alan Modra  <amodra@gmail.com>
+
+	PR 25599
+	* config/tc-ia64.c (emit_one_bundle): Expand comment for HP-UX
+	adjustment.  Add assertion.
+	* testsuite/gas/ia64/reloc-mlx.d: Pass when slot 2 specified
+	for PCREL60B.
+
+2021-05-20  Sergey Belyashov  <sergey.belyashov@gmail.com>
+
+	* config/tc-z80.c (emit_data_val): Warn on constant overflow.
+	(signed_overflow): New function.
+	(unsigned_overflow): New function.
+	(is_overflow): Use new functions.
+	(md_apply_fix): Use signed_overflow.
+	* testsuite/gas/z80/ez80_adl_suf.d: Fix test.
+	* testsuite/gas/z80/ez80_isuf.s: Likewise.
+	* testsuite/gas/z80/ez80_z80_suf.d: Likewise.
+
+2021-05-20  Nicolas Boulenguez  <nicolas@debian.org>
+
+	PR 27888
+	* Makefile.am (ZLIB): Define.
+	(as_new_LDADD): Add it.
+	* Makefile.in: Regenerate.
+
+2021-05-17  Alex Coplan  <alex.coplan@arm.com>
+
+	* config/tc-arm.c (do_mve_mov): Only reject vmov if we're moving
+	into the same GPR twice.
+	* testsuite/gas/arm/mve-vmov-bad-2.l: Tweak error message.
+	* testsuite/gas/arm/mve-vmov-3.d: New test.
+	* testsuite/gas/arm/mve-vmov-3.s: New test.
+
+2021-05-12  Alan Modra  <amodra@gmail.com>
+
+	* testsuite/gas/elf/dwarf-5-file0.d: Update.
+	* testsuite/gas/i386/dwarf5-line-1.d: Update.
+
+2021-05-11  Sergey Belyashov  <sergey.belyashov@gmail.com>
+
+	PR 27823
+	* config/tc-z80.c (emit_ld_r_m): Report an illegal load
+	instruction.
+	* testsuite/gas/z80/ill_ops.s: New test source file.
+	* testsuite/gas/z80/ill_ops.d: New test driver.
+	* testsuite/gas/z80/ill_ops.l: New test error output.
+
+2021-05-10  Sergey Belyashov  <sergey.belyashov@gmail.com>
+
+	PR 27415
+	* config/tc-z80.c (emit_data_val): Add support for 8-bit and
+	24-bit shifts.
+	* testsuite/gas/z80/z80_reloc.a: Update tests.
+	* testsuite/gas/z80/z80_reloc.d: Update expected disassembly.
+
 2021-05-08  Mike Frysinger  <vapier@gentoo.org>
 
 	* doc/Makefile.am (html-local, as/index.html): New targets.

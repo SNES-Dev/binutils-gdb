@@ -1,3 +1,140 @@
+2021-05-21  Tom de Vries  <tdevries@suse.de>
+
+	PR testsuite/25047
+	* boards/cc-with-gnu-debuglink.exp: New file.
+
+2021-05-21  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* gdb.dwarf2/dw2-inline-with-lexical-scope.c (func): Replace
+	a dead code with an assignment to a global var.  Fix a
+	whitespacing problem around an assignment operator.
+
+2021-05-19  Will Schmidt  <will_schmidt@vnet.ibm.com>
+
+	* gdb.arch/powerpc64-prologue.c: New test to exercise prologues
+	for the powerpc64 LE target.
+	* gdb.arch/powerpc-prologue.exp: Test Harness.
+
+2021-05-19  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.guile/scm-pretty-print.exp: Add test names to resolve
+	duplicate test names.
+
+2021-05-19  Tom de Vries  <tdevries@suse.de>
+
+	* gdb.base/info-types.exp.tcl: Scan info types output line-by-line.
+
+2021-05-17  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* gdb.python/py-framefilter-gdb.py.in: Rename to:
+	* gdb.python/py-framefilter-gdb.py: ... this.
+	* gdb.python/py-framefilter-invalidarg-gdb.py.in: Rename to:
+	* gdb.python/py-framefilter-invalidarg-gdb.py: ... this.
+
+2021-05-17  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* gdb.python/py-framefilter-gdb.py.in: Re-format.
+	* gdb.python/py-framefilter-invalidarg-gdb.py.in: Re-format.
+
+2021-05-17  Bhuvanendra Kumar N  <Bhuvanendra.KumarN@amd.com>
+
+	* gdb.base/class-allocatable-array.exp: Modified test for clang.
+
+2021-05-16  Weimin Pan  <weimin.pan@oracle.com>
+
+	* gdb.ctf/funcreturn.exp: New file.
+	* gdb.ctf/whatis.c: Copy from gdb.base.
+
+2021-05-14  Tom Tromey  <tom@tromey.com>
+
+	* gdb.rust/pp.exp: New file.
+	* gdb.rust/pp.py: New file.
+	* gdb.rust/pp.rs: New file.
+
+2021-05-14  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	* gdb.base/index-cache.exp: Cleanup $cache_dir/*.gdb-index and
+	remove the directory.
+	* gdb.dwarf2/per-bfd-sharing.exp: Likewise.
+
+2021-05-14  Tankut Baris Aktemur  <tankut.baris.aktemur@intel.com>
+
+	* gdb.python/py-inferior.exp: Add test cases for 'connection_num'.
+
+2021-05-14  Kent Cheung  <kent.cheung@arm.com>
+	    Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.python/py-format-string.c: Added a variable to test.
+	* gdb.python/py-format-string.exp: Check string representation is
+	printed at appropriate max_depth settings.
+	* gdb.python/py-nested-maps.exp: Likewise.
+	* gdb.guile/scm-pretty-print.exp: Add additional tests.
+
+2021-05-13  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.guile/scm-pretty-print.exp (run_lang_tests): Give some tests
+	unique names, also wrap proc body in with_test_prefix.
+
+2021-05-13  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.guile/scm-frame-args.exp: Add with_test_prefix to resolve
+	duplicate test names.
+	* gdb.guile/scm-parameter.exp: Provide test names to avoid
+	duplicate names based on the command being run.
+	* gdb.guile/scm-symbol.exp: Extend test name to make it unique.
+	* gdb.guile/scm-type.exp (restart_gdb): Don't print PASS line when
+	loading a support module.
+	(test_equality): Update test name to match the actual test, making
+	the name unique in the process.
+	* gdb.guile/scm-value.exp (test_value_in_inferior): Add test names
+	to resolve duplicate tests.
+	(test_inferior_function_call): Likewise.
+	(test_subscript_regression): Likewise.
+
+2021-05-13  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* lib/guile.exp (gdb_scm_load_file): Use empty test name to
+	silence PASS lines.
+	(gdb_install_guile_module): Likewise.
+
+2021-05-12  George Barrett  <bob@bob131.so>
+
+	* gdb.guile/scm-value.exp (test_value_in_inferior): Add test for
+	value-const-value.
+
+2021-05-12  George Barrett  <bob@bob131.so>
+
+	* gdb.guile/scm-value.exp (test_value_in_inferior): Add test for
+	value-reference-value.  Add test for value-rvalue-reference-value.
+
+2021-05-11  Tom de Vries  <tdevries@suse.de>
+
+	* gdb.base/watch_thread_num.exp: Fix "set debug infrun 1" FAILs.
+	Add "set debug infrun 1" commented out.
+
+2021-05-11  Tom de Vries  <tdevries@suse.de>
+
+	* gdb.base/gdb-sigterm.exp: Fix exp_continue regexp.
+
+2021-05-11  Bhuvanendra Kumar  <Bhuvanendra.KumarN@amd.com>
+
+	* gdb.fortran/array-element.exp: Breakpoint location is modified.
+
+2021-05-10  Lancelot Six  <lsix@lancelotsix.com>
+
+	PR gdb/27614
+	* gdb.dwarf2/gdb-add-index-symlink.exp: New test.
+
+2021-05-10  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* gdb.guile/guile.exp: Don't use the source directory as a
+	temporary HOME directory.
+
+2021-05-10  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* gdb.arch/amd64-osabi.exp (test_osabi_none): Use the
+	parameters.
+
 2021-05-07  Andrew Burgess  <andrew.burgess@embecosm.com>
 
 	* gdb.guile/guile.exp: Add an extra test.

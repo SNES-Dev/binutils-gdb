@@ -1,3 +1,109 @@
+2021-05-22  Alan Modra  <amodra@gmail.com>
+
+	* libbfd.c (_bfd_safe_read_leb128): Remove length_return parameter.
+	Replace data pointer with pointer to pointer.  Increment pointer
+	over bytes read.
+	* libbfd-in.h (_bfd_safe_read_leb128): Update prototype.
+	* elf-attrs.c (_bfd_elf_parse_attributes): Adjust to suit.  Be
+	careful not to increment data pointer past end.  Remove now
+	redundant pr17512 check.
+	* wasm-module.c (READ_LEB128): Adjust to suit changes to
+	_bfd_safe_read_leb128.
+	* dwarf2.c (read_n_bytes): New inline function, old one renamed to..
+	(read_blk): ..this.  Allocate and return block.  Increment bfd_byte**
+	arg.
+	(read_3_bytes): New function.
+	(read_1_byte, read_1_signed_byte, read_2_bytes, read_4_bytes),
+	(read_8_bytes, read_string, read_indirect_string),
+	(read_indirect_line_string, read_alt_indirect_string): Take a
+	byte_byte** arg which is incremented over bytes read.  Remove any
+	bytes_read return.  Rewrite limit checks to compare lengths
+	rather than pointers.
+	(read_abbrevs, read_attribute_value, read_formatted_entries),
+	(decode_line_info, find_abstract_instance, read_ranges),
+	(read_rnglists, scan_unit_for_symbols, parse_comp_unit),
+	(stash_comp_unit): Adjust to suit.  Rewrite limit checks to
+	compare lengths rather than pointers.
+	* libbfd.h: Regenerate.
+
+2021-05-21  Luis Machado  <luis.machado@linaro.org>
+
+	* elf.c (elfcore_make_memtag_note_section): New function.
+	(elfcore_grok_note): Handle NT_MEMTAG note types.
+
+2021-05-20  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* section.c (bfd_get_section_by_name): Return NULL if name is
+	NULL.
+	(bfd_get_section_by_name_if): Likewise.
+	* dwarf2.c (read_section): Remove unneeded NULL check.
+	(find_debug_info): Likewise.
+
+2021-05-19  Nick Clifton  <nickc@redhat.com>
+
+	* plugin.c (bfd_plugin_open_input): Inform the user if the limit
+	on the number of open files is reached.  If possible, try to
+	increase this limit before failing.
+
+2021-05-14  Nelson Chu  <nelson.chu@sifive.com>
+
+	* elfnn-riscv.c (riscv_resolve_pcrel_lo_relocs): Check the values
+	of %pcrel_hi, before and after adding the addend.  Make sure the
+	value won't be changed, otherwise, report dangerous error.
+
+2021-05-13  Nelson Chu  <nelson.chu@sifive.com>
+
+	* elfxx-riscv.c (check_implicit_always): The check_func, always add
+	the implicit subset without checking.
+	(check_implicit_for_i): The check_func for i, only add zicsr and
+	zifencei when the version of i less than 2.1.
+	(struct riscv_implicit_subset): Record the subsets and their
+	corresponding implicit subsets.
+	(riscv_implicit_subsets): Table records all implicit informations.
+	(riscv_parse_add_implicit_subsets): Updated and add implicit subsets
+	according to riscv_implicit_subsets.  Remove the redundant codes.
+
+2021-05-13  Alan Modra  <amodra@gmail.com>
+
+	PR 27858
+	* elf32-sh.c (sh_elf_info_to_howto): Correct check for last valid
+	reloc howto.
+
+2021-05-12  Luis Machado  <luis.machado@linaro.org>
+
+	* elf-bfd.h (elfcore_write_aarch_mte): New prototype.
+	* elf.c (elfcore_grok_aarch_mte, elfcore_write_aarch_mte): New
+	functions.
+	(elfcore_grok_note): Handle notes of type NT_ARM_TAGGED_ADDR_CTRL.
+	(elfcore_write_register_note): Handle MTE notes.
+
+2021-05-11  Alan Modra  <amodra@gmail.com>
+
+	PR 27844
+	* pdp11.c (aout_get_external_symbols): Clear first four bytes of
+	strings array, not just the first byte.
+	* aoutx.h (aout_get_external_symbols): Likewise.
+
+2021-05-10  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR binutils/27839
+	* simple.c (bfd_simple_get_relocated_section_contents): Remove
+	strayed fprintf.
+
+2021-05-10  Nick Clifton  <nickc@redhat.com>
+
+	PR 27839
+	* simple.c (simple_dummy_add_to_set): New function.
+	(simple_dummy_constructor): New function.
+	(simple_dummy_multiple_common): New function.
+	(bfd_simple_get_relocated_section_contents): Zero out the
+	callbacks structure, and then set the add_to_set, constructor and
+	multiple_common fields.
+
+2021-05-10  Dimitar Dimitrov  <dimitar@dinux.eu>
+
+	* elf32-pru.c (elf_backend_can_gc_sections): Define as 1.
+
 2021-05-08  Mike Frysinger  <vapier@gentoo.org>
 
 	* doc/Makefile.am (html-local, bfd/index.html): New targets.

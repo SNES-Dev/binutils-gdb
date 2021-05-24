@@ -1184,8 +1184,7 @@ print_thread_info_1 (struct ui_out *uiout, const char *requested_threads,
 	    }
 	  else
 	    {
-	      uiout->field_string ("target-id",
-				   thread_target_id_str (tp).c_str ());
+	      uiout->field_string ("target-id", thread_target_id_str (tp));
 	    }
 
 	  if (tp->state == THREAD_RUNNING)
@@ -1977,7 +1976,7 @@ print_selected_thread_frame (struct ui_out *uiout,
 	  uiout->text ("[Switching to thread ");
 	  uiout->field_string ("new-thread-id", print_thread_id (tp));
 	  uiout->text (" (");
-	  uiout->text (target_pid_to_str (inferior_ptid).c_str ());
+	  uiout->text (target_pid_to_str (inferior_ptid));
 	  uiout->text (")]");
 	}
     }
@@ -2137,7 +2136,7 @@ Options:\n\
   add_prefix_cmd ("thread", class_run, thread_command, _("\
 Use this command to switch between threads.\n\
 The new thread ID must be currently known."),
-		  &thread_cmd_list, "thread ", 1, &cmdlist);
+		  &thread_cmd_list, 1, &cmdlist);
 
 #define THREAD_APPLY_OPTION_HELP "\
 Prints per-inferior thread number and target system's thread id\n\
@@ -2160,7 +2159,7 @@ THREAD_APPLY_OPTION_HELP),
 
   c = add_prefix_cmd ("apply", class_run, thread_apply_command,
 		      thread_apply_help.c_str (),
-		      &thread_apply_list, "thread apply ", 1,
+		      &thread_apply_list, 1,
 		      &thread_cmd_list);
   set_cmd_completer_handle_brkchars (c, thread_apply_command_completer);
 

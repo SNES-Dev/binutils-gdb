@@ -1,3 +1,24 @@
+2021-05-17  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-main.h (SIM_HAVE_COMMON_SIM_STATE): Delete.
+
+2021-05-17  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-main.h (SIM_HAVE_COMMON_SIM_STATE): Define.
+	(struct sim_state): Delete.
+
+2021-05-16  Mike Frysinger  <vapier@gentoo.org>
+
+	* interp.c: Replace config.h include with defs.h.
+
+2021-05-16  Mike Frysinger  <vapier@gentoo.org>
+
+	* config.in, configure: Regenerate.
+
+2021-05-14  Mike Frysinger  <vapier@gentoo.org>
+
+	* interp.c: Update include path.
+
 2021-05-04  Mike Frysinger  <vapier@gentoo.org>
 
 	* interp.c: Delete sys/times.h include.

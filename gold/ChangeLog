@@ -1,3 +1,22 @@
+2021-05-22  Alan Modra  <amodra@gmail.com>
+
+	PR gold/27815
+	* gc.h (gc_process_relocs): Use nullptr in Section_id constructor.
+
+2021-05-15  Alan Modra  <amodra@gmail.com>
+
+	PR 27834
+	* options.cc (General_options::General_options): Init bsymbolic_.
+
+2021-05-04  Fangrui Song  <maskray@google.com>
+
+	PR 27834
+	* options.h (General_options): Make -Bsymbolic and
+	-Bsymbolic-functions special and adjust the help messages. Add
+	enum Bsymbolic_kind and -Bno-symbolic.
+	* options.cc (General_options): Define parse_Bno_symbolic,
+	parse_Bsymbolic_functions, and parse_Bsymbolic.
+
 2021-03-30  Alan Modra  <amodra@gmail.com>
 
 	PR gold/27625

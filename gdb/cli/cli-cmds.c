@@ -1625,7 +1625,7 @@ show_user (const char *args, int from_tty)
     {
       for (c = cmdlist; c; c = c->next)
 	{
-	  if (cli_user_command_p (c) || c->prefixlist != NULL)
+	  if (cli_user_command_p (c) || c->is_prefix ())
 	    show_user_1 (c, "", c->name, gdb_stdout);
 	}
     }
@@ -1900,7 +1900,7 @@ alias_command (const char *args, int from_tty)
       /* We've already tried to look up COMMAND.  */
       gdb_assert (c_command != NULL
 		  && c_command != (struct cmd_list_element *) -1);
-      gdb_assert (c_command->prefixlist != NULL);
+      gdb_assert (c_command->is_prefix ());
       c_alias = lookup_cmd_1 (& alias_prefix, cmdlist, NULL, NULL, 1);
       if (c_alias != c_command)
 	error (_("ALIAS and COMMAND prefixes do not match."));
@@ -1909,7 +1909,7 @@ alias_command (const char *args, int from_tty)
       alias_cmd = add_alias_cmd (xstrdup (alias_argv[alias_argc - 1]),
 				 command_argv[command_argc - 1],
 				 class_alias, a_opts.abbrev_flag,
-				 c_command->prefixlist);
+				 c_command->subcommands);
     }
 
   gdb_assert (alias_cmd != nullptr);
@@ -2352,10 +2352,10 @@ Show verbosity."), NULL,
 
   add_basic_prefix_cmd ("history", class_support, _("\
 Generic command for setting command history parameters."),
-			&sethistlist, "set history ", 0, &setlist);
+			&sethistlist, 0, &setlist);
   add_show_prefix_cmd ("history", class_support, _("\
 Generic command for showing command history parameters."),
-		       &showhistlist, "show history ", 0, &showlist);
+		       &showhistlist, 0, &showlist);
 
   add_setshow_boolean_cmd ("expansion", no_class, &history_expansion_p, _("\
 Set history expansion on command input."), _("\
@@ -2367,7 +2367,7 @@ Without an argument, history expansion is enabled."),
 
   add_prefix_cmd ("info", class_info, info_command, _("\
 Generic command for showing things about the program being debugged."),
-		  &infolist, "info ", 0, &cmdlist);
+		  &infolist, 0, &cmdlist);
   add_com_alias ("i", "info", class_info, 1);
   add_com_alias ("inf", "info", class_info, 1);
 
@@ -2376,7 +2376,7 @@ Generic command for showing things about the program being debugged."),
 
   c = add_show_prefix_cmd ("show", class_info, _("\
 Generic command for showing things about the debugger."),
-			   &showlist, "show ", 0, &cmdlist);
+			   &showlist, 0, &cmdlist);
   /* Another way to get at the same thing.  */
   add_alias_cmd ("set", c, class_info, 0, &infolist);
 
@@ -2449,11 +2449,11 @@ the previous command number shown."),
 
   add_basic_prefix_cmd ("debug", no_class,
 			_("Generic command for setting gdb debugging flags."),
-			&setdebuglist, "set debug ", 0, &setlist);
+			&setdebuglist, 0, &setlist);
 
   add_show_prefix_cmd ("debug", no_class,
 		       _("Generic command for showing gdb debugging flags."),
-		       &showdebuglist, "show debug ", 0, &showlist);
+		       &showdebuglist, 0, &showlist);
 
   c = add_com ("shell", class_support, shell_command, _("\
 Execute the rest of the line as a shell command.\n\

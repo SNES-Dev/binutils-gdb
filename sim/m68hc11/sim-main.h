@@ -28,8 +28,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "opcode/m68hc11.h"
 
-#include "gdb/callback.h"
-#include "gdb/remote-sim.h"
+#include "sim/callback.h"
+#include "sim/sim.h"
 #include "opcode/m68hc11.h"
 #include "sim-types.h"
 
@@ -559,13 +559,6 @@ extern int m68hc11cpu_set_oscillator (SIM_DESC sd, const char *port,
 extern int m68hc11cpu_clear_oscillator (SIM_DESC sd, const char *port);
 extern void m68hc11cpu_set_port (struct hw *me, sim_cpu *cpu,
 				 unsigned addr, uint8 val);
-
-/* The current state of the processor; registers, memory, etc.  */
-
-struct sim_state {
-  sim_cpu        *cpu[MAX_NR_PROCESSORS];
-  sim_state_base base;
-};
 
 extern void sim_board_reset (SIM_DESC sd);
 

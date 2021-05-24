@@ -26,9 +26,7 @@
 
 /* Basic configuration */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include "defs.h"
 
 /* Basic host dependant mess - hopefully <stdio.h> + <stdarg.h> will
    bring potential conflicts out in the open */
@@ -119,8 +117,8 @@ typedef enum {
 /* Basic definitions - ordered so that nothing calls what comes after it.  */
 
 #include "ansidecl.h"
-#include "gdb/callback.h"
-#include "gdb/remote-sim.h"
+#include "sim/callback.h"
+#include "sim/sim.h"
 
 #include "sim-config.h"
 

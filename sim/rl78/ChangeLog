@@ -1,3 +1,24 @@
+2021-05-23  Mike Frysinger  <vapier@gentoo.org>
+
+	* gdb-if.c (open): Rename to ...
+	(is_open): ... this.
+	(sim_open, sim_close): Rename open to is_open.
+
+2021-05-16  Mike Frysinger  <vapier@gentoo.org>
+
+	* cpu.c, gdb-if.c, load.c, main.c, mem.c, rl78.c, trace.c: Replace
+	config.h include with defs.h.
+
+2021-05-16  Mike Frysinger  <vapier@gentoo.org>
+
+	* config.in, configure: Regenerate.
+
+2021-05-14  Mike Frysinger  <vapier@gentoo.org>
+
+	* Makefile.in: Update path.
+	* gdb-if.c: Update include path.
+	* load.h: Likewise.
+
 2021-05-05  Mike Frysinger  <vapier@gentoo.org>
 
 	* gdb-if.c: Include libiberty.h.
