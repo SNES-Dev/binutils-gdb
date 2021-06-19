@@ -359,7 +359,7 @@ print_insn(const w65_insn* insn,const struct w65_operand* op){
   if(op->symbol!=0){
     bfd_reloc_code_real_type reloc_ty = w65_addr_mode_to_reloc_code(op->md);
     reloc_howto_type* howto = bfd_reloc_type_lookup(stdoutput,reloc_ty);
-    md_number_to_chars(frag,0xffffff,insn_size-1);
+    md_number_to_chars(frag,0,insn_size-1);
     symbolS* sym = symbol_find_or_make(op->symbol);
     
     fixS *fix =fix_new(frag_now,frag - frag_now->fr_literal,insn_size-1,sym,0,howto->pc_relative,reloc_ty);
