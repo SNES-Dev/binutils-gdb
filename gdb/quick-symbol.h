@@ -86,6 +86,12 @@ struct quick_symbol_functions
      available.  */
   virtual bool has_symbols (struct objfile *objfile) = 0;
 
+  /* Return true if OBJFILE has any unexpanded symtabs.  A return value of
+     false indicates there are no unexpanded symtabs, this might mean that
+     all of the symtabs have been expanded (full debug has been read in),
+     or it might been that OBJFILE has no debug information.  */
+  virtual bool has_unexpanded_symtabs (struct objfile *objfile) = 0;
+
   /* Return the symbol table for the "last" file appearing in
      OBJFILE.  */
   virtual struct symtab *find_last_source_symtab (struct objfile *objfile) = 0;
@@ -161,6 +167,8 @@ struct quick_symbol_functions
      If the symbol name does not match LOOKUP_NAME, the symbol is skipped.
 
      If SYMBOL_MATCHER returns false, then the symbol is skipped.
+     Note that if SYMBOL_MATCHER is non-NULL, then LOOKUP_NAME must
+     also be provided.
 
      Otherwise, the symbol's symbol table is expanded and the
      notification function is called.  If the notification function

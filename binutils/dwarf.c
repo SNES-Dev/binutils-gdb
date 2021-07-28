@@ -823,7 +823,7 @@ typedef struct abbrev_attr
 {
   unsigned long          attribute;
   unsigned long          form;
-  bfd_signed_vma         implicit_const;
+  dwarf_signed_vma       implicit_const;
   struct abbrev_attr *   next;
 }
 abbrev_attr;
@@ -998,19 +998,19 @@ add_abbrev (unsigned long  number,
 }
 
 static void
-add_abbrev_attr (unsigned long   attribute,
-		 unsigned long   form,
-		 bfd_signed_vma  implicit_const,
-		 abbrev_list *   list)
+add_abbrev_attr (unsigned long    attribute,
+		 unsigned long    form,
+		 dwarf_signed_vma implicit_const,
+		 abbrev_list *    list)
 {
   abbrev_attr *attr;
 
   attr = (abbrev_attr *) xmalloc (sizeof (*attr));
 
-  attr->attribute = attribute;
-  attr->form      = form;
+  attr->attribute      = attribute;
+  attr->form           = form;
   attr->implicit_const = implicit_const;
-  attr->next      = NULL;
+  attr->next           = NULL;
 
   assert (list != NULL && list->last_abbrev != NULL);
 
@@ -1085,7 +1085,7 @@ process_abbrev_set (struct dwarf_section *section,
 	{
 	  unsigned long form;
 	  /* Initialize it due to a false compiler warning.  */
-	  bfd_signed_vma implicit_const = -1;
+	  dwarf_signed_vma implicit_const = -1;
 
 	  READ_ULEB (attribute, start, end);
 	  if (start == end)
@@ -2066,6 +2066,7 @@ static abbrev_entry *
 get_type_abbrev_from_form (unsigned long form,
 			   unsigned long uvalue,
 			   dwarf_vma cu_offset,
+			   unsigned char *cu_end,
 			   const struct dwarf_section *section,
 			   unsigned long *abbrev_num_return,
 			   unsigned char **data_return,
@@ -2106,10 +2107,10 @@ get_type_abbrev_from_form (unsigned long form,
     case DW_FORM_ref4:
     case DW_FORM_ref8:
     case DW_FORM_ref_udata:
-      if (uvalue + cu_offset > section->size)
+      if (uvalue + cu_offset > (size_t) (cu_end - section->start))
 	{
-	  warn (_("Unable to resolve ref form: uvalue %lx + cu_offset %lx > section size %lx\n"),
-		uvalue, (long) cu_offset, (long) section->size);
+	  warn (_("Unable to resolve ref form: uvalue %lx + cu_offset %lx > CU size %lx\n"),
+		uvalue, (long) cu_offset, (long) (cu_end - section->start));
 	  return NULL;
 	}
       uvalue += cu_offset;
@@ -2211,7 +2212,7 @@ get_type_signedness (abbrev_entry *entry,
 	      if (attr->form == DW_FORM_strp)
 		printf (", %s", fetch_indirect_string (uvalue));
 	      else if (attr->form == DW_FORM_string)
-		printf (", %s", orig_data);
+		printf (", %.*s", (int) (end - orig_data), orig_data);
 	    }
 	  break;
 
@@ -2225,6 +2226,7 @@ get_type_signedness (abbrev_entry *entry,
 	    type_abbrev = get_type_abbrev_from_form (attr->form,
 						     uvalue,
 						     cu_offset,
+						     end,
 						     section,
 						     NULL /* abbrev num return */,
 						     &type_data,
@@ -2278,7 +2280,7 @@ read_and_print_leb128 (unsigned char *data,
   int status;
   dwarf_vma val = read_leb128 (data, end, is_signed, bytes_read, &status);
   if (status != 0)
-    report_leb_status (status, __FILE__, __LINE__);
+    report_leb_status (status);
   else
     printf ("%s", dwarf_vmatoa (is_signed ? "d" : "u", val));
 }
@@ -2287,9 +2289,10 @@ static void
 display_discr_list (unsigned long          form,
 		    dwarf_vma              uvalue,
 		    unsigned char *        data,
-		    unsigned const char *  end,
 		    int                    level)
 {
+  unsigned char *end = data;
+
   if (uvalue == 0)
     {
       printf ("[default]");
@@ -2318,41 +2321,32 @@ display_discr_list (unsigned long          form,
       return;
     }
 
-  bool is_signed =
-    (level > 0 && level <= MAX_CU_NESTING)
-    ? level_type_signed [level - 1] : false;
+  bool is_signed = (level > 0 && level <= MAX_CU_NESTING
+		    ? level_type_signed [level - 1] : false);
 
   printf ("(");
-  while (uvalue)
+  while (data < end)
     {
       unsigned char     discriminant;
       unsigned int      bytes_read;
 
       SAFE_BYTE_GET_AND_INC (discriminant, data, 1, end);
-      -- uvalue;
 
-      assert (uvalue > 0);
       switch (discriminant)
 	{
 	case DW_DSC_label:
 	  printf ("label ");
 	  read_and_print_leb128 (data, & bytes_read, end, is_signed);
-	  assert (bytes_read <= uvalue && bytes_read > 0);
-	  uvalue -= bytes_read;
 	  data += bytes_read;
 	  break;
 
 	case DW_DSC_range:
 	  printf ("range ");
 	  read_and_print_leb128 (data, & bytes_read, end, is_signed);
-	  assert (bytes_read <= uvalue && bytes_read > 0);
-	  uvalue -= bytes_read;
 	  data += bytes_read;
 
 	  printf ("..");
 	  read_and_print_leb128 (data, & bytes_read, end, is_signed);
-	  assert (bytes_read <= uvalue && bytes_read > 0);
-	  uvalue -= bytes_read;
 	  data += bytes_read;
 	  break;
 
@@ -2363,7 +2357,7 @@ display_discr_list (unsigned long          form,
 	  return;
 	}
 
-      if (uvalue)
+      if (data < end)
 	printf (", ");
     }
 
@@ -2517,6 +2511,10 @@ read_and_display_attr_value (unsigned long           attribute,
 					  offset_size, dwarf_version,
 					  debug_info_p, do_loc,
 					  section, this_set, delimiter, level);
+
+    case DW_FORM_implicit_const:
+      uvalue = implicit_const;
+      break;
     }
 
   switch (form)
@@ -2959,8 +2957,10 @@ read_and_display_attr_value (unsigned long           attribute,
 	  unsigned char *type_data;
 	  abbrev_map *map;
 
-	  type_abbrev = get_type_abbrev_from_form (form, uvalue, cu_offset,
-						   section, NULL, &type_data, &map);
+	  type_abbrev = get_type_abbrev_from_form (form, uvalue,
+						   cu_offset, end,
+						   section, NULL,
+						   &type_data, &map);
 	  if (type_abbrev != NULL)
 	    {
 	      get_type_signedness (type_abbrev, section, type_data,
@@ -3222,7 +3222,7 @@ read_and_display_attr_value (unsigned long           attribute,
 
     case DW_AT_discr_list:
       printf ("\t");
-      display_discr_list (form, uvalue, data, end, level);
+      display_discr_list (form, uvalue, data, level);
       break;
 
     case DW_AT_frame_base:
@@ -3293,7 +3293,7 @@ read_and_display_attr_value (unsigned long           attribute,
 	unsigned long abbrev_number;
 	abbrev_entry *entry;
 
-	entry = get_type_abbrev_from_form (form, uvalue, cu_offset,
+	entry = get_type_abbrev_from_form (form, uvalue, cu_offset, end,
 					   section, & abbrev_number, NULL, NULL);
 	if (entry == NULL)
 	  {
@@ -3463,8 +3463,10 @@ process_debug_info (struct dwarf_section * section,
 	 relocations to an object file, or if the file is corrupt.  */
       if (length > (size_t) (end - section_begin))
 	{
-	  warn (_("Corrupt unit length (0x%s) found in section %s\n"),
-		dwarf_vmatoa ("x", length), section->name);
+	  warn (_("Corrupt unit length (got 0x%s expected at most 0x%s) in section %s\n"),
+		dwarf_vmatoa ("x", length),
+		dwarf_vmatoa ("x", end - section_begin),
+		section->name);
 	  return false;
 	}
       section_begin += length;
@@ -5426,31 +5428,22 @@ display_debug_lines_decoded (struct dwarf_section *  section,
 		fileName = _("<unknown>");
 
 	      fileNameLength = strlen (fileName);
-
-	      if ((fileNameLength > MAX_FILENAME_LENGTH) && (!do_wide))
+	      newFileName = fileName;
+	      if (fileNameLength > MAX_FILENAME_LENGTH && !do_wide)
 		{
 		  newFileName = (char *) xmalloc (MAX_FILENAME_LENGTH + 1);
 		  /* Truncate file name */
-		  strncpy (newFileName,
-			   fileName + fileNameLength - MAX_FILENAME_LENGTH,
-			   MAX_FILENAME_LENGTH + 1);
-		  /* FIXME: This is to pacify gcc-10 which can warn that the
-		     strncpy above might leave a non-NUL terminated string
-		     in newFileName.  It won't, but gcc's analysis doesn't
-		     quite go far enough to discover this.  */
+		  memcpy (newFileName,
+			  fileName + fileNameLength - MAX_FILENAME_LENGTH,
+			  MAX_FILENAME_LENGTH);
 		  newFileName[MAX_FILENAME_LENGTH] = 0;
-		}
-	      else
-		{
-		  newFileName = (char *) xmalloc (fileNameLength + 1);
-		  strncpy (newFileName, fileName, fileNameLength + 1);
 		}
 
 	      /* A row with end_seq set to true has a meaningful address, but
 		 the other information in the same row is not significant.
 		 In such a row, print line as "-", and don't print
 		 view/is_stmt.  */
-	      if (!do_wide || (fileNameLength <= MAX_FILENAME_LENGTH))
+	      if (!do_wide || fileNameLength <= MAX_FILENAME_LENGTH)
 		{
 		  if (linfo.li_max_ops_per_insn == 1)
 		    {
@@ -5525,7 +5518,8 @@ display_debug_lines_decoded (struct dwarf_section *  section,
 		  putchar ('\n');
 		}
 
-	      free (newFileName);
+	      if (newFileName != fileName)
+		free (newFileName);
 	    }
 	}
 
@@ -6255,7 +6249,7 @@ display_debug_abbrev (struct dwarf_section *section,
 		      get_AT_name (attr->attribute),
 		      get_FORM_name (attr->form));
 	      if (attr->form == DW_FORM_implicit_const)
-		printf (": %" BFD_VMA_FMT "d", attr->implicit_const);
+		printf (": %s", dwarf_vmatoa ("d", attr->implicit_const));
 	      putchar ('\n');
 	    }
 	}
@@ -7284,7 +7278,7 @@ display_debug_aranges (struct dwarf_section *section,
 
       start = end_ranges;
 
-      while (2 * address_size <= (size_t) (start - addr_ranges))
+      while (2u * address_size <= (size_t) (start - addr_ranges))
 	{
 	  SAFE_BYTE_GET_AND_INC (address, addr_ranges, address_size, start);
 	  SAFE_BYTE_GET_AND_INC (length, addr_ranges, address_size, start);
@@ -9440,19 +9434,21 @@ display_debug_frames (struct dwarf_section *section,
 
 	    case DW_CFA_def_cfa_sf:
 	      READ_ULEB (fc->cfa_reg, start, block_end);
-	      READ_ULEB (fc->cfa_offset, start, block_end);
-	      fc->cfa_offset = fc->cfa_offset * fc->data_factor;
+	      READ_SLEB (l, start, block_end);
+	      l *= fc->data_factor;
+	      fc->cfa_offset = l;
 	      fc->cfa_exp = 0;
 	      if (! do_debug_frames_interp)
-		printf ("  DW_CFA_def_cfa_sf: %s ofs %d\n",
-			regname (fc->cfa_reg, 0), (int) fc->cfa_offset);
+		printf ("  DW_CFA_def_cfa_sf: %s ofs %ld\n",
+			regname (fc->cfa_reg, 0), (long) l);
 	      break;
 
 	    case DW_CFA_def_cfa_offset_sf:
-	      READ_ULEB (fc->cfa_offset, start, block_end);
-	      fc->cfa_offset *= fc->data_factor;
+	      READ_SLEB (l, start, block_end);
+	      l *= fc->data_factor;
+	      fc->cfa_offset = l;
 	      if (! do_debug_frames_interp)
-		printf ("  DW_CFA_def_cfa_offset_sf: %d\n", (int) fc->cfa_offset);
+		printf ("  DW_CFA_def_cfa_offset_sf: %ld\n", (long) l);
 	      break;
 
 	    case DW_CFA_MIPS_advance_loc8:
@@ -11684,53 +11680,53 @@ dwarf_select_sections_all (void)
 
 struct dwarf_section_display debug_displays[] =
 {
-  { { ".debug_abbrev",	    ".zdebug_abbrev",	NO_ABBREVS },      display_debug_abbrev,   &do_debug_abbrevs,	false },
-  { { ".debug_aranges",	    ".zdebug_aranges",	NO_ABBREVS },      display_debug_aranges,  &do_debug_aranges,	true },
-  { { ".debug_frame",       ".zdebug_frame",	NO_ABBREVS },      display_debug_frames,   &do_debug_frames,	true },
-  { { ".debug_info",	    ".zdebug_info",	ABBREV (abbrev)},  display_debug_info,	   &do_debug_info,	true },
-  { { ".debug_line",	    ".zdebug_line",	NO_ABBREVS },      display_debug_lines,    &do_debug_lines,	true },
-  { { ".debug_pubnames",    ".zdebug_pubnames",	NO_ABBREVS },      display_debug_pubnames, &do_debug_pubnames,	false },
-  { { ".debug_gnu_pubnames", ".zdebug_gnu_pubnames", NO_ABBREVS }, display_debug_gnu_pubnames, &do_debug_pubnames, false },
-  { { ".eh_frame",	    "",			NO_ABBREVS },      display_debug_frames,   &do_debug_frames,	true },
-  { { ".debug_macinfo",	    ".zdebug_macinfo",	NO_ABBREVS },      display_debug_macinfo,  &do_debug_macinfo,	false },
-  { { ".debug_macro",	    ".zdebug_macro",	NO_ABBREVS },      display_debug_macro,    &do_debug_macinfo,	true },
-  { { ".debug_str",	    ".zdebug_str",	NO_ABBREVS },      display_debug_str,	   &do_debug_str,	false },
-  { { ".debug_line_str",    ".zdebug_line_str",	NO_ABBREVS },      display_debug_str,	   &do_debug_str,	false },
-  { { ".debug_loc",	    ".zdebug_loc",	NO_ABBREVS },      display_debug_loc,	   &do_debug_loc,	true },
-  { { ".debug_loclists",    ".zdebug_loclists",	NO_ABBREVS },      display_debug_loc,	   &do_debug_loc,	true },
-  { { ".debug_pubtypes",    ".zdebug_pubtypes",	NO_ABBREVS },      display_debug_pubnames, &do_debug_pubtypes,	false },
-  { { ".debug_gnu_pubtypes", ".zdebug_gnu_pubtypes", NO_ABBREVS }, display_debug_gnu_pubnames, &do_debug_pubtypes, false },
-  { { ".debug_ranges",	    ".zdebug_ranges",	NO_ABBREVS },      display_debug_ranges,   &do_debug_ranges,	true },
-  { { ".debug_rnglists",    ".zdebug_rnglists",	NO_ABBREVS },      display_debug_ranges,   &do_debug_ranges,	true },
-  { { ".debug_static_func", ".zdebug_static_func", NO_ABBREVS },   display_debug_not_supported, NULL,		false },
-  { { ".debug_static_vars", ".zdebug_static_vars", NO_ABBREVS },   display_debug_not_supported, NULL,		false },
-  { { ".debug_types",	    ".zdebug_types",	ABBREV (abbrev) }, display_debug_types,    &do_debug_info,	true },
-  { { ".debug_weaknames",   ".zdebug_weaknames", NO_ABBREVS },     display_debug_not_supported, NULL,		false },
-  { { ".gdb_index",	    "",			NO_ABBREVS },      display_gdb_index,      &do_gdb_index,	false },
-  { { ".debug_names",	    "",			NO_ABBREVS },      display_debug_names,    &do_gdb_index,	false },
-  { { ".trace_info",	    "",			ABBREV (trace_abbrev) }, display_trace_info, &do_trace_info,	true },
-  { { ".trace_abbrev",	    "",			NO_ABBREVS },      display_debug_abbrev,   &do_trace_abbrevs,	false },
-  { { ".trace_aranges",	    "",			NO_ABBREVS },      display_debug_aranges,  &do_trace_aranges,	false },
-  { { ".debug_info.dwo",    ".zdebug_info.dwo",	ABBREV (abbrev_dwo) }, display_debug_info, &do_debug_info,	true },
-  { { ".debug_abbrev.dwo",  ".zdebug_abbrev.dwo", NO_ABBREVS },    display_debug_abbrev,   &do_debug_abbrevs,	false },
-  { { ".debug_types.dwo",   ".zdebug_types.dwo", ABBREV (abbrev_dwo) }, display_debug_types, &do_debug_info,	true },
-  { { ".debug_line.dwo",    ".zdebug_line.dwo", NO_ABBREVS },      display_debug_lines,    &do_debug_lines,	true },
-  { { ".debug_loc.dwo",	    ".zdebug_loc.dwo",	NO_ABBREVS },      display_debug_loc,	   &do_debug_loc,	true },
-  { { ".debug_macro.dwo",   ".zdebug_macro.dwo", NO_ABBREVS },     display_debug_macro,    &do_debug_macinfo,	true },
-  { { ".debug_macinfo.dwo", ".zdebug_macinfo.dwo", NO_ABBREVS },   display_debug_macinfo,  &do_debug_macinfo,	false },
-  { { ".debug_str.dwo",     ".zdebug_str.dwo",  NO_ABBREVS },      display_debug_str,      &do_debug_str,	true },
-  { { ".debug_str_offsets", ".zdebug_str_offsets", NO_ABBREVS },   display_debug_str_offsets, &do_debug_str_offsets, true },
-  { { ".debug_str_offsets.dwo", ".zdebug_str_offsets.dwo", NO_ABBREVS }, display_debug_str_offsets, &do_debug_str_offsets, true },
-  { { ".debug_addr",	    ".zdebug_addr",     NO_ABBREVS },      display_debug_addr,     &do_debug_addr,	true },
-  { { ".debug_cu_index",    "",			NO_ABBREVS },      display_cu_index,       &do_debug_cu_index,	false },
-  { { ".debug_tu_index",    "",			NO_ABBREVS },      display_cu_index,       &do_debug_cu_index,	false },
-  { { ".gnu_debuglink",     "",                 NO_ABBREVS },      display_debug_links,    &do_debug_links,     false },
-  { { ".gnu_debugaltlink",  "",                 NO_ABBREVS },      display_debug_links,    &do_debug_links,     false },
-  { { ".debug_sup",         "",			NO_ABBREVS },      display_debug_sup,      &do_debug_links,	false },
+  { { ".debug_abbrev",	    ".zdebug_abbrev",	     ".dwabrev", NO_ABBREVS },	    display_debug_abbrev,   &do_debug_abbrevs,	false },
+  { { ".debug_aranges",	    ".zdebug_aranges",	     ".dwarnge", NO_ABBREVS },	    display_debug_aranges,  &do_debug_aranges,	true },
+  { { ".debug_frame",	    ".zdebug_frame",	     ".dwframe", NO_ABBREVS },	    display_debug_frames,   &do_debug_frames,	true },
+  { { ".debug_info",	    ".zdebug_info",	     ".dwinfo",	 ABBREV (abbrev)},  display_debug_info,	    &do_debug_info,	true },
+  { { ".debug_line",	    ".zdebug_line",	     ".dwline",	 NO_ABBREVS },	    display_debug_lines,    &do_debug_lines,	true },
+  { { ".debug_pubnames",    ".zdebug_pubnames",	     ".dwpbnms", NO_ABBREVS },	    display_debug_pubnames, &do_debug_pubnames, false },
+  { { ".debug_gnu_pubnames", ".zdebug_gnu_pubnames", "",	 NO_ABBREVS },	    display_debug_gnu_pubnames, &do_debug_pubnames, false },
+  { { ".eh_frame",	    "",			     "",	 NO_ABBREVS },	    display_debug_frames,   &do_debug_frames,	true },
+  { { ".debug_macinfo",	    ".zdebug_macinfo",	     "",	 NO_ABBREVS },	    display_debug_macinfo,  &do_debug_macinfo,	false },
+  { { ".debug_macro",	    ".zdebug_macro",	     ".dwmac",	 NO_ABBREVS },	    display_debug_macro,    &do_debug_macinfo,	true },
+  { { ".debug_str",	    ".zdebug_str",	     ".dwstr",	 NO_ABBREVS },	    display_debug_str,	    &do_debug_str,	false },
+  { { ".debug_line_str",    ".zdebug_line_str",	     "",	 NO_ABBREVS },	    display_debug_str,	    &do_debug_str,	false },
+  { { ".debug_loc",	    ".zdebug_loc",	     ".dwloc",	 NO_ABBREVS },	    display_debug_loc,	    &do_debug_loc,	true },
+  { { ".debug_loclists",    ".zdebug_loclists",	     "",	 NO_ABBREVS },	    display_debug_loc,	    &do_debug_loc,	true },
+  { { ".debug_pubtypes",    ".zdebug_pubtypes",	     ".dwpbtyp", NO_ABBREVS },	    display_debug_pubnames, &do_debug_pubtypes, false },
+  { { ".debug_gnu_pubtypes", ".zdebug_gnu_pubtypes", "",	 NO_ABBREVS },	    display_debug_gnu_pubnames, &do_debug_pubtypes, false },
+  { { ".debug_ranges",	    ".zdebug_ranges",	     ".dwrnges", NO_ABBREVS },	    display_debug_ranges,   &do_debug_ranges,	true },
+  { { ".debug_rnglists",    ".zdebug_rnglists",	     "",	 NO_ABBREVS },	    display_debug_ranges,   &do_debug_ranges,	true },
+  { { ".debug_static_func", ".zdebug_static_func",   "",	 NO_ABBREVS },	    display_debug_not_supported, NULL,		false },
+  { { ".debug_static_vars", ".zdebug_static_vars",   "",	 NO_ABBREVS },	    display_debug_not_supported, NULL,		false },
+  { { ".debug_types",	    ".zdebug_types",	     "",	 ABBREV (abbrev) }, display_debug_types,    &do_debug_info,	true },
+  { { ".debug_weaknames",   ".zdebug_weaknames",     "",	 NO_ABBREVS },	    display_debug_not_supported, NULL,		false },
+  { { ".gdb_index",	    "",			     "",	 NO_ABBREVS },	    display_gdb_index,	    &do_gdb_index,	false },
+  { { ".debug_names",	    "",			     "",	 NO_ABBREVS },	    display_debug_names,    &do_gdb_index,	false },
+  { { ".trace_info",	    "",			     "",	 ABBREV (trace_abbrev) }, display_trace_info, &do_trace_info,	true },
+  { { ".trace_abbrev",	    "",			     "",	 NO_ABBREVS },	    display_debug_abbrev,   &do_trace_abbrevs,	false },
+  { { ".trace_aranges",	    "",			     "",	 NO_ABBREVS },	    display_debug_aranges,  &do_trace_aranges,	false },
+  { { ".debug_info.dwo",    ".zdebug_info.dwo",	     "",	 ABBREV (abbrev_dwo) }, display_debug_info, &do_debug_info,	true },
+  { { ".debug_abbrev.dwo",  ".zdebug_abbrev.dwo",    "",	 NO_ABBREVS },	  display_debug_abbrev,	    &do_debug_abbrevs,	false },
+  { { ".debug_types.dwo",   ".zdebug_types.dwo",     "",	 ABBREV (abbrev_dwo) }, display_debug_types, &do_debug_info,	true },
+  { { ".debug_line.dwo",    ".zdebug_line.dwo",	     "",	 NO_ABBREVS },	    display_debug_lines,    &do_debug_lines,	true },
+  { { ".debug_loc.dwo",	    ".zdebug_loc.dwo",	     "",	 NO_ABBREVS },	    display_debug_loc,	    &do_debug_loc,	true },
+  { { ".debug_macro.dwo",   ".zdebug_macro.dwo",     "",	 NO_ABBREVS },	    display_debug_macro,    &do_debug_macinfo,	true },
+  { { ".debug_macinfo.dwo", ".zdebug_macinfo.dwo",   "",	 NO_ABBREVS },	    display_debug_macinfo,  &do_debug_macinfo,	false },
+  { { ".debug_str.dwo",	    ".zdebug_str.dwo",	     "",	 NO_ABBREVS },	    display_debug_str,	    &do_debug_str,	true },
+  { { ".debug_str_offsets", ".zdebug_str_offsets",   "",	 NO_ABBREVS },	    display_debug_str_offsets, &do_debug_str_offsets, true },
+  { { ".debug_str_offsets.dwo", ".zdebug_str_offsets.dwo", "",	 NO_ABBREVS },	    display_debug_str_offsets, &do_debug_str_offsets, true },
+  { { ".debug_addr",	    ".zdebug_addr",	     "",	 NO_ABBREVS },	    display_debug_addr,	    &do_debug_addr,	true },
+  { { ".debug_cu_index",    "",			     "",	 NO_ABBREVS },	    display_cu_index,	    &do_debug_cu_index, false },
+  { { ".debug_tu_index",    "",			     "",	 NO_ABBREVS },	    display_cu_index,	    &do_debug_cu_index, false },
+  { { ".gnu_debuglink",	    "",			     "",	 NO_ABBREVS },	    display_debug_links,    &do_debug_links,	false },
+  { { ".gnu_debugaltlink",  "",			     "",	 NO_ABBREVS },	    display_debug_links,    &do_debug_links,	false },
+  { { ".debug_sup",	    "",			     "",	 NO_ABBREVS },	    display_debug_sup,	    &do_debug_links,	false },
   /* Separate debug info files can containt their own .debug_str section,
      and this might be in *addition* to a .debug_str section already present
-     in the main file.  Hence we need to have two entries for .debug_str.  */
-  { { ".debug_str",	    ".zdebug_str",	NO_ABBREVS },      display_debug_str,	   &do_debug_str,	false },
+     in the main file.	Hence we need to have two entries for .debug_str.  */
+  { { ".debug_str",	    ".zdebug_str",	"",	  NO_ABBREVS },	     display_debug_str,	   &do_debug_str,	false },
 };
 
 /* A static assertion.  */

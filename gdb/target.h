@@ -636,7 +636,7 @@ struct target_ops
       TARGET_DEFAULT_RETURN (1);
     virtual int remove_vfork_catchpoint (int)
       TARGET_DEFAULT_RETURN (1);
-    virtual void follow_fork (bool, bool)
+    virtual void follow_fork (ptid_t, target_waitkind, bool, bool)
       TARGET_DEFAULT_FUNC (default_follow_fork);
     virtual int insert_exec_catchpoint (int)
       TARGET_DEFAULT_RETURN (1);
@@ -1713,13 +1713,14 @@ extern int target_insert_vfork_catchpoint (int pid);
 
 extern int target_remove_vfork_catchpoint (int pid);
 
-/* If the inferior forks or vforks, this function will be called at
-   the next resume in order to perform any bookkeeping and fiddling
-   necessary to continue debugging either the parent or child, as
-   requested, and releasing the other.  Information about the fork
-   or vfork event is available via get_last_target_status ().  */
+/* Call the follow_fork method on the current target stack.
 
-void target_follow_fork (bool follow_child, bool detach_fork);
+   This function is called when the inferior forks or vforks, to perform any
+   bookkeeping and fiddling necessary to continue debugging either the parent,
+   the child or both.  */
+
+void target_follow_fork (ptid_t child_ptid, target_waitkind fork_kind,
+			 bool follow_child, bool detach_fork);
 
 /* Handle the target-specific bookkeeping required when the inferior makes an
    exec call.
@@ -2230,6 +2231,12 @@ extern LONGEST target_fileio_read_alloc (struct inferior *inf,
 extern gdb::unique_xmalloc_ptr<char> target_fileio_read_stralloc
     (struct inferior *inf, const char *filename);
 
+/* Invalidate the target associated with open handles that were open
+   on target TARG, since we're about to close (and maybe destroy) the
+   target.  The handles remain open from the client's perspective, but
+   trying to do anything with them other than closing them will fail
+   with EIO.  */
+extern void fileio_handles_invalidate_target (target_ops *targ);
 
 /* Tracepoint-related operations.  */
 

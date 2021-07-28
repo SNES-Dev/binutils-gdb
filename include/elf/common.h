@@ -748,6 +748,7 @@
 
 #define NT_VERSION	1		/* Contains a version string.  */
 #define NT_ARCH		2		/* Contains an architecture string.  */
+#define NT_GO_BUILDID	4		/* Contains GO buildid data.  */
 
 /* Values for notes in non-core files using name "GNU".  */
 
@@ -780,6 +781,23 @@
 /* Values used in GNU .note.gnu.property notes (NT_GNU_PROPERTY_TYPE_0).  */
 #define GNU_PROPERTY_STACK_SIZE			1
 #define GNU_PROPERTY_NO_COPY_ON_PROTECTED	2
+
+/* A 4-byte unsigned integer property: A bit is set if it is set in all
+   relocatable inputs.  */
+#define GNU_PROPERTY_UINT32_AND_LO	0xb0000000
+#define GNU_PROPERTY_UINT32_AND_HI	0xb0007fff
+
+/* A 4-byte unsigned integer property: A bit is set if it is set in any
+   relocatable inputs.  */
+#define GNU_PROPERTY_UINT32_OR_LO	0xb0008000
+#define GNU_PROPERTY_UINT32_OR_HI	0xb000ffff
+
+/* The needed properties by the object file.  */
+#define GNU_PROPERTY_1_NEEDED		GNU_PROPERTY_UINT32_OR_LO
+
+/* Set if the object file requires canonical function pointers and
+   cannot be used with copy relocation.  */
+#define GNU_PROPERTY_1_NEEDED_INDIRECT_EXTERN_ACCESS	(1U << 0)
 
 /* Processor-specific semantics, lo */
 #define GNU_PROPERTY_LOPROC  0xc0000000

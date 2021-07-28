@@ -43,11 +43,6 @@ SIM_EXTRA_CLEAN = bpf-clean
 
 ## COMMON_POST_CONFIG_FRAG
 
-# cgen support, enable with --enable-cgen-maint
-CGEN_MAINT = ; @true
-# The following line is commented in or out depending upon --enable-cgen-maint.
-@CGEN_MAINT@CGEN_MAINT =
-
 # BPF headers
 
 BPF_INCLUDE_DEPS = \
@@ -56,8 +51,7 @@ BPF_INCLUDE_DEPS = \
 	cpu.h cpuall.h \
         decode-le.h decode-be.h \
         defs-le.h defs-be.h \
-        eng-le.h eng-be.h \
-        config.h
+        eng-le.h eng-be.h
 
 # Dependencies for binaries from CGEN generated source
 

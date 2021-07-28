@@ -1280,13 +1280,7 @@ update_static_array_size (struct type *type)
       int stride;
       struct type *element_type;
 
-      /* If the array itself doesn't provide a stride value then take
-	 whatever stride the range provides.  Don't update BIT_STRIDE as
-	 we don't want to place the stride value from the range into this
-	 arrays bit size field.  */
-      stride = TYPE_FIELD_BITSIZE (type, 0);
-      if (stride == 0)
-	stride = range_type->bit_stride ();
+      stride = type->bit_stride ();
 
       if (!get_discrete_bounds (range_type, &low_bound, &high_bound))
 	low_bound = high_bound = 0;
@@ -4792,11 +4786,13 @@ rank_one_type (struct type *parm, struct type *arg, struct value *value)
     return (sum_ranks (rank_one_type (TYPE_TARGET_TYPE (parm), arg, NULL),
 		       REFERENCE_SEE_THROUGH_BADNESS));
   if (overload_debug)
-  /* Debugging only.  */
-    fprintf_filtered (gdb_stderr,
-		      "------ Arg is %s [%d], parm is %s [%d]\n",
-		      arg->name (), arg->code (),
-		      parm->name (), parm->code ());
+    {
+      /* Debugging only.  */
+      fprintf_filtered (gdb_stderr,
+			"------ Arg is %s [%d], parm is %s [%d]\n",
+			arg->name (), arg->code (),
+			parm->name (), parm->code ());
+    }
 
   /* x -> y means arg of type x being supplied for parameter of type y.  */
 

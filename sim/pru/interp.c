@@ -31,6 +31,7 @@
 #include "sim-main.h"
 #include "sim-assert.h"
 #include "sim-options.h"
+#include "sim-signal.h"
 #include "sim-syscall.h"
 #include "pru.h"
 
@@ -744,6 +745,10 @@ sim_open (SIM_OPEN_KIND kind, host_callback *cb,
   char c;
   SIM_DESC sd = sim_state_alloc (kind, cb);
   SIM_ASSERT (STATE_MAGIC (sd) == SIM_MAGIC_NUMBER);
+
+  /* Set default options before parsing user options.  */
+  current_alignment = STRICT_ALIGNMENT;
+  current_target_byte_order = BFD_ENDIAN_LITTLE;
 
   /* The cpu data is kept in a separately allocated chunk of memory.  */
   if (sim_cpu_alloc_all (sd, 1) != SIM_RC_OK)

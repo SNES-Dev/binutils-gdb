@@ -1,3 +1,86 @@
+2021-06-22  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.ac: Removed.
+	* aclocal.m4: Removed.
+	* configure: Removed.
+
+2021-06-21  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+
+2021-06-21  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
+2021-06-20  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.ac (SIM_AC_COMMON): Delete.
+	* aclocal.m4, configure: Regenerate.
+
+2021-06-20  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+
+2021-06-19  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+
+2021-06-19  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
+2021-06-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4, configure: Regenerate.
+
+2021-06-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
+2021-06-17  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
+2021-06-16  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+
+2021-06-16  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure: Regenerate.
+	* config.in: Removed.
+
+2021-06-15  Mike Frysinger  <vapier@gentoo.org>
+
+	* config.in, configure: Regenerate.
+
+2021-06-12  Mike Frysinger  <vapier@gentoo.org>
+
+	* mem.c: Delete HAVE_SYS_SELECT_H.
+
+2021-06-12  Mike Frysinger  <vapier@gentoo.org>
+
+	* aclocal.m4, config.in, configure: Regenerate.
+
+2021-06-12  Mike Frysinger  <vapier@gentoo.org>
+
+	* configure.ac: Delete call to AC_CHECK_HEADERS_ONCE.
+	* config.in, configure: Regenerate.
+
+2021-06-02  John Baldwin  <jhb@FreeBSD.org>
+
+	* m32c.opc: Include defs.h.
+	* r8c.opc: Likewise.
+
+2021-05-28  Mike Frysinger  <vapier@gentoo.org>
+
+	* gdb-if.c (open): Rename to ...
+	(is_open): ... this.
+	(sim_open, sim_close): Rename open to is_open.
+
 2021-05-16  Mike Frysinger  <vapier@gentoo.org>
 
 	* int.c, misc.c, opc2c.c, reg.c, srcdest.c: Include defs.h.

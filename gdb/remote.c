@@ -682,7 +682,7 @@ public:
 
   const struct btrace_config *btrace_conf (const struct btrace_target_info *) override;
   bool augmented_libraries_svr4_read () override;
-  void follow_fork (bool, bool) override;
+  void follow_fork (ptid_t, target_waitkind, bool, bool) override;
   void follow_exec (inferior *, ptid_t, const char *) override;
   int insert_fork_catchpoint (int) override;
   int remove_fork_catchpoint (int) override;
@@ -766,6 +766,7 @@ public: /* Remote specific methods.  */
 
   void remote_notice_new_inferior (ptid_t currthread, bool executing);
 
+  void print_one_stopped_thread (thread_info *thread);
   void process_initial_stop_replies (int from_tty);
 
   thread_info *remote_add_thread (ptid_t ptid, bool running, bool executing);
@@ -1928,24 +1929,27 @@ add_packet_config_cmd (struct packet_config *config, const char *name,
 			 name, title);
   /* set/show TITLE-packet {auto,on,off} */
   cmd_name = xstrprintf ("%s-packet", title);
-  add_setshow_auto_boolean_cmd (cmd_name, class_obscure,
-				&config->detect, set_doc,
-				show_doc, NULL, /* help_doc */
-				NULL,
-				show_remote_protocol_packet_cmd,
-				&remote_set_cmdlist, &remote_show_cmdlist);
+  set_show_commands cmds
+    = add_setshow_auto_boolean_cmd (cmd_name, class_obscure,
+				    &config->detect, set_doc,
+				    show_doc, NULL, /* help_doc */
+				    NULL,
+				    show_remote_protocol_packet_cmd,
+				    &remote_set_cmdlist, &remote_show_cmdlist);
+
   /* The command code copies the documentation strings.  */
   xfree (set_doc);
   xfree (show_doc);
+
   /* set/show remote NAME-packet {auto,on,off} -- legacy.  */
   if (legacy)
     {
       char *legacy_name;
 
       legacy_name = xstrprintf ("%s-packet", name);
-      add_alias_cmd (legacy_name, cmd_name, class_obscure, 0,
+      add_alias_cmd (legacy_name, cmds.set, class_obscure, 0,
 		     &remote_set_cmdlist);
-      add_alias_cmd (legacy_name, cmd_name, class_obscure, 0,
+      add_alias_cmd (legacy_name, cmds.show, class_obscure, 0,
 		     &remote_show_cmdlist);
     }
 }
@@ -4476,20 +4480,36 @@ remote_target::add_current_inferior_and_thread (const char *wait_status)
 /* Print info about a thread that was found already stopped on
    connection.  */
 
-static void
-print_one_stopped_thread (struct thread_info *thread)
+void
+remote_target::print_one_stopped_thread (thread_info *thread)
 {
-  struct target_waitstatus *ws = &thread->suspend.waitstatus;
+  target_waitstatus ws;
+
+  /* If there is a pending waitstatus, use it.  If there isn't it's because
+     the thread's stop was reported with TARGET_WAITKIND_STOPPED / GDB_SIGNAL_0
+     and process_initial_stop_replies decided it wasn't interesting to save
+     and report to the core.  */
+  if (thread->has_pending_waitstatus ())
+    {
+      ws = thread->pending_waitstatus ();
+      thread->clear_pending_waitstatus ();
+    }
+  else
+    {
+      ws.kind = TARGET_WAITKIND_STOPPED;
+      ws.value.sig = GDB_SIGNAL_0;
+    }
 
   switch_to_thread (thread);
-  thread->suspend.stop_pc = get_frame_pc (get_current_frame ());
+  thread->set_stop_pc (get_frame_pc (get_current_frame ()));
   set_current_sal_from_frame (get_current_frame ());
 
-  thread->suspend.waitstatus_pending_p = 0;
+  /* For "info program".  */
+  set_last_target_status (this, thread->ptid, ws);
 
-  if (ws->kind == TARGET_WAITKIND_STOPPED)
+  if (ws.kind == TARGET_WAITKIND_STOPPED)
     {
-      enum gdb_signal sig = ws->value.sig;
+      enum gdb_signal sig = ws.value.sig;
 
       if (signal_print_state (sig))
 	gdb::observers::signal_received.notify (sig);
@@ -4509,6 +4529,9 @@ remote_target::process_initial_stop_replies (int from_tty)
   struct thread_info *selected = NULL;
   struct thread_info *lowest_stopped = NULL;
   struct thread_info *first = NULL;
+
+  /* This is only used when the target is non-stop.  */
+  gdb_assert (target_is_non_stop_p ());
 
   /* Consume the initial pending events.  */
   while (pending_stop_replies-- > 0)
@@ -4554,15 +4577,13 @@ remote_target::process_initial_stop_replies (int from_tty)
 	     instead of signal 0.  Suppress it.  */
 	  if (sig == GDB_SIGNAL_TRAP)
 	    sig = GDB_SIGNAL_0;
-	  evthread->suspend.stop_signal = sig;
+	  evthread->set_stop_signal (sig);
 	  ws.value.sig = sig;
 	}
 
-      evthread->suspend.waitstatus = ws;
-
       if (ws.kind != TARGET_WAITKIND_STOPPED
 	  || ws.value.sig != GDB_SIGNAL_0)
-	evthread->suspend.waitstatus_pending_p = 1;
+	evthread->set_pending_waitstatus (ws);
 
       set_executing (this, event_ptid, false);
       set_running (this, event_ptid, false);
@@ -4616,8 +4637,7 @@ remote_target::process_initial_stop_replies (int from_tty)
       else if (thread->state != THREAD_STOPPED)
 	continue;
 
-      if (selected == NULL
-	  && thread->suspend.waitstatus_pending_p)
+      if (selected == nullptr && thread->has_pending_waitstatus ())
 	selected = thread;
 
       if (lowest_stopped == NULL
@@ -4641,11 +4661,6 @@ remote_target::process_initial_stop_replies (int from_tty)
 
       print_one_stopped_thread (thread);
     }
-
-  /* For "info program".  */
-  thread_info *thread = inferior_thread ();
-  if (thread->state == THREAD_STOPPED)
-    set_last_target_status (this, inferior_ptid, thread->suspend.waitstatus);
 }
 
 /* Start the remote connection and sync state.  */
@@ -4664,7 +4679,7 @@ remote_target::start_remote (int from_tty, int extended_p)
      Ctrl-C before we're connected and synced up can't interrupt the
      target.  Instead, it offers to drop the (potentially wedged)
      connection.  */
-  rs->starting_up = 1;
+  rs->starting_up = true;
 
   QUIT;
 
@@ -4805,7 +4820,7 @@ remote_target::start_remote (int from_tty, int extended_p)
 
 	  /* We're connected, but not running.  Drop out before we
 	     call start_remote.  */
-	  rs->starting_up = 0;
+	  rs->starting_up = false;
 	  return;
 	}
       else
@@ -4920,7 +4935,7 @@ remote_target::start_remote (int from_tty, int extended_p)
 
 	  /* We're connected, but not running.  Drop out before we
 	     call start_remote.  */
-	  rs->starting_up = 0;
+	  rs->starting_up = false;
 	  return;
 	}
 
@@ -4965,7 +4980,7 @@ remote_target::start_remote (int from_tty, int extended_p)
      target, our symbols have been relocated, and we're merged the
      target's tracepoints with ours.  We're done with basic start
      up.  */
-  rs->starting_up = 0;
+  rs->starting_up = false;
 
   /* Maybe breakpoints are global and need to be inserted now.  */
   if (breakpoints_should_be_inserted_now ())
@@ -5621,6 +5636,15 @@ remote_unpush_target (remote_target *target)
       pop_all_targets_at_and_above (process_stratum);
       generic_mourn_inferior ();
     }
+
+  /* Don't rely on target_close doing this when the target is popped
+     from the last remote inferior above, because something may be
+     holding a reference to the target higher up on the stack, meaning
+     target_close won't be called yet.  We lost the connection to the
+     target, so clear these now, otherwise we may later throw
+     TARGET_CLOSE_ERROR while trying to tell the remote target to
+     close the file.  */
+  fileio_handles_invalidate_target (target);
 }
 
 static void
@@ -5896,13 +5920,13 @@ extended_remote_target::detach (inferior *inf, int from_tty)
    remote target as well.  */
 
 void
-remote_target::follow_fork (bool follow_child, bool detach_fork)
+remote_target::follow_fork (ptid_t child_ptid, target_waitkind fork_kind,
+			    bool follow_child, bool detach_fork)
 {
   struct remote_state *rs = get_remote_state ();
-  enum target_waitkind kind = inferior_thread ()->pending_follow.kind;
 
-  if ((kind == TARGET_WAITKIND_FORKED && remote_fork_event_p (rs))
-      || (kind == TARGET_WAITKIND_VFORKED && remote_vfork_event_p (rs)))
+  if ((fork_kind == TARGET_WAITKIND_FORKED && remote_fork_event_p (rs))
+      || (fork_kind == TARGET_WAITKIND_VFORKED && remote_vfork_event_p (rs)))
     {
       /* When following the parent and detaching the child, we detach
 	 the child here.  For the case of following the child and
@@ -5913,13 +5937,7 @@ remote_target::follow_fork (bool follow_child, bool detach_fork)
       if (detach_fork && !follow_child)
 	{
 	  /* Detach the fork child.  */
-	  ptid_t child_ptid;
-	  pid_t child_pid;
-
-	  child_ptid = inferior_thread ()->pending_follow.value.related_pid;
-	  child_pid = child_ptid.pid ();
-
-	  remote_detach_pid (child_pid);
+	  remote_detach_pid (child_ptid.pid ());
 	}
     }
 }
@@ -6257,11 +6275,11 @@ remote_target::append_pending_thread_resumptions (char *p, char *endp,
 {
   for (thread_info *thread : all_non_exited_threads (this, ptid))
     if (inferior_ptid != thread->ptid
-	&& thread->suspend.stop_signal != GDB_SIGNAL_0)
+	&& thread->stop_signal () != GDB_SIGNAL_0)
       {
 	p = append_resumption (p, endp, thread->ptid,
-			       0, thread->suspend.stop_signal);
-	thread->suspend.stop_signal = GDB_SIGNAL_0;
+			       0, thread->stop_signal ());
+	thread->set_stop_signal (GDB_SIGNAL_0);
 	resume_clear_thread_private_info (thread);
       }
 
@@ -7199,7 +7217,7 @@ struct notif_client notif_client_stop =
    -1 if we want to check all threads.  */
 
 static int
-is_pending_fork_parent (struct target_waitstatus *ws, int event_pid,
+is_pending_fork_parent (const target_waitstatus *ws, int event_pid,
 			ptid_t thread_ptid)
 {
   if (ws->kind == TARGET_WAITKIND_FORKED
@@ -7215,11 +7233,11 @@ is_pending_fork_parent (struct target_waitstatus *ws, int event_pid,
 /* Return the thread's pending status used to determine whether the
    thread is a fork parent stopped at a fork event.  */
 
-static struct target_waitstatus *
+static const target_waitstatus *
 thread_pending_fork_status (struct thread_info *thread)
 {
-  if (thread->suspend.waitstatus_pending_p)
-    return &thread->suspend.waitstatus;
+  if (thread->has_pending_waitstatus ())
+    return &thread->pending_waitstatus ();
   else
     return &thread->pending_follow;
 }
@@ -7229,7 +7247,7 @@ thread_pending_fork_status (struct thread_info *thread)
 static int
 is_pending_fork_parent_thread (struct thread_info *thread)
 {
-  struct target_waitstatus *ws = thread_pending_fork_status (thread);
+  const target_waitstatus *ws = thread_pending_fork_status (thread);
   int pid = -1;
 
   return is_pending_fork_parent (ws, pid, thread->ptid);
@@ -7251,7 +7269,7 @@ remote_target::remove_new_fork_children (threads_listing_context *context)
      fork child threads from the CONTEXT list.  */
   for (thread_info *thread : all_non_exited_threads (this))
     {
-      struct target_waitstatus *ws = thread_pending_fork_status (thread);
+      const target_waitstatus *ws = thread_pending_fork_status (thread);
 
       if (is_pending_fork_parent (ws, pid, thread->ptid))
 	context->remove_thread (ws->value.related_pid);
@@ -7931,11 +7949,15 @@ ptid_t
 remote_target::select_thread_for_ambiguous_stop_reply
   (const struct target_waitstatus *status)
 {
+  REMOTE_SCOPED_DEBUG_ENTER_EXIT;
+
   /* Some stop events apply to all threads in an inferior, while others
      only apply to a single thread.  */
   bool process_wide_stop
     = (status->kind == TARGET_WAITKIND_EXITED
        || status->kind == TARGET_WAITKIND_SIGNALLED);
+
+  remote_debug_printf ("process_wide_stop = %d", process_wide_stop);
 
   thread_info *first_resumed_thread = nullptr;
   bool ambiguous = false;
@@ -7955,6 +7977,10 @@ remote_target::select_thread_for_ambiguous_stop_reply
 	       || first_resumed_thread->ptid.pid () != thr->ptid.pid ())
 	ambiguous = true;
     }
+
+  remote_debug_printf ("first resumed thread is %s",
+		       pid_to_str (first_resumed_thread->ptid).c_str ());
+  remote_debug_printf ("is this guess ambiguous? = %d", ambiguous);
 
   gdb_assert (first_resumed_thread != nullptr);
 
@@ -8121,7 +8147,7 @@ static ptid_t
 first_remote_resumed_thread (remote_target *target)
 {
   for (thread_info *tp : all_non_exited_threads (target, minus_one_ptid))
-    if (tp->resumed)
+    if (tp->resumed ())
       return tp->ptid;
   return null_ptid;
 }
@@ -9787,7 +9813,7 @@ remote_target::read_frame (gdb::char_vector *buf_p)
 	  {
 	    int repeat;
 
- 	    csum += c;
+	    csum += c;
 	    c = readchar (remote_timeout);
 	    csum += c;
 	    repeat = c - ' ' + 3;	/* Compute repeat count.  */
@@ -10365,13 +10391,14 @@ remote_target::extended_remote_set_inferior_cwd ()
 {
   if (packet_support (PACKET_QSetWorkingDir) != PACKET_DISABLE)
     {
-      const char *inferior_cwd = get_inferior_cwd ();
+      const std::string &inferior_cwd = current_inferior ()->cwd ();
       remote_state *rs = get_remote_state ();
 
-      if (inferior_cwd != NULL)
+      if (!inferior_cwd.empty ())
 	{
-	  std::string hexpath = bin2hex ((const gdb_byte *) inferior_cwd,
-					 strlen (inferior_cwd));
+	  std::string hexpath
+	    = bin2hex ((const gdb_byte *) inferior_cwd.data (),
+		       inferior_cwd.size ());
 
 	  xsnprintf (rs->buf.data (), get_remote_packet_size (),
 		     "QSetWorkingDir:%s", hexpath.c_str ());
@@ -13518,7 +13545,6 @@ remote_target::get_tracepoint_status (struct breakpoint *bp,
 {
   struct remote_state *rs = get_remote_state ();
   char *reply;
-  struct bp_location *loc;
   struct tracepoint *tp = (struct tracepoint *) bp;
   size_t size = get_remote_packet_size ();
 
@@ -13526,7 +13552,7 @@ remote_target::get_tracepoint_status (struct breakpoint *bp,
     {
       tp->hit_count = 0;
       tp->traceframe_usage = 0;
-      for (loc = tp->loc; loc; loc = loc->next)
+      for (bp_location *loc : tp->locations ())
 	{
 	  /* If the tracepoint was never downloaded, don't go asking for
 	     any status.  */
@@ -14512,8 +14538,26 @@ remote_new_objfile (struct objfile *objfile)
 {
   remote_target *remote = get_current_remote_target ();
 
-  if (remote != NULL)			/* Have a remote connection.  */
-    remote->remote_check_symbols ();
+  /* First, check whether the current inferior's process target is a remote
+     target.  */
+  if (remote == nullptr)
+    return;
+
+  /* When we are attaching or handling a fork child and the shared library
+     subsystem reads the list of loaded libraries, we receive new objfile
+     events in between each found library.  The libraries are read in an
+     undefined order, so if we gave the remote side a chance to look up
+     symbols between each objfile, we might give it an inconsistent picture
+     of the inferior.  It could appear that a library A appears loaded but
+     a library B does not, even though library A requires library B.  That
+     would present a state that couldn't normally exist in the inferior.
+
+     So, skip these events, we'll give the remote a chance to look up symbols
+     once all the loaded libraries and their symbols are known to GDB.  */
+  if (current_inferior ()->in_initial_library_scan)
+    return;
+
+  remote->remote_check_symbols ();
 }
 
 /* Pull all the tracepoints defined on the target and create local
@@ -14828,9 +14872,6 @@ void _initialize_remote ();
 void
 _initialize_remote ()
 {
-  struct cmd_list_element *cmd;
-  const char *cmd_name;
-
   /* architecture specific data */
   remote_g_packet_data_handle =
     gdbarch_data_register_pre_init (remote_g_packet_data_init);
@@ -14875,18 +14916,15 @@ response packet.  GDB supplies the initial `$' character, and the\n\
 terminating `#' character and checksum."),
 	   &maintenancelist);
 
-  add_setshow_boolean_cmd ("remotebreak", no_class, &remote_break, _("\
+  set_show_commands remotebreak_cmds
+    = add_setshow_boolean_cmd ("remotebreak", no_class, &remote_break, _("\
 Set whether to send break if interrupted."), _("\
 Show whether to send break if interrupted."), _("\
 If set, a break, instead of a cntrl-c, is sent to the remote target."),
-			   set_remotebreak, show_remotebreak,
-			   &setlist, &showlist);
-  cmd_name = "remotebreak";
-  cmd = lookup_cmd (&cmd_name, setlist, "", NULL, -1, 1);
-  deprecate_cmd (cmd, "set remote interrupt-sequence");
-  cmd_name = "remotebreak"; /* needed because lookup_cmd updates the pointer */
-  cmd = lookup_cmd (&cmd_name, showlist, "", NULL, -1, 1);
-  deprecate_cmd (cmd, "show remote interrupt-sequence");
+			       set_remotebreak, show_remotebreak,
+			       &setlist, &showlist);
+  deprecate_cmd (remotebreak_cmds.set, "set remote interrupt-sequence");
+  deprecate_cmd (remotebreak_cmds.show, "show remote interrupt-sequence");
 
   add_setshow_enum_cmd ("interrupt-sequence", class_support,
 			interrupt_sequence_modes, &interrupt_sequence_mode,

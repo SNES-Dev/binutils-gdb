@@ -93,7 +93,7 @@ static reloc_howto_type elf_howto_table[]=
   HOWTO(R_386_16, 0, 1, 16, false, 0, complain_overflow_bitfield,
 	bfd_elf_generic_reloc, "R_386_16",
 	true, 0xffff, 0xffff, false),
-  HOWTO(R_386_PC16, 0, 1, 16, true, 0, complain_overflow_signed,
+  HOWTO(R_386_PC16, 0, 1, 16, true, 0, complain_overflow_bitfield,
 	bfd_elf_generic_reloc, "R_386_PC16",
 	true, 0xffff, 0xffff, true),
   HOWTO(R_386_8, 0, 0, 8, false, 0, complain_overflow_bitfield,
@@ -1815,6 +1815,9 @@ elf_i386_check_relocs (bfd *abfd,
 		     adjust_dynamic_symbol.  */
 		  h->non_got_ref = 1;
 
+		  if (!elf_has_indirect_extern_access (sec->owner))
+		    eh->non_got_ref_without_indirect_extern_access = 1;
+
 		  /* We may need a .plt entry if the symbol is a function
 		     defined in a shared lib or is a function referenced
 		     from the code or read-only section.  */
@@ -1915,13 +1918,14 @@ elf_i386_check_relocs (bfd *abfd,
 
   if (elf_section_data (sec)->this_hdr.contents != contents)
     {
-      if (!converted && !info->keep_memory)
+      if (!converted && !_bfd_link_keep_memory (info))
 	free (contents);
       else
 	{
 	  /* Cache the section contents for elf_link_input_bfd if any
 	     load is converted or --no-keep-memory isn't used.  */
 	  elf_section_data (sec)->this_hdr.contents = contents;
+	  info->cache_size += sec->size;
 	}
     }
 

@@ -492,6 +492,7 @@ run_dump_test "property-x86-isa2"
 run_dump_test "property-x86-isa3"
 run_dump_test "property-x86-isa4"
 run_dump_test "pr26869"
+run_dump_test "code16"
 
 if { !([istarget "i?86-*-linux*"]
        || [istarget "i?86-*-gnu*"]
@@ -518,6 +519,8 @@ run_dump_test "pr19939a"
 run_dump_test "pr19939b"
 run_dump_test "tlsdesc2"
 run_dump_test "report-reloc-1"
+run_dump_test "pr27998a"
+run_dump_test "pr27998b"
 
 proc undefined_weak {cflags ldflags} {
     set testname "Undefined weak symbol"

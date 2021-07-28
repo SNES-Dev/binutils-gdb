@@ -29,16 +29,20 @@ SIM_OBJS = \
 	sim-if.o arch.o \
 	$(CRISV10F_OBJS) \
 	$(CRISV32F_OBJS) \
-	traps.o \
-	cris-desc.o
+	traps.o
+
+SIM_EXTRA_HW_DEVICES = rv cris cris_900000xx
 
 # Extra headers included by sim-main.h.
 # FIXME: $(srccom)/cgen-ops.h should be in CGEN_INCLUDE_DEPS.
 SIM_EXTRA_DEPS = \
 	$(CGEN_INCLUDE_DEPS) $(srccom)/cgen-ops.h \
-	arch.h cpuall.h cris-sim.h cris-desc.h engv10.h engv32.h
+	arch.h cpuall.h cris-sim.h engv10.h engv32.h
 
 SIM_EXTRA_CLEAN = cris-clean
+
+# Code doesn't build cleanly yet.
+SIM_WERROR_CFLAGS =
 
 ## COMMON_POST_CONFIG_FRAG
 
@@ -54,7 +58,7 @@ check: rvdummy$(EXEEXT)
 rvdummy$(EXEEXT): rvdummy.o $(EXTRA_LIBDEPS)
 	$(CC) $(ALL_CFLAGS) -o rvdummy$(EXEEXT) rvdummy.o $(EXTRA_LIBS)
 
-rvdummy.o: rvdummy.c config.h $(remote_sim_h) $(callback_h)
+rvdummy.o: rvdummy.c $(remote_sim_h) $(callback_h)
 
 # CRISV10 objs
 
@@ -97,16 +101,11 @@ cris-clean:
 	  rm -f mloopv$${v}f.c engv$${v}.h stamp-v$${v}fmloop; \
 	  rm -f stamp-v$${v}fcpu; \
 	done
-	-rm -f stamp-arch stamp-desc
+	-rm -f stamp-arch
 	-rm -f tmp-*
 
-# cgen support, enable with --enable-cgen-maint
-CGEN_MAINT = ; @true
-# The following line is commented in or out depending upon --enable-cgen-maint.
-@CGEN_MAINT@CGEN_MAINT =
-
 # Useful when making CGEN-generated files manually, without --enable-cgen-maint.
-stamps: stamp-v10fmloop stamp-v32fmloop stamp-arch stamp-v10fcpu stamp-v32fcpu stamp-desc
+stamps: stamp-v10fmloop stamp-v32fmloop stamp-arch stamp-v10fcpu stamp-v32fcpu
 
 stamp-arch: $(CGEN_READ_SCM) $(CGEN_ARCH_SCM) $(CPU_DIR)/cris.cpu Makefile
 	$(MAKE) cgen-arch $(CGEN_FLAGS_TO_PASS) mach=crisv10,crisv32 \
@@ -121,8 +120,6 @@ stamp-v10fcpu: $(CGEN_READ_SCM) $(CGEN_CPU_SCM) $(CGEN_DECODE_SCM) $(CPU_DIR)/cr
 	  archfile=$(CPU_DIR)/cris.cpu \
 	  cpu=crisv10f mach=crisv10 SUFFIX=v10 FLAGS="with-scache with-profile=fn" EXTRAFILES="$(CGEN_CPU_SEMSW)"
 	$(SHELL) $(srcroot)/move-if-change $(srcdir)/semv10-switch.c $(srcdir)/semcrisv10f-switch.c
-	sed -ne 'p; s/^\(#include "sim-assert.h"\)$$/#include "cgen-ops.h"/p' < $(srcdir)/decodev10.c > decodev10.c.tmp
-	mv decodev10.c.tmp $(srcdir)/decodev10.c
 	touch stamp-v10fcpu
 cpuv10.h cpuv10.c semcrisv10f-switch.c modelv10.c decodev10.c decodev10.h: $(CGEN_MAINT) stamp-v10fcpu
 
@@ -131,14 +128,5 @@ stamp-v32fcpu: $(CGEN_READ_SCM) $(CGEN_CPU_SCM) $(CGEN_DECODE_SCM) $(CPU_DIR)/cr
 	  archfile=$(CPU_DIR)/cris.cpu \
 	  cpu=crisv32f mach=crisv32 SUFFIX=v32 FLAGS="with-scache with-profile=fn" EXTRAFILES="$(CGEN_CPU_SEMSW)"
 	$(SHELL) $(srcroot)/move-if-change $(srcdir)/semv32-switch.c $(srcdir)/semcrisv32f-switch.c
-	sed -ne 'p; s/^\(#include "sim-assert.h"\)$$/#include "cgen-ops.h"/p' < $(srcdir)/decodev32.c > decodev32.c.tmp
-	mv decodev32.c.tmp $(srcdir)/decodev32.c
 	touch stamp-v32fcpu
 cpuv32.h cpuv32.c semcrisv32f-switch.c modelv32.c decodev32.c decodev32.h: $(CGEN_MAINT) stamp-v32fcpu
-
-stamp-desc: $(CGEN_READ_SCM) $(CGEN_DESC_SCM) $(CPU_DIR)/cris.cpu Makefile
-	$(MAKE) cgen-desc $(CGEN_FLAGS_TO_PASS) \
-		archfile=$(CPU_DIR)/cris.cpu \
-		cpu=cris mach=all
-	touch stamp-desc
-cris-desc.c cris-desc.h cris-opc.h: $(CGEN_MAINT) stamp-desc

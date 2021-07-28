@@ -1,7 +1,12 @@
 		What has changed in GDB?
 	     (Organized release by release)
 
-*** Changes since GDB 10
+*** Changes since GDB 11
+
+*** Changes in GDB 11
+
+* The 'set disassembler-options' command now supports specifying options
+  for the ARC target.
 
 * GDB now supports general memory tagging functionality if the underlying
   architecture supports the proper primitives and hooks.  Currently this is
@@ -46,6 +51,31 @@
     all locations of the selected breakpoint.  This is equivalent to
     the '-force' flag of the CLI's "cond" command.
 
+ ** '-file-list-exec-source-files [--group-by-objfile]
+ 	                          [--basename | --dirname]
+                                  [--] [REGEXP]'
+
+    The existing -file-list-exec-source-files command now takes an
+    optional REGEXP which is used to filter the source files that are
+    included in the results.
+
+    By default REGEXP is matched against the full filename of the
+    source file. When one of --basename or --dirname is given then
+    REGEXP is only matched against the specified part of the full
+    source filename.
+
+    When the optional --group-by-objfile flag is used the output
+    format is changed, the results are now a list of object files
+    (executable and libraries) with the source files that are
+    associated with each object file.
+
+    The results from -file-list-exec-source-files now include a
+    'debug-fully-read' field which takes the value 'true' or 'false'.
+    A 'true' value indicates the source file is from a compilation
+    unit that has had its debug information fully read in by GDB, a
+    value of 'false' indicates GDB has only performed a partial scan
+    of the debug information so far.
+
 * GDB now supports core file debugging for x86_64 Cygwin programs.
 
 * GDB will now look for the .gdbinit file in a config directory before
@@ -75,6 +105,23 @@
   and "-eiex" that allow options (that would normally appear in a
   gdbearlyinit file) to be passed on the command line.
 
+* For RISC-V targets, the target feature "org.gnu.gdb.riscv.vector" is
+  now understood by GDB, and can be used to describe the vector
+  registers of a target.  The precise requirements of this register
+  feature are documented in the GDB manual.
+
+* TUI improvements
+
+  ** TUI windows now support mouse actions.  The mouse wheel scrolls
+     the appropriate window.
+
+  ** Key combinations that do not have a specific action on the
+     focused window are passed to GDB.  For example, you now can use
+     Ctrl-Left/Ctrl-Right to move between words in the command window
+     regardless of which window is in focus.  Previously you would
+     need to focus on the command window for such key combinations to
+     work.
+
 * New commands
 
 set debug event-loop
@@ -97,6 +144,9 @@ maintenance flush dcache
 
 maintenance info target-sections
   Print GDB's internal target sections table.
+
+maintenance info jit
+  Print the JIT code objects in the inferior known to GDB.
 
 memory-tag show-logical-tag POINTER
   Print the logical tag for POINTER.
@@ -188,6 +238,12 @@ ptype[/FLAGS] TYPE | EXPRESSION
   offsets of struct members.  Default behavior is given by 'show print
   type hex'.
 
+info sources
+  The info sources command output has been restructured.  The results
+  are now based around a list of objfiles (executable and libraries),
+  and for each objfile the source files that are part of that objfile
+  are listed.
+
 * Removed targets and native configurations
 
 ARM Symbian			arm*-*-symbianelf*
@@ -216,6 +272,20 @@ QMemTags
   ** Inferior objects now contain a read-only 'connection_num' attribute that
      gives the connection number as seen in 'info connections' and
      'info inferiors'.
+
+  ** New method gdb.Frame.level() which returns the stack level of the
+     frame object.
+
+  ** New method gdb.PendingFrame.level() which returns the stack level
+     of the frame object.
+
+  ** When hitting a catchpoint, the Python API will now emit a
+     gdb.BreakpointEvent rather than a gdb.StopEvent.  The
+     gdb.Breakpoint attached to the event will have type BP_CATCHPOINT.
+
+  ** Python TUI windows can now receive mouse click events.  If the
+     Window object implements the click method, it is called for each
+     mouse click event in this window.
 
 *** Changes in GDB 10
 
@@ -359,6 +429,7 @@ alias [-a] [--] ALIAS = COMMAND [DEFAULT-ARGS...]
 
 GNU/Linux/RISC-V (gdbserver)	riscv*-*-linux*
 BPF				bpf-unknown-none
+Z80				z80-unknown-*
 
 * Python API
 

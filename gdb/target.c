@@ -52,6 +52,7 @@
 #include <unordered_map>
 #include "target-connection.h"
 #include "valprint.h"
+#include "cli/cli-decode.h"
 
 static void generic_tls_error (void) ATTRIBUTE_NORETURN;
 
@@ -837,7 +838,7 @@ target_log_command (const char *p)
 static void
 open_target (const char *args, int from_tty, struct cmd_list_element *command)
 {
-  auto *ti = static_cast<target_info *> (get_cmd_context (command));
+  auto *ti = static_cast<target_info *> (command->context ());
   target_open_ftype *func = target_factories[ti];
 
   if (targetdebug)
@@ -874,8 +875,8 @@ information on the arguments for a particular protocol, type\n\
 `help target ' followed by the protocol name."),
 			  &targetlist, 0, &cmdlist);
   c = add_cmd (t.shortname, no_class, t.doc, &targetlist);
-  set_cmd_context (c, (void *) &t);
-  set_cmd_sfunc (c, open_target);
+  c->set_context ((void *) &t);
+  c->func = open_target;
   if (completer != NULL)
     set_cmd_completer (c, completer);
 }
@@ -891,8 +892,8 @@ add_deprecated_target_alias (const target_info &tinfo, const char *alias)
   /* If we use add_alias_cmd, here, we do not get the deprecated warning,
      see PR cli/15104.  */
   c = add_cmd (alias, no_class, tinfo.doc, &targetlist);
-  set_cmd_sfunc (c, open_target);
-  set_cmd_context (c, (void *) &tinfo);
+  c->func = open_target;
+  c->set_context ((void *) &tinfo);
   alt = xstrprintf ("target %s", tinfo.shortname);
   deprecate_cmd (c, alt);
 }
@@ -2700,7 +2701,8 @@ target_program_signals (gdb::array_view<const unsigned char> program_signals)
 }
 
 static void
-default_follow_fork (struct target_ops *self, bool follow_child,
+default_follow_fork (struct target_ops *self, ptid_t child_ptid,
+		     target_waitkind fork_kind, bool follow_child,
 		     bool detach_fork)
 {
   /* Some target returned a fork event, but did not know how to follow it.  */
@@ -2711,11 +2713,12 @@ default_follow_fork (struct target_ops *self, bool follow_child,
 /* See target.h.  */
 
 void
-target_follow_fork (bool follow_child, bool detach_fork)
+target_follow_fork (ptid_t child_ptid, target_waitkind fork_kind,
+		    bool follow_child, bool detach_fork)
 {
   target_ops *target = current_inferior ()->top_target ();
 
-  return target->follow_fork (follow_child, detach_fork);
+  return target->follow_fork (child_ptid, fork_kind, follow_child, detach_fork);
 }
 
 /* See target.h.  */
@@ -3120,13 +3123,9 @@ static std::vector<fileio_fh_t> fileio_fhandles;
    list each time a new file is opened.  */
 static int lowest_closed_fd;
 
-/* Invalidate the target associated with open handles that were open
-   on target TARG, since we're about to close (and maybe destroy) the
-   target.  The handles remain open from the client's perspective, but
-   trying to do anything with them other than closing them will fail
-   with EIO.  */
+/* See target.h.  */
 
-static void
+void
 fileio_handles_invalidate_target (target_ops *targ)
 {
   for (fileio_fh_t &fh : fileio_fhandles)

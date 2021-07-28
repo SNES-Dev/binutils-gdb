@@ -80,6 +80,8 @@ find_limit (SIM_DESC sd)
   return (addr + 65536) & ~(0xffffUL);
 }
 
+extern const SIM_MACH * const lm32_sim_machs[];
+
 /* Create an instance of the simulator.  */
 
 SIM_DESC
@@ -90,6 +92,12 @@ sim_open (SIM_OPEN_KIND kind, host_callback *callback, struct bfd *abfd,
   char c;
   int i;
   unsigned long base, limit;
+
+  /* Set default options before parsing user options.  */
+  STATE_MACHS (sd) = lm32_sim_machs;
+  STATE_MODEL_NAME (sd) = "lm32";
+  current_alignment = STRICT_ALIGNMENT;
+  current_target_byte_order = BFD_ENDIAN_BIG;
 
   /* The cpu data is kept in a separately allocated chunk of memory.  */
   if (sim_cpu_alloc_all (sd, 1) != SIM_RC_OK)
@@ -181,10 +189,6 @@ sim_open (SIM_OPEN_KIND kind, host_callback *callback, struct bfd *abfd,
       }
     lm32_cgen_init_dis (cd);
   }
-
-  /* Initialize various cgen things not done by common framework.
-     Must be done after lm32_cgen_cpu_open.  */
-  cgen_init (sd);
 
   return sd;
 }

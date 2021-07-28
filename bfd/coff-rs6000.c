@@ -3205,10 +3205,12 @@ xcoff_reloc_type_tls (bfd *input_bfd ATTRIBUTE_UNUSED,
   /* FIXME: h is sometimes null, if the TLS symbol is not exported.  */
   if (!h)
     {
+      char vaddr_buf[128];
+
+      sprintf_vma (vaddr_buf, rel->r_vaddr);
       _bfd_error_handler
-	(_("%pB: TLS relocation at (0x%" BFD_VMA_FMT "x) over "
-	   "internal symbols (C_HIDEXT) not yet possible\n"),
-	 input_bfd, rel->r_vaddr);
+	(_("%pB: TLS relocation at 0x%s over internal symbols (C_HIDEXT) not yet possible\n"),
+	 input_bfd, vaddr_buf);
       return false;
     }
 
@@ -3216,10 +3218,12 @@ xcoff_reloc_type_tls (bfd *input_bfd ATTRIBUTE_UNUSED,
   /* TLS relocations must target a TLS symbol.  */
   if (h->smclas != XMC_TL && h->smclas != XMC_UL)
     {
+      char vaddr_buf[128];
+
+      sprintf_vma (vaddr_buf, rel->r_vaddr);
       _bfd_error_handler
-	(_("%pB: TLS relocation at (0x%" BFD_VMA_FMT "x) over "
-	   "non-TLS symbol %s (0x%x)\n"),
-	 input_bfd, rel->r_vaddr, h->root.root.string, h->smclas);
+	(_("%pB: TLS relocation at 0x%s over non-TLS symbol %s (0x%x)\n"),
+	 input_bfd, vaddr_buf, h->root.root.string, h->smclas);
       return false;
     }
 
@@ -3230,10 +3234,12 @@ xcoff_reloc_type_tls (bfd *input_bfd ATTRIBUTE_UNUSED,
        && (h->flags & XCOFF_DEF_DYNAMIC) != 0)
 	  || (h->flags & XCOFF_IMPORT) != 0))
     {
+      char vaddr_buf[128];
+
+      sprintf_vma (vaddr_buf, rel->r_vaddr);
       _bfd_error_handler
-	(_("%pB: TLS local relocation at (0x%" BFD_VMA_FMT "x) over "
-	   "imported symbol %s\n"),
-	 input_bfd, rel->r_vaddr, h->root.root.string);
+	(_("%pB: TLS local relocation at 0x%s over imported symbol %s\n"),
+	 input_bfd, vaddr_buf, h->root.root.string);
       return false;
     }
 
@@ -3638,11 +3644,15 @@ xcoff_ppc_relocate_section (bfd *output_bfd,
 	      break;
 
 	    default:
-	      _bfd_error_handler
-		(_("%pB: relocatation (%d) at (0x%" BFD_VMA_FMT "x) has wrong"
-		   " r_rsize (0x%x)\n"),
-		 input_bfd, rel->r_type, rel->r_vaddr, rel->r_size);
-	      return false;
+	      {
+		char vaddr_buf[128];
+
+		sprintf_vma (vaddr_buf, rel->r_vaddr);
+		_bfd_error_handler
+		  (_("%pB: relocation (%d) at 0x%s has wrong r_rsize (0x%x)\n"),
+		   input_bfd, rel->r_type, vaddr_buf, rel->r_size);
+		return false;
+	      }
 	    }
 	}
 
@@ -4255,20 +4265,22 @@ static const unsigned long xcoff_glink_code[9] =
     0x00000000,	/* traceback table */
   };
 
-/* Table to convert DWARF flags to section names.  */
+/* Table to convert DWARF flags to section names.
+   Remember to update binutils/dwarf.c:debug_displays
+   if new DWARF sections are supported by XCOFF.  */
 
 const struct xcoff_dwsect_name xcoff_dwsect_names[] = {
-  { SSUBTYP_DWINFO,  ".dwinfo",   true },
-  { SSUBTYP_DWLINE,  ".dwline",   true },
-  { SSUBTYP_DWPBNMS, ".dwpbnms",  true },
-  { SSUBTYP_DWPBTYP, ".dwpbtyp",  true },
-  { SSUBTYP_DWARNGE, ".dwarnge",  true },
-  { SSUBTYP_DWABREV, ".dwabrev",  false },
-  { SSUBTYP_DWSTR,   ".dwstr",    true },
-  { SSUBTYP_DWRNGES, ".dwrnges",  true },
-  { SSUBTYP_DWLOC,   ".dwloc",    true },
-  { SSUBTYP_DWFRAME, ".dwframe",  true },
-  { SSUBTYP_DWMAC,   ".dwmac",    true }
+  { SSUBTYP_DWINFO,  ".dwinfo",  ".debug_info",     true },
+  { SSUBTYP_DWLINE,  ".dwline",  ".debug_line",     true },
+  { SSUBTYP_DWPBNMS, ".dwpbnms", ".debug_pubnames", true },
+  { SSUBTYP_DWPBTYP, ".dwpbtyp", ".debug_pubtypes", true },
+  { SSUBTYP_DWARNGE, ".dwarnge", ".debug_aranges",  true },
+  { SSUBTYP_DWABREV, ".dwabrev", ".debug_abbrev",   false },
+  { SSUBTYP_DWSTR,   ".dwstr",   ".debug_str",      true },
+  { SSUBTYP_DWRNGES, ".dwrnges", ".debug_ranges",   true },
+  { SSUBTYP_DWLOC,   ".dwloc",   ".debug_loc",      true },
+  { SSUBTYP_DWFRAME, ".dwframe", ".debug_frame",    true },
+  { SSUBTYP_DWMAC,   ".dwmac",   ".debug_macro",    true }
 };
 
 /* For generic entry points.  */

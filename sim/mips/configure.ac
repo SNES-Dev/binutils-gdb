@@ -2,13 +2,6 @@ dnl Process this file with autoconf to produce a configure script.
 AC_INIT(Makefile.in)
 AC_CONFIG_MACRO_DIRS([../m4 ../.. ../../config])
 
-SIM_AC_COMMON
-
-dnl Options available in this module
-SIM_AC_OPTION_ALIGNMENT(NONSTRICT_ALIGNMENT)
-SIM_AC_OPTION_WARNINGS(no)
-SIM_AC_OPTION_RESERVED_BITS(1)
-
 # DEPRECATED
 #
 # Instead of defining a `subtarget' macro, code should be checking
@@ -25,25 +18,6 @@ case "${target}" in
   *)                    SIM_SUBTARGET="";;
 esac
 AC_SUBST(SIM_SUBTARGET)
-
-
-
-#
-# Select the byte order of the target
-#
-mips_endian=
-default_endian=
-case "${target}" in
-  mips64el*-*-*)        mips_endian=LITTLE ;;
-  mips64vr*el-*-*)      default_endian=LITTLE ;;
-  mips64*-*-*)          default_endian=BIG ;;
-  mips16*-*-*)          default_endian=BIG ;;
-  mipsisa32*-*-*)       default_endian=BIG ;;
-  mipsisa64*-*-*)       default_endian=BIG ;;
-  mips*-*-*)            default_endian=BIG ;;
-  *)                    default_endian=BIG ;;
-esac
-SIM_AC_OPTION_ENDIAN($mips_endian,$default_endian)
 
 
 
@@ -423,15 +397,5 @@ AC_SUBST(sim_multi_flags)
 AC_SUBST(sim_multi_igen_configs)
 AC_SUBST(sim_multi_src)
 AC_SUBST(sim_multi_obj)
-#
-# Add simulated hardware devices
-#
-SIM_AC_OPTION_HARDWARE(tx3904cpu tx3904irc tx3904tmr tx3904sio)
-
-
-AC_PATH_X
-
-AC_CHECK_LIB(m, fabs)
-AC_CHECK_FUNCS(aint anint sqrt)
 
 SIM_AC_OUTPUT

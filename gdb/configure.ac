@@ -18,9 +18,8 @@ dnl along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 dnl Process this file with autoconf to produce a configure script.
 
-m4_include(../config/debuginfod.m4)
-
 AC_INIT
+AC_CONFIG_MACRO_DIRS([../config])
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADERS(config.h:config.in, [echo > stamp-h])
 AM_MAINTAINER_MODE
@@ -42,6 +41,8 @@ AC_CANONICAL_HOST
 
 # Set target, target_cpu, target_vendor, and target_os.
 AC_CANONICAL_TARGET
+
+ACX_NONCANONICAL_TARGET
 
 AC_ARG_PROGRAM
 
@@ -1272,7 +1273,7 @@ AC_HEADER_STDC
 AC_CHECK_HEADERS([nlist.h machine/reg.h \
                   thread_db.h \
 		  sys/file.h sys/filio.h sys/ioctl.h sys/param.h \
-		  sys/resource.h sys/ptrace.h ptrace.h \
+		  sys/procctl.h sys/resource.h sys/ptrace.h ptrace.h \
 		  sys/reg.h sys/debugreg.h \
 		  termios.h elf_hp.h])
 AC_CHECK_HEADERS(sys/user.h, [], [],
@@ -2170,7 +2171,6 @@ else
   LIBCTF=
   CTF_DEPS=
 fi
-AC_SUBST(ENABLE_LIBCTF)
 AC_SUBST(LIBCTF)
 AC_SUBST(CTF_DEPS)
 

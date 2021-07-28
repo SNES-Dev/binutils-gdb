@@ -255,9 +255,27 @@ decode_debug_loclists_addresses (dwarf2_per_cu_data *per_cu,
       *new_ptr = loc_ptr;
       return DEBUG_LOC_OFFSET_PAIR;
 
+    case DW_LLE_start_end:
+      if (loc_ptr + 2 * addr_size > buf_end)
+	return DEBUG_LOC_BUFFER_OVERFLOW;
+
+      if (signed_addr_p)
+	*low = extract_signed_integer (loc_ptr, addr_size, byte_order);
+      else
+	*low = extract_unsigned_integer (loc_ptr, addr_size, byte_order);
+
+      loc_ptr += addr_size;
+      if (signed_addr_p)
+	*high = extract_signed_integer (loc_ptr, addr_size, byte_order);
+      else
+	*high = extract_unsigned_integer (loc_ptr, addr_size, byte_order);
+
+      loc_ptr += addr_size;
+      *new_ptr = loc_ptr;
+      return DEBUG_LOC_START_END;
+
     /* Following cases are not supported yet.  */
     case DW_LLE_startx_endx:
-    case DW_LLE_start_end:
     case DW_LLE_default_location:
     default:
       return DEBUG_LOC_INVALID_ENTRY;
@@ -620,6 +638,19 @@ per_cu_dwarf_call (struct dwarf_expr_context *ctx, cu_offset die_offset,
   ctx->eval (block.data, block.size);
 }
 
+/* A helper function to find the definition of NAME and compute its
+   value.  Returns nullptr if the name is not found.  */
+
+static value *
+compute_var_value (const char *name)
+{
+  struct block_symbol sym = lookup_symbol (name, nullptr, VAR_DOMAIN,
+					   nullptr);
+  if (sym.symbol != nullptr)
+    return value_of_variable (sym.symbol, sym.block);
+  return nullptr;
+}
+
 /* Given context CTX, section offset SECT_OFF, and compilation unit
    data PER_CU, execute the "variable value" operation on the DIE
    found at SECT_OFF.  */
@@ -629,8 +660,10 @@ sect_variable_value (struct dwarf_expr_context *ctx, sect_offset sect_off,
 		     dwarf2_per_cu_data *per_cu,
 		     dwarf2_per_objfile *per_objfile)
 {
+  const char *var_name = nullptr;
   struct type *die_type
-    = dwarf2_fetch_die_type_sect_off (sect_off, per_cu, per_objfile);
+    = dwarf2_fetch_die_type_sect_off (sect_off, per_cu, per_objfile,
+				      &var_name);
 
   if (die_type == NULL)
     error (_("Bad DW_OP_GNU_variable_value DIE."));
@@ -638,8 +671,17 @@ sect_variable_value (struct dwarf_expr_context *ctx, sect_offset sect_off,
   /* Note: Things still work when the following test is removed.  This
      test and error is here to conform to the proposed specification.  */
   if (die_type->code () != TYPE_CODE_INT
+      && die_type->code () != TYPE_CODE_ENUM
+      && die_type->code () != TYPE_CODE_RANGE
       && die_type->code () != TYPE_CODE_PTR)
     error (_("Type of DW_OP_GNU_variable_value DIE must be an integer or pointer."));
+
+  if (var_name != nullptr)
+    {
+      value *result = compute_var_value (var_name);
+      if (result != nullptr)
+	return result;
+    }
 
   struct type *type = lookup_pointer_type (die_type);
   struct frame_info *frame = get_selected_frame (_("No frame selected."));
@@ -2691,6 +2733,17 @@ dwarf2_evaluate_property (const struct dynamic_prop *prop,
 	*value = value_as_address (val);
 	return true;
       }
+
+    case PROP_VARIABLE_NAME:
+      {
+	struct value *val = compute_var_value (prop->variable_name ());
+	if (val != nullptr)
+	  {
+	    *value = value_as_long (val);
+	    return true;
+	  }
+      }
+      break;
     }
 
   return false;

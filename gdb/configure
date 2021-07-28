@@ -633,7 +633,6 @@ LIBXXHASH
 HAVE_LIBXXHASH
 CTF_DEPS
 LIBCTF
-ENABLE_LIBCTF
 LTLIBBABELTRACE
 LIBBABELTRACE
 HAVE_LIBBABELTRACE
@@ -795,6 +794,7 @@ DEPDIR
 am__leading_dot
 CXX_DIALECT
 HAVE_CXX11
+target_noncanonical
 INSTALL_STRIP_PROGRAM
 STRIP
 install_sh
@@ -2990,6 +2990,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
+
 ac_config_headers="$ac_config_headers config.h:config.in"
 
 
@@ -5178,6 +5179,24 @@ ac_configure="$SHELL $ac_aux_dir/configure"  # Please don't use this var.
 
 
 # Set target, target_cpu, target_vendor, and target_os.
+
+
+ case ${build_alias} in
+  "") build_noncanonical=${build} ;;
+  *) build_noncanonical=${build_alias} ;;
+esac
+
+ case ${host_alias} in
+  "") host_noncanonical=${build_noncanonical} ;;
+  *) host_noncanonical=${host_alias} ;;
+esac
+
+ case ${target_alias} in
+  "") target_noncanonical=${host_noncanonical} ;;
+  *) target_noncanonical=${target_alias} ;;
+esac
+
+
 
 
 test "$program_prefix" != NONE &&
@@ -12210,7 +12229,7 @@ fi
 for ac_header in nlist.h machine/reg.h \
                   thread_db.h \
 		  sys/file.h sys/filio.h sys/ioctl.h sys/param.h \
-		  sys/resource.h sys/ptrace.h ptrace.h \
+		  sys/procctl.h sys/resource.h sys/ptrace.h ptrace.h \
 		  sys/reg.h sys/debugreg.h \
 		  termios.h elf_hp.h
 do :
@@ -13806,7 +13825,7 @@ fi
 
   for ac_func in fdwalk getrlimit pipe pipe2 poll socketpair sigaction \
 		  ptrace64 sbrk setns sigaltstack sigprocmask \
-		  setpgid setpgrp getrusage getauxval
+		  setpgid setpgrp getrusage getauxval sigtimedwait
 do :
   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
 ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
@@ -19153,7 +19172,6 @@ else
   LIBCTF=
   CTF_DEPS=
 fi
-
 
 
 

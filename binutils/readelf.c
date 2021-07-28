@@ -263,12 +263,13 @@ typedef struct filedata
   FILE *               handle;
   bfd_size_type        file_size;
   Elf_Internal_Ehdr    file_header;
+  unsigned long        archive_file_offset;
+  unsigned long        archive_file_size;
+  /* Everything below this point is cleared out by free_filedata.  */
   Elf_Internal_Shdr *  section_headers;
   Elf_Internal_Phdr *  program_headers;
   char *               string_table;
   unsigned long        string_table_length;
-  unsigned long        archive_file_offset;
-  unsigned long        archive_file_size;
   unsigned long        dynamic_addr;
   bfd_size_type        dynamic_size;
   size_t               dynamic_nent;
@@ -356,10 +357,6 @@ static const char * get_symbol_version_string
    : filedata->string_table + (X)->sh_name)
 
 #define DT_VERSIONTAGIDX(tag)	(DT_VERNEEDNUM - (tag))	/* Reverse order!  */
-
-#define GET_ELF_SYMBOLS(file, section, sym_count)			\
-  (is_32bit_elf ? get_32bit_elf_symbols (file, section, sym_count)	\
-   : get_64bit_elf_symbols (file, section, sym_count))
 
 #define VALID_SYMBOL_NAME(strtab, strtab_size, offset) \
    (strtab != NULL && offset < strtab_size)
@@ -2342,9 +2339,96 @@ get_dynamic_type (Filedata * filedata, unsigned long type)
     }
 }
 
-static char *
-get_file_type (unsigned e_type)
+static bool get_program_headers (Filedata *);
+static bool get_dynamic_section (Filedata *);
+
+static void
+locate_dynamic_section (Filedata *filedata)
 {
+  unsigned long dynamic_addr = 0;
+  bfd_size_type dynamic_size = 0;
+
+  if (filedata->file_header.e_phnum != 0
+      && get_program_headers (filedata))
+    {
+      Elf_Internal_Phdr *segment;
+      unsigned int i;
+
+      for (i = 0, segment = filedata->program_headers;
+	   i < filedata->file_header.e_phnum;
+	   i++, segment++)
+	{
+	  if (segment->p_type == PT_DYNAMIC)
+	    {
+	      dynamic_addr = segment->p_offset;
+	      dynamic_size = segment->p_filesz;
+
+	      if (filedata->section_headers != NULL)
+		{
+		  Elf_Internal_Shdr *sec;
+
+		  sec = find_section (filedata, ".dynamic");
+		  if (sec != NULL)
+		    {
+		      if (sec->sh_size == 0
+			  || sec->sh_type == SHT_NOBITS)
+			{
+			  dynamic_addr = 0;
+			  dynamic_size = 0;
+			}
+		      else
+			{
+			  dynamic_addr = sec->sh_offset;
+			  dynamic_size = sec->sh_size;
+			}
+		    }
+		}
+
+	      if (dynamic_addr > filedata->file_size
+		  || (dynamic_size > filedata->file_size - dynamic_addr))
+		{
+		  dynamic_addr = 0;
+		  dynamic_size = 0;
+		}
+	      break;
+	    }
+	}
+    }
+  filedata->dynamic_addr = dynamic_addr;
+  filedata->dynamic_size = dynamic_size ? dynamic_size : 1;
+}
+
+static bool
+is_pie (Filedata *filedata)
+{
+  Elf_Internal_Dyn *entry;
+
+  if (filedata->dynamic_size == 0)
+    locate_dynamic_section (filedata);
+  if (filedata->dynamic_size <= 1)
+    return false;
+
+  if (!get_dynamic_section (filedata))
+    return false;
+
+  for (entry = filedata->dynamic_section;
+       entry < filedata->dynamic_section + filedata->dynamic_nent;
+       entry++)
+    {
+      if (entry->d_tag == DT_FLAGS_1)
+	{
+	  if ((entry->d_un.d_val & DF_1_PIE) != 0)
+	    return true;
+	  break;
+	}
+    }
+  return false;
+}
+
+static char *
+get_file_type (Filedata *filedata)
+{
+  unsigned e_type = filedata->file_header.e_type;
   static char buff[64];
 
   switch (e_type)
@@ -2352,7 +2436,11 @@ get_file_type (unsigned e_type)
     case ET_NONE: return _("NONE (None)");
     case ET_REL:  return _("REL (Relocatable file)");
     case ET_EXEC: return _("EXEC (Executable file)");
-    case ET_DYN:  return _("DYN (Shared object file)");
+    case ET_DYN:
+      if (is_pie (filedata))
+	return _("DYN (Position-Independent Executable file)");
+      else
+	return _("DYN (Shared object file)");
     case ET_CORE: return _("CORE (Core file)");
 
     default:
@@ -4007,6 +4095,16 @@ get_tic6x_segment_type (unsigned long type)
 }
 
 static const char *
+get_riscv_segment_type (unsigned long type)
+{
+  switch (type)
+    {
+    case PT_RISCV_ATTRIBUTES: return "RISCV_ATTRIBUTES";
+    default:                  return NULL;
+    }
+}
+
+static const char *
 get_hpux_segment_type (unsigned long type, unsigned e_machine)
 {
   if (e_machine == EM_PARISC)
@@ -4114,6 +4212,9 @@ get_segment_type (Filedata * filedata, unsigned long p_type)
 	    case EM_S390:
 	    case EM_S390_OLD:
 	      result = get_s390_segment_type (p_type);
+	      break;
+	    case EM_RISCV:
+	      result = get_riscv_segment_type (p_type);
 	      break;
 	    default:
 	      result = NULL;
@@ -4613,78 +4714,123 @@ usage (FILE * stream)
 {
   fprintf (stream, _("Usage: readelf <option(s)> elf-file(s)\n"));
   fprintf (stream, _(" Display information about the contents of ELF format files\n"));
-  fprintf (stream, _(" Options are:\n\
-  -a --all               Equivalent to: -h -l -S -s -r -d -V -A -I\n\
-  -h --file-header       Display the ELF file header\n\
-  -l --program-headers   Display the program headers\n\
-     --segments          An alias for --program-headers\n\
-  -S --section-headers   Display the sections' header\n\
-     --sections          An alias for --section-headers\n\
-  -g --section-groups    Display the section groups\n\
-  -t --section-details   Display the section details\n\
-  -e --headers           Equivalent to: -h -l -S\n\
-  -s --syms              Display the symbol table\n\
-     --symbols           An alias for --syms\n\
-     --dyn-syms          Display the dynamic symbol table\n\
-     --lto-syms          Display LTO symbol tables\n\
+  fprintf (stream, _(" Options are:\n"));
+  fprintf (stream, _("\
+  -a --all               Equivalent to: -h -l -S -s -r -d -V -A -I\n"));
+  fprintf (stream, _("\
+  -h --file-header       Display the ELF file header\n"));
+  fprintf (stream, _("\
+  -l --program-headers   Display the program headers\n"));
+  fprintf (stream, _("\
+     --segments          An alias for --program-headers\n"));
+  fprintf (stream, _("\
+  -S --section-headers   Display the sections' header\n"));
+  fprintf (stream, _("\
+     --sections          An alias for --section-headers\n"));
+  fprintf (stream, _("\
+  -g --section-groups    Display the section groups\n"));
+  fprintf (stream, _("\
+  -t --section-details   Display the section details\n"));
+  fprintf (stream, _("\
+  -e --headers           Equivalent to: -h -l -S\n"));
+  fprintf (stream, _("\
+  -s --syms              Display the symbol table\n"));
+  fprintf (stream, _("\
+     --symbols           An alias for --syms\n"));
+  fprintf (stream, _("\
+     --dyn-syms          Display the dynamic symbol table\n"));
+  fprintf (stream, _("\
+     --lto-syms          Display LTO symbol tables\n"));
+  fprintf (stream, _("\
      --sym-base=[0|8|10|16] \n\
                          Force base for symbol sizes.  The options are \n\
-                         mixed (the default), octal, decimal, hexadecimal.\n\
+                         mixed (the default), octal, decimal, hexadecimal.\n"));
+  fprintf (stream, _("\
   -C --demangle[=STYLE]  Decode low-level symbol names into user-level names\n\
                           The STYLE, if specified, can be `auto' (the default),\n\
                           `gnu', `lucid', `arm', `hp', `edg', `gnu-v3', `java'\n\
-                          or `gnat'\n\
-     --no-demangle       Do not demangle low-level symbol names.  (This is the default)\n\
-     --recurse-limit     Enable a demangling recursion limit.  (This is the default)\n\
-     --no-recurse-limit  Disable a demangling recursion limit\n\
-  -n --notes             Display the core notes (if present)\n\
-  -r --relocs            Display the relocations (if present)\n\
-  -u --unwind            Display the unwind info (if present)\n\
-  -d --dynamic           Display the dynamic section (if present)\n\
-  -V --version-info      Display the version sections (if present)\n\
-  -A --arch-specific     Display architecture specific information (if any)\n\
-  -c --archive-index     Display the symbol/file index in an archive\n\
-  -D --use-dynamic       Use the dynamic section info when displaying symbols\n\
-  -L --lint|--enable-checks  Display warning messages for possible problems\n\
+                          or `gnat'\n"));
+  fprintf (stream, _("\
+     --no-demangle       Do not demangle low-level symbol names.  (default)\n"));
+  fprintf (stream, _("\
+     --recurse-limit     Enable a demangling recursion limit.  (default)\n"));
+  fprintf (stream, _("\
+     --no-recurse-limit  Disable a demangling recursion limit\n"));
+  fprintf (stream, _("\
+  -n --notes             Display the core notes (if present)\n"));
+  fprintf (stream, _("\
+  -r --relocs            Display the relocations (if present)\n"));
+  fprintf (stream, _("\
+  -u --unwind            Display the unwind info (if present)\n"));
+  fprintf (stream, _("\
+  -d --dynamic           Display the dynamic section (if present)\n"));
+  fprintf (stream, _("\
+  -V --version-info      Display the version sections (if present)\n"));
+  fprintf (stream, _("\
+  -A --arch-specific     Display architecture specific information (if any)\n"));
+  fprintf (stream, _("\
+  -c --archive-index     Display the symbol/file index in an archive\n"));
+  fprintf (stream, _("\
+  -D --use-dynamic       Use the dynamic section info when displaying symbols\n"));
+  fprintf (stream, _("\
+  -L --lint|--enable-checks\n\
+                         Display warning messages for possible problems\n"));
+  fprintf (stream, _("\
   -x --hex-dump=<number|name>\n\
-                         Dump the contents of section <number|name> as bytes\n\
+                         Dump the contents of section <number|name> as bytes\n"));
+  fprintf (stream, _("\
   -p --string-dump=<number|name>\n\
-                         Dump the contents of section <number|name> as strings\n\
+                         Dump the contents of section <number|name> as strings\n"));
+  fprintf (stream, _("\
   -R --relocated-dump=<number|name>\n\
-                         Dump the contents of section <number|name> as relocated bytes\n\
-  -z --decompress        Decompress section before dumping it\n\
-  -w[lLiaprmfFsoORtUuTgAc] or\n\
-  --debug-dump[=rawline,=decodedline,=info,=abbrev,=pubnames,=aranges,=macro,=frames,\n\
-               =frames-interp,=str,=str-offsets,=loc,=Ranges,=pubtypes,\n\
-               =gdb_index,=trace_info,=trace_abbrev,=trace_aranges,\n\
-               =addr,=cu_index]\n\
-                         Display the contents of DWARF debug sections\n\
-  -wk,--debug-dump=links Display the contents of sections that link to separate debuginfo files\n\
-  -P,--process-links     Display the contents of non-debug sections in separate debuginfo files.  (Implies -wK)\n"));
+                         Dump the relocated contents of section <number|name>\n"));
+  fprintf (stream, _("\
+  -z --decompress        Decompress section before dumping it\n"));
+  fprintf (stream, _("\
+  -w --debug-dump[a/=abbrev, A/=addr, r/=aranges, c/=cu_index, L/=decodedline,\n\
+                  f/=frames, F/=frames-interp, g/=gdb_index, i/=info, o/=loc,\n\
+                  m/=macro, p/=pubnames, t/=pubtypes, R/=Ranges, l/=rawline,\n\
+                  s/=str, O/=str-offsets, u/=trace_abbrev, T/=trace_aranges,\n\
+                  U/=trace_info]\n\
+                         Display the contents of DWARF debug sections\n"));
+  fprintf (stream, _("\
+  -wk --debug-dump=links Display the contents of sections that link to separate\n\
+                          debuginfo files\n"));
+  fprintf (stream, _("\
+  -P --process-links     Display the contents of non-debug sections in separate\n\
+                          debuginfo files.  (Implies -wK)\n"));
 #if DEFAULT_FOR_FOLLOW_LINKS
   fprintf (stream, _("\
-  -wK,--debug-dump=follow-links     Follow links to separate debug info files (default)\n\
-  -wN,--debug-dump=no-follow-links  Do not follow links to separate debug info files\n\
-"));
+  -wK --debug-dump=follow-links\n\
+                         Follow links to separate debug info files (default)\n"));
+  fprintf (stream, _("\
+  -wN --debug-dump=no-follow-links\n\
+                         Do not follow links to separate debug info files\n"));
 #else
   fprintf (stream, _("\
-  -wK,--debug-dump=follow-links     Follow links to separate debug info files\n\
-  -wN,--debug-dump=no-follow-links  Do not follow links to separate debug info files (default)\n\
-"));
+  -wK --debug-dump=follow-links\n\
+                         Follow links to separate debug info files\n"));
+  fprintf (stream, _("\
+  -wN --debug-dump=no-follow-links\n\
+                         Do not follow links to separate debug info files\n\
+                          (default)\n"));
 #endif
   fprintf (stream, _("\
-  --dwarf-depth=N        Do not display DIEs at depth N or greater\n\
-  --dwarf-start=N        Display DIEs starting with N, at the same depth\n\
-                         or deeper\n"));
+  --dwarf-depth=N        Do not display DIEs at depth N or greater\n"));
+  fprintf (stream, _("\
+  --dwarf-start=N        Display DIEs starting at offset N\n"));
 #ifdef ENABLE_LIBCTF
   fprintf (stream, _("\
-  --ctf=<number|name>    Display CTF info from section <number|name>\n\
+  --ctf=<number|name>    Display CTF info from section <number|name>\n"));
+  fprintf (stream, _("\
   --ctf-parent=<number|name>\n\
-                         Use section <number|name> as the CTF parent\n\n\
+                         Use section <number|name> as the CTF parent\n"));
+  fprintf (stream, _("\
   --ctf-symbols=<number|name>\n\
-                         Use section <number|name> as the CTF external symtab\n\n\
+                         Use section <number|name> as the CTF external symtab\n"));
+  fprintf (stream, _("\
   --ctf-strings=<number|name>\n\
-                         Use section <number|name> as the CTF external strtab\n\n"));
+                         Use section <number|name> as the CTF external strtab\n"));
 #endif
 
 #ifdef SUPPORT_DISASSEMBLY
@@ -4693,11 +4839,16 @@ usage (FILE * stream)
                          Disassemble the contents of section <number|name>\n"));
 #endif
   fprintf (stream, _("\
-  -I --histogram         Display histogram of bucket list lengths\n\
-  -W --wide              Allow output width to exceed 80 characters\n\
-  -T --silent-truncation If a symbol name is truncated, do not add a suffix [...]\n\
-  @<file>                Read options from <file>\n\
-  -H --help              Display this information\n\
+  -I --histogram         Display histogram of bucket list lengths\n"));
+  fprintf (stream, _("\
+  -W --wide              Allow output width to exceed 80 characters\n"));
+  fprintf (stream, _("\
+  -T --silent-truncation If a symbol name is truncated, do not add [...] suffix\n"));
+  fprintf (stream, _("\
+  @<file>                Read options from <file>\n"));
+  fprintf (stream, _("\
+  -H --help              Display this information\n"));
+  fprintf (stream, _("\
   -v --version           Display the version number of readelf\n"));
 
   if (REPORT_BUGS_TO[0] && stream == stdout)
@@ -4900,7 +5051,10 @@ parse_args (struct dump_data *dumpdata, int argc, char ** argv)
 	case OPTION_DEBUG_DUMP:
 	  do_dump = true;
 	  if (optarg == NULL)
-	    do_debugging = true;
+	    {
+	      do_debugging = true;
+	      dwarf_select_sections_all ();
+	    }
 	  else
 	    {
 	      do_debugging = false;
@@ -5118,7 +5272,7 @@ process_file_header (Filedata * filedata)
       printf (_("  ABI Version:                       %d\n"),
 	      header->e_ident[EI_ABIVERSION]);
       printf (_("  Type:                              %s\n"),
-	      get_file_type (header->e_type));
+	      get_file_type (filedata));
       printf (_("  Machine:                           %s\n"),
 	      get_machine_name (header->e_machine));
       printf (_("  Version:                           0x%lx\n"),
@@ -5187,8 +5341,6 @@ process_file_header (Filedata * filedata)
 	header->e_shstrndx = filedata->section_headers[0].sh_link;
       if (header->e_shstrndx >= header->e_shnum)
 	header->e_shstrndx = SHN_UNDEF;
-      free (filedata->section_headers);
-      filedata->section_headers = NULL;
     }
 
   return true;
@@ -5331,27 +5483,21 @@ get_program_headers (Filedata * filedata)
   return false;
 }
 
-/* Returns TRUE if the program headers were loaded.  */
+/* Print program header info and locate dynamic section.  */
 
-static bool
+static void
 process_program_headers (Filedata * filedata)
 {
   Elf_Internal_Phdr * segment;
   unsigned int i;
   Elf_Internal_Phdr * previous_load = NULL;
 
-  filedata->dynamic_addr = 0;
-  filedata->dynamic_size = 0;
-
   if (filedata->file_header.e_phnum == 0)
     {
       /* PR binutils/12467.  */
       if (filedata->file_header.e_phoff != 0)
-	{
-	  warn (_("possibly corrupt ELF header - it has a non-zero program"
-		  " header offset, but no program headers\n"));
-	  return false;
-	}
+	warn (_("possibly corrupt ELF header - it has a non-zero program"
+		" header offset, but no program headers\n"));
       else if (do_segments)
 	{
 	  if (filedata->is_separate)
@@ -5360,17 +5506,16 @@ process_program_headers (Filedata * filedata)
 	  else
 	    printf (_("\nThere are no program headers in this file.\n"));
 	}
-      return true;
+      goto no_headers;
     }
 
   if (do_segments && !do_header)
     {
       if (filedata->is_separate)
 	printf ("\nIn linked file '%s' the ELF file type is %s\n",
-		filedata->file_name,
-		get_file_type (filedata->file_header.e_type));
+		filedata->file_name, get_file_type (filedata));
       else
-	printf (_("\nElf file type is %s\n"), get_file_type (filedata->file_header.e_type));
+	printf (_("\nElf file type is %s\n"), get_file_type (filedata));
       printf (_("Entry point 0x%s\n"), bfd_vmatoa ("x", filedata->file_header.e_entry));
       printf (ngettext ("There is %d program header, starting at offset %s\n",
 			"There are %d program headers, starting at offset %s\n",
@@ -5380,7 +5525,7 @@ process_program_headers (Filedata * filedata)
     }
 
   if (! get_program_headers (filedata))
-    return true;
+    goto no_headers;
 
   if (do_segments)
     {
@@ -5404,6 +5549,8 @@ process_program_headers (Filedata * filedata)
 	}
     }
 
+  unsigned long dynamic_addr = 0;
+  bfd_size_type dynamic_size = 0;
   for (i = 0, segment = filedata->program_headers;
        i < filedata->file_header.e_phnum;
        i++, segment++)
@@ -5529,13 +5676,13 @@ process_program_headers (Filedata * filedata)
 	  break;
 
 	case PT_DYNAMIC:
-	  if (filedata->dynamic_addr)
+	  if (dynamic_addr)
 	    error (_("more than one dynamic segment\n"));
 
 	  /* By default, assume that the .dynamic section is the first
 	     section in the DYNAMIC segment.  */
-	  filedata->dynamic_addr = segment->p_offset;
-	  filedata->dynamic_size = segment->p_filesz;
+	  dynamic_addr = segment->p_offset;
+	  dynamic_size = segment->p_filesz;
 
 	  /* Try to locate the .dynamic section. If there is
 	     a section header table, we can easily locate it.  */
@@ -5546,27 +5693,28 @@ process_program_headers (Filedata * filedata)
 	      sec = find_section (filedata, ".dynamic");
 	      if (sec == NULL || sec->sh_size == 0)
 		{
-                  /* A corresponding .dynamic section is expected, but on
-                     IA-64/OpenVMS it is OK for it to be missing.  */
-                  if (!is_ia64_vms (filedata))
-                    error (_("no .dynamic section in the dynamic segment\n"));
+		  /* A corresponding .dynamic section is expected, but on
+		     IA-64/OpenVMS it is OK for it to be missing.  */
+		  if (!is_ia64_vms (filedata))
+		    error (_("no .dynamic section in the dynamic segment\n"));
 		  break;
 		}
 
 	      if (sec->sh_type == SHT_NOBITS)
 		{
-		  filedata->dynamic_size = 0;
+		  dynamic_addr = 0;
+		  dynamic_size = 0;
 		  break;
 		}
 
-	      filedata->dynamic_addr = sec->sh_offset;
-	      filedata->dynamic_size = sec->sh_size;
+	      dynamic_addr = sec->sh_offset;
+	      dynamic_size = sec->sh_size;
 
 	      /* The PT_DYNAMIC segment, which is used by the run-time
 		 loader,  should exactly match the .dynamic section.  */
 	      if (do_checks
-		  && (filedata->dynamic_addr != segment->p_offset
-		      || filedata->dynamic_size != segment->p_filesz))
+		  && (dynamic_addr != segment->p_offset
+		      || dynamic_size != segment->p_filesz))
 		warn (_("\
 the .dynamic section is not the same as the dynamic segment\n"));
 	    }
@@ -5575,12 +5723,12 @@ the .dynamic section is not the same as the dynamic segment\n"));
 	     segment.  Check this after matching against the section headers
 	     so we don't warn on debuginfo file (which have NOBITS .dynamic
 	     sections).  */
-	  if (filedata->dynamic_addr > filedata->file_size
-	      || (filedata->dynamic_size
-		  > filedata->file_size - filedata->dynamic_addr))
+	  if (dynamic_addr > filedata->file_size
+	      || (dynamic_size > filedata->file_size - dynamic_addr))
 	    {
 	      error (_("the dynamic segment offset + size exceeds the size of the file\n"));
-	      filedata->dynamic_addr = filedata->dynamic_size = 0;
+	      dynamic_addr = 0;
+	      dynamic_size = 0;
 	    }
 	  break;
 
@@ -5637,7 +5785,13 @@ the .dynamic section is not the same as the dynamic segment\n"));
 	}
     }
 
-  return true;
+  filedata->dynamic_addr = dynamic_addr;
+  filedata->dynamic_size = dynamic_size ? dynamic_size : 1;
+  return;
+
+ no_headers:
+  filedata->dynamic_addr = 0;
+  filedata->dynamic_size = 1;
 }
 
 
@@ -5703,7 +5857,6 @@ get_32bit_section_headers (Filedata * filedata, bool probe)
   if (shdrs == NULL)
     return false;
 
-  free (filedata->section_headers);
   filedata->section_headers = (Elf_Internal_Shdr *)
     cmalloc (num, sizeof (Elf_Internal_Shdr));
   if (filedata->section_headers == NULL)
@@ -5770,7 +5923,6 @@ get_64bit_section_headers (Filedata * filedata, bool probe)
   if (shdrs == NULL)
     return false;
 
-  free (filedata->section_headers);
   filedata->section_headers = (Elf_Internal_Shdr *)
     cmalloc (num, sizeof (Elf_Internal_Shdr));
   if (filedata->section_headers == NULL)
@@ -5803,6 +5955,18 @@ get_64bit_section_headers (Filedata * filedata, bool probe)
 
   free (shdrs);
   return true;
+}
+
+static bool
+get_section_headers (Filedata *filedata, bool probe)
+{
+  if (filedata->section_headers != NULL)
+    return true;
+
+  if (is_32bit_elf)
+    return get_32bit_section_headers (filedata, probe);
+  else
+    return get_64bit_section_headers (filedata, probe);
 }
 
 static Elf_Internal_Sym *
@@ -6039,6 +6203,17 @@ get_64bit_elf_symbols (Filedata *           filedata,
     * num_syms_return = isyms == NULL ? 0 : number;
 
   return isyms;
+}
+
+static Elf_Internal_Sym *
+get_elf_symbols (Filedata *filedata,
+		 Elf_Internal_Shdr *section,
+		 unsigned long *num_syms_return)
+{
+  if (is_32bit_elf)
+    return get_32bit_elf_symbols (filedata, section, num_syms_return);
+  else
+    return get_64bit_elf_symbols (filedata, section, num_syms_return);
 }
 
 static const char *
@@ -6398,23 +6573,6 @@ process_section_headers (Filedata * filedata)
   Elf_Internal_Shdr * section;
   unsigned int i;
 
-  free (filedata->section_headers);
-  filedata->section_headers = NULL;
-  free (filedata->dynamic_symbols);
-  filedata->dynamic_symbols = NULL;
-  filedata->num_dynamic_syms = 0;
-  free (filedata->dynamic_strings);
-  filedata->dynamic_strings = NULL;
-  filedata->dynamic_strings_length = 0;
-  free (filedata->dynamic_syminfo);
-  filedata->dynamic_syminfo = NULL;
-  while (filedata->symtab_shndx_list != NULL)
-    {
-      elf_section_list *next = filedata->symtab_shndx_list->next;
-      free (filedata->symtab_shndx_list);
-      filedata->symtab_shndx_list = next;
-    }
-
   if (filedata->file_header.e_shnum == 0)
     {
       /* PR binutils/12467.  */
@@ -6444,16 +6602,8 @@ process_section_headers (Filedata * filedata)
 		(unsigned long) filedata->file_header.e_shoff);
     }
 
-  if (is_32bit_elf)
-    {
-      if (! get_32bit_section_headers (filedata, false))
-	return false;
-    }
-  else
-    {
-      if (! get_64bit_section_headers (filedata, false))
-	return false;
-    }
+  if (!get_section_headers (filedata, false))
+    return false;
 
   /* Read in the string table, so that we have names to display.  */
   if (filedata->file_header.e_shstrndx != SHN_UNDEF
@@ -6562,7 +6712,7 @@ process_section_headers (Filedata * filedata)
 
 	  CHECK_ENTSIZE (section, i, Sym);
 	  filedata->dynamic_symbols
-	    = GET_ELF_SYMBOLS (filedata, section, &filedata->num_dynamic_syms);
+	    = get_elf_symbols (filedata, section, &filedata->num_dynamic_syms);
 	  filedata->dynamic_symtab_section = section;
 	  break;
 
@@ -7117,7 +7267,7 @@ get_symtab (Filedata *filedata, Elf_Internal_Shdr *symsec,
 {
   *strtab = NULL;
   *strtablen = 0;
-  *symtab = GET_ELF_SYMBOLS (filedata, symsec, nsyms);
+  *symtab = get_elf_symbols (filedata, symsec, nsyms);
 
   if (*symtab == NULL)
     return false;
@@ -7288,7 +7438,7 @@ process_section_groups (Filedata * filedata)
 	    {
 	      symtab_sec = sec;
 	      free (symtab);
-	      symtab = GET_ELF_SYMBOLS (filedata, symtab_sec, & num_syms);
+	      symtab = get_elf_symbols (filedata, symtab_sec, & num_syms);
 	    }
 
 	  if (symtab == NULL)
@@ -10225,6 +10375,18 @@ get_64bit_dynamic_section (Filedata * filedata)
   return true;
 }
 
+static bool
+get_dynamic_section (Filedata *filedata)
+{
+  if (filedata->dynamic_section)
+    return true;
+
+  if (is_32bit_elf)
+    return get_32bit_dynamic_section (filedata);
+  else
+    return get_64bit_dynamic_section (filedata);
+}
+
 static void
 print_dynamic_flags (bfd_vma flags)
 {
@@ -10554,7 +10716,7 @@ process_dynamic_section (Filedata * filedata)
 {
   Elf_Internal_Dyn * entry;
 
-  if (filedata->dynamic_size == 0)
+  if (filedata->dynamic_size <= 1)
     {
       if (do_dynamic)
 	{
@@ -10568,16 +10730,8 @@ process_dynamic_section (Filedata * filedata)
       return true;
     }
 
-  if (is_32bit_elf)
-    {
-      if (! get_32bit_dynamic_section (filedata))
-	return false;
-    }
-  else
-    {
-      if (! get_64bit_dynamic_section (filedata))
-	return false;
-    }
+  if (!get_dynamic_section (filedata))
+    return false;
 
   /* Find the appropriate symbol table.  */
   if (filedata->dynamic_symbols == NULL || do_histogram)
@@ -10661,7 +10815,7 @@ the .dynsym section doesn't match the DT_SYMTAB and DT_SYMENT tags\n"));
 
 		  section.sh_name = filedata->string_table_length;
 		  filedata->dynamic_symbols
-		    = GET_ELF_SYMBOLS (filedata, &section,
+		    = get_elf_symbols (filedata, &section,
 				       &filedata->num_dynamic_syms);
 		  if (filedata->dynamic_symbols == NULL
 		      || filedata->num_dynamic_syms != num_of_syms)
@@ -10789,28 +10943,19 @@ the .dynstr section doesn't match the DT_STRTAB and DT_STRSZ tags\n"));
 
   if (do_dynamic && filedata->dynamic_addr)
     {
-      if (filedata->dynamic_nent == 1)
-	{
-	  if (filedata->is_separate)
-	    printf (_("\nIn linked file '%s' the dynamic section at offset 0x%lx contains 1 entry:\n"),
-		    filedata->file_name,
-		    filedata->dynamic_addr);
+      if (filedata->is_separate)
+	printf (ngettext ("\nIn linked file '%s' the dynamic section at offset 0x%lx contains %lu entry:\n",
+			  "\nIn linked file '%s' the dynamic section at offset 0x%lx contains %lu entries:\n",
+			  (unsigned long) filedata->dynamic_nent),
+		filedata->file_name,
+		filedata->dynamic_addr,
+		(unsigned long) filedata->dynamic_nent);
 	  else
-	    printf (_("\nDynamic section at offset 0x%lx contains 1 entry:\n"),
-		    filedata->dynamic_addr);
-	}
-      else
-	{
-	  if (filedata->is_separate)
-	    printf (_("\nIn linked file '%s' the dynamic section at offset 0x%lx contains %lu entries:\n"),
-		    filedata->file_name,
+	    printf (ngettext ("\nDynamic section at offset 0x%lx contains %lu entry:\n",
+			      "\nDynamic section at offset 0x%lx contains %lu entries:\n",
+			      (unsigned long) filedata->dynamic_nent),
 		    filedata->dynamic_addr,
 		    (unsigned long) filedata->dynamic_nent);
-	  else
-	    printf (_("\nDynamic section at offset 0x%lx contains %lu entries:\n"),
-		    filedata->dynamic_addr,
-		    (unsigned long) filedata->dynamic_nent);
-	}
     }
   if (do_dynamic)
     printf (_("  Tag        Type                         Name/Value\n"));
@@ -11691,7 +11836,7 @@ process_version_sections (Filedata * filedata)
 
 	    found = true;
 
-	    symbols = GET_ELF_SYMBOLS (filedata, link_section, & num_syms);
+	    symbols = get_elf_symbols (filedata, link_section, & num_syms);
 	    if (symbols == NULL)
 	      break;
 
@@ -12893,7 +13038,7 @@ process_symbol_table (Filedata * filedata)
 	  else
 	    printf (_("   Num:    Value          Size Type    Bind   Vis      Ndx Name\n"));
 
-	  symtab = GET_ELF_SYMBOLS (filedata, section, & num_syms);
+	  symtab = get_elf_symbols (filedata, section, & num_syms);
 	  if (symtab == NULL)
 	    continue;
 
@@ -14259,7 +14404,7 @@ apply_relocations (Filedata *                 filedata,
       if (filedata->file_header.e_machine == EM_SH)
 	is_rela = false;
 
-      symtab = GET_ELF_SYMBOLS (filedata, symsec, & num_syms);
+      symtab = get_elf_symbols (filedata, symsec, & num_syms);
 
       for (rp = relocs; rp < relocs + num_relocs; ++rp)
 	{
@@ -17141,24 +17286,27 @@ display_csky_attribute (unsigned char * p,
       break;
     case Tag_CSKY_FPU_ROUNDING:
       READ_ULEB (val, p, end);
-      if (val == 1) {
-	printf ("  Tag_CSKY_FPU_ROUNDING:\t");
-	printf ("Needed\n");
-      }
+      if (val == 1)
+	{
+	  printf ("  Tag_CSKY_FPU_ROUNDING:\t");
+	  printf ("Needed\n");
+	}
       break;
     case Tag_CSKY_FPU_DENORMAL:
       READ_ULEB (val, p, end);
-      if (val == 1) {
-	printf ("  Tag_CSKY_FPU_DENORMAL:\t");
-	printf ("Needed\n");
-      }
+      if (val == 1)
+	{
+	  printf ("  Tag_CSKY_FPU_DENORMAL:\t");
+	  printf ("Needed\n");
+	}
       break;
     case Tag_CSKY_FPU_Exception:
       READ_ULEB (val, p, end);
-      if (val == 1) {
-	printf ("  Tag_CSKY_FPU_Exception:\t");
-	printf ("Needed\n");
-      }
+      if (val == 1)
+	{
+	  printf ("  Tag_CSKY_FPU_Exception:\t");
+	  printf ("Needed\n");
+	}
       break;
     case Tag_CSKY_FPU_NUMBER_MODULE:
       printf ("  Tag_CSKY_FPU_NUMBER_MODULE:\t");
@@ -18718,6 +18866,8 @@ get_note_type (Filedata * filedata, unsigned e_type)
 	return _("OPEN");
       case NT_GNU_BUILD_ATTRIBUTE_FUNC:
 	return _("func");
+      case NT_GO_BUILDID:
+	return _("GO BUILDID");
       default:
 	break;
       }
@@ -19177,6 +19327,28 @@ decode_aarch64_feature_1_and (unsigned int bitmask)
 }
 
 static void
+decode_1_needed (unsigned int bitmask)
+{
+  while (bitmask)
+    {
+      unsigned int bit = bitmask & (- bitmask);
+
+      bitmask &= ~ bit;
+      switch (bit)
+	{
+	case GNU_PROPERTY_1_NEEDED_INDIRECT_EXTERN_ACCESS:
+	  printf ("indirect external access");
+	  break;
+	default:
+	  printf (_("<unknown: %x>"), bit);
+	  break;
+	}
+      if (bitmask)
+	printf (", ");
+    }
+}
+
+static void
 print_gnu_property_note (Filedata * filedata, Elf_Internal_Note * pnote)
 {
   unsigned char * ptr = (unsigned char *) pnote->descdata;
@@ -19364,6 +19536,38 @@ print_gnu_property_note (Filedata * filedata, Elf_Internal_Note * pnote)
 	      goto next;
 
 	    default:
+	      if ((type >= GNU_PROPERTY_UINT32_AND_LO
+		   && type <= GNU_PROPERTY_UINT32_AND_HI)
+		  || (type >= GNU_PROPERTY_UINT32_OR_LO
+		      && type <= GNU_PROPERTY_UINT32_OR_HI))
+		{
+		  switch (type)
+		    {
+		    case GNU_PROPERTY_1_NEEDED:
+		      if (datasz != 4)
+			printf (_("1_needed: <corrupt length: %#x> "),
+				datasz);
+		      else
+			{
+			  unsigned int bitmask = byte_get (ptr, 4);
+			  printf ("1_needed: ");
+			  decode_1_needed (bitmask);
+			}
+		      goto next;
+
+		    default:
+		      break;
+		    }
+		  if (type <= GNU_PROPERTY_UINT32_AND_HI)
+		    printf (_("UINT32_AND (%#x): "), type);
+		  else
+		    printf (_("UINT32_OR (%#x): "), type);
+		  if (datasz != 4)
+		    printf (_("<corrupt length: %#x> "), datasz);
+		  else
+		    printf ("%#x", (unsigned int) byte_get (ptr, 4));
+		  goto next;
+		}
 	      break;
 	    }
 	}
@@ -21132,16 +21336,6 @@ get_file_header (Filedata * filedata)
       filedata->file_header.e_shstrndx  = BYTE_GET (ehdr64.e_shstrndx);
     }
 
-  if (filedata->file_header.e_shoff)
-    {
-      /* There may be some extensions in the first section header.  Don't
-	 bomb if we can't read it.  */
-      if (is_32bit_elf)
-	get_32bit_section_headers (filedata, true);
-      else
-	get_64bit_section_headers (filedata, true);
-    }
-
   return true;
 }
 
@@ -21149,35 +21343,14 @@ static void
 free_filedata (Filedata *filedata)
 {
   free (filedata->program_interpreter);
-  filedata->program_interpreter = NULL;
-
   free (filedata->program_headers);
-  filedata->program_headers = NULL;
-
   free (filedata->section_headers);
-  filedata->section_headers = NULL;
-
   free (filedata->string_table);
-  filedata->string_table = NULL;
-  filedata->string_table_length = 0;
-
   free (filedata->dump.dump_sects);
-  filedata->dump.dump_sects = NULL;
-  filedata->dump.num_dump_sects = 0;
-
   free (filedata->dynamic_strings);
-  filedata->dynamic_strings = NULL;
-  filedata->dynamic_strings_length = 0;
-
   free (filedata->dynamic_symbols);
-  filedata->dynamic_symbols = NULL;
-  filedata->num_dynamic_syms = 0;
-
   free (filedata->dynamic_syminfo);
-  filedata->dynamic_syminfo = NULL;
-
   free (filedata->dynamic_section);
-  filedata->dynamic_section = NULL;
 
   while (filedata->symtab_shndx_list != NULL)
     {
@@ -21187,7 +21360,6 @@ free_filedata (Filedata *filedata)
     }
 
   free (filedata->section_headers_groups);
-  filedata->section_headers_groups = NULL;
 
   if (filedata->section_groups)
     {
@@ -21205,8 +21377,9 @@ free_filedata (Filedata *filedata)
 	}
 
       free (filedata->section_groups);
-      filedata->section_groups = NULL;
     }
+  memset (&filedata->section_headers, 0,
+	  sizeof (Filedata) - offsetof (Filedata, section_headers));
 }
 
 static void
@@ -21252,19 +21425,8 @@ open_file (const char * pathname, bool is_separate)
   if (! get_file_header (filedata))
     goto fail;
 
-  if (filedata->file_header.e_shoff)
-    {
-      bool res;
-
-      /* Read the section headers again, this time for real.  */
-      if (is_32bit_elf)
-	res = get_32bit_section_headers (filedata, false);
-      else
-	res = get_64bit_section_headers (filedata, false);
-
-      if (!res)
-	goto fail;
-    }
+  if (!get_section_headers (filedata, false))
+    goto fail;
 
   return filedata;
 
@@ -21340,8 +21502,20 @@ process_object (Filedata * filedata)
 
   initialise_dump_sects (filedata);
 
+  /* There may be some extensions in the first section header.  Don't
+     bomb if we can't read it.  */
+  get_section_headers (filedata, true);
+
   if (! process_file_header (filedata))
-    return false;
+    {
+      res = false;
+      goto out;
+    }
+
+  /* Throw away the single section header read above, so that we
+     re-read the entire set.  */
+  free (filedata->section_headers);
+  filedata->section_headers = NULL;
 
   if (! process_section_headers (filedata))
     {
@@ -21356,9 +21530,9 @@ process_object (Filedata * filedata)
     /* Without loaded section groups we cannot process unwind.  */
     do_unwind = false;
 
-  res = process_program_headers (filedata);
-  if (res)
-    res = process_dynamic_section (filedata);
+  process_program_headers (filedata);
+
+  res = process_dynamic_section (filedata);
 
   if (! process_relocs (filedata))
     res = false;
@@ -21404,8 +21578,7 @@ process_object (Filedata * filedata)
 	    {
 	      if (! process_section_groups (d->handle))
 		res = false;
-	      if (! process_program_headers (d->handle))
-		res = false;
+	      process_program_headers (d->handle);
 	      if (! process_dynamic_section (d->handle))
 		res = false;
 	      if (! process_relocs (d->handle))
@@ -21437,6 +21610,7 @@ process_object (Filedata * filedata)
   if (! process_arch_specific (filedata))
     res = false;
 
+ out:
   free_filedata (filedata);
 
   free_debug_memory ();
@@ -21663,6 +21837,9 @@ process_archive (Filedata * filedata, bool is_thin_archive)
 
 	  filedata->archive_file_offset = arch.nested_member_origin;
 	  member_filedata->file_name = qualified_name;
+
+	  /* The call to process_object() expects the file to be at the beginning.  */
+	  rewind (member_filedata->handle);
 
 	  if (! process_object (member_filedata))
 	    ret = false;
