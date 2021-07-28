@@ -30,6 +30,8 @@
 
 #include "dv-m32r_uart.h"
 
+#define M32R_DEFAULT_MEM_SIZE 0x2000000 /* 32M */
+
 static void free_state (SIM_DESC);
 static void print_m32r_misc_cpu (SIM_CPU *cpu, int verbose);
 
@@ -44,6 +46,8 @@ free_state (SIM_DESC sd)
   sim_state_free (sd);
 }
 
+extern const SIM_MACH * const m32r_sim_machs[];
+
 /* Create an instance of the simulator.  */
 
 SIM_DESC
@@ -53,6 +57,12 @@ sim_open (SIM_OPEN_KIND kind, host_callback *callback, struct bfd *abfd,
   SIM_DESC sd = sim_state_alloc (kind, callback);
   char c;
   int i;
+
+  /* Set default options before parsing user options.  */
+  STATE_MACHS (sd) = m32r_sim_machs;
+  STATE_MODEL_NAME (sd) = "m32r/d";
+  current_alignment = STRICT_ALIGNMENT;
+  current_target_byte_order = BFD_ENDIAN_BIG;
 
   /* The cpu data is kept in a separately allocated chunk of memory.  */
   if (sim_cpu_alloc_all (sd, 1) != SIM_RC_OK)
@@ -124,10 +134,6 @@ sim_open (SIM_OPEN_KIND kind, host_callback *callback, struct bfd *abfd,
     m32r_cgen_init_dis (cd);
   }
 
-  /* Initialize various cgen things not done by common framework.
-     Must be done after m32r_cgen_cpu_open.  */
-  cgen_init (sd);
-
   for (c = 0; c < MAX_NR_PROCESSORS; ++c)
     {
       /* Only needed for profiling, but the structure member is small.  */
@@ -154,12 +160,13 @@ sim_create_inferior (SIM_DESC sd, struct bfd *abfd, char * const *argv,
     addr = 0;
   sim_pc_set (current_cpu, addr);
 
-#ifdef M32R_LINUX
-  m32rbf_h_cr_set (current_cpu,
-                    m32r_decode_gdb_ctrl_regnum(SPI_REGNUM), 0x1f00000);
-  m32rbf_h_cr_set (current_cpu,
-                    m32r_decode_gdb_ctrl_regnum(SPU_REGNUM), 0x1f00000);
-#endif
+  if (STATE_ENVIRONMENT (sd) == USER_ENVIRONMENT)
+    {
+      m32rbf_h_cr_set (current_cpu,
+		       m32r_decode_gdb_ctrl_regnum(SPI_REGNUM), 0x1f00000);
+      m32rbf_h_cr_set (current_cpu,
+		       m32r_decode_gdb_ctrl_regnum(SPU_REGNUM), 0x1f00000);
+    }
 
   /* Standalone mode (i.e. `run`) will take care of the argv for us in
      sim_open() -> sim_parse_args().  But in debug mode (i.e. 'target sim'

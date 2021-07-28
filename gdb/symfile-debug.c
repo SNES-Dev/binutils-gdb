@@ -100,6 +100,31 @@ objfile::has_partial_symbols ()
   return retval;
 }
 
+/* See objfiles.h.  */
+bool
+objfile::has_unexpanded_symtabs ()
+{
+  if (debug_symfile)
+    fprintf_filtered (gdb_stdlog, "qf->has_unexpanded_symtabs (%s)\n",
+		      objfile_debug_name (this));
+
+  bool result = false;
+  for (const auto &iter : qf)
+    {
+      if (iter->has_unexpanded_symtabs (this))
+	{
+	  result = true;
+	  break;
+	}
+    }
+
+  if (debug_symfile)
+    fprintf_filtered (gdb_stdlog, "qf->has_unexpanded_symtabs (%s) = %d\n",
+		      objfile_debug_name (this), (result ? 1 : 0));
+
+  return result;
+}
+
 struct symtab *
 objfile::find_last_source_symtab ()
 {
@@ -380,6 +405,9 @@ objfile::expand_symtabs_matching
    domain_enum domain,
    enum search_domain kind)
 {
+  /* This invariant is documented in quick-functions.h.  */
+  gdb_assert (lookup_name != nullptr || symbol_matcher == nullptr);
+
   if (debug_symfile)
     fprintf_filtered (gdb_stdlog,
 		      "qf->expand_symtabs_matching (%s, %s, %s, %s, %s)\n",

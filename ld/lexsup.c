@@ -433,6 +433,10 @@ static const struct ld_option ld_options[] =
      OPTION_REDUCE_MEMORY_OVERHEADS},
     '\0', NULL, N_("Reduce memory overheads, possibly taking much longer"),
     TWO_DASHES },
+  { {"max-cache-size=SIZE", required_argument, NULL,
+    OPTION_MAX_CACHE_SIZE},
+    '\0', NULL, N_("Set the maximum cache size to SIZE bytes"),
+    TWO_DASHES },
   { {"relax", no_argument, NULL, OPTION_RELAX},
     '\0', NULL, N_("Reduce code size by using target specific optimizations"), TWO_DASHES },
   { {"no-relax", no_argument, NULL, OPTION_NO_RELAX},
@@ -453,6 +457,8 @@ static const struct ld_option ld_options[] =
     '\0', NULL, N_("Create a position independent executable"), ONE_DASH },
   { {"pic-executable", no_argument, NULL, OPTION_PIE},
     '\0', NULL, NULL, TWO_DASHES },
+  { {"no-pie", no_argument, NULL, OPTION_NO_PIE},
+    '\0', NULL, N_("Create a position dependent executable (default)"), ONE_DASH },
   { {"sort-common", optional_argument, NULL, OPTION_SORT_COMMON},
     '\0', N_("[=ascending|descending]"),
     N_("Sort common symbols by alignment [in specified order]"),
@@ -1262,6 +1268,9 @@ parse_args (unsigned argc, char **argv)
 	  else
 	    einfo (_("%F%P: -shared not supported\n"));
 	  break;
+	case OPTION_NO_PIE:
+	  link_info.type = type_pde;
+	  break;
 	case OPTION_PIE:
 	  if (config.has_shared)
 	    {
@@ -1624,6 +1633,17 @@ parse_args (unsigned argc, char **argv)
 	  link_info.reduce_memory_overheads = true;
 	  if (config.hash_table_size == 0)
 	    config.hash_table_size = 1021;
+	  break;
+
+	case OPTION_MAX_CACHE_SIZE:
+	  {
+	    char *end;
+	    bfd_size_type cache_size = strtoul (optarg, &end, 0);
+	    if (*end != '\0')
+	      einfo (_("%F%P: invalid cache memory size: %s\n"),
+		     optarg);
+	    link_info.max_cache_size = cache_size;
+	  }
 	  break;
 
 	case OPTION_HASH_SIZE:

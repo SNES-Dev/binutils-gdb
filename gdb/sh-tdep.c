@@ -1406,8 +1406,8 @@ sh_return_value_nofpu (struct gdbarch *gdbarch, struct value *function,
 {
   struct type *func_type = function ? value_type (function) : NULL;
 
-  if (sh_use_struct_convention_nofpu (
-  	sh_is_renesas_calling_convention (func_type), type))
+  if (sh_use_struct_convention_nofpu
+	(sh_is_renesas_calling_convention (func_type), type))
     return RETURN_VALUE_STRUCT_CONVENTION;
   if (writebuf)
     sh_store_return_value_nofpu (type, regcache, writebuf);
@@ -1968,6 +1968,7 @@ sh_frame_this_id (struct frame_info *this_frame, void **this_cache,
 }
 
 static const struct frame_unwind sh_frame_unwind = {
+  "sh prologue",
   NORMAL_FRAME,
   default_frame_unwind_stop_reason,
   sh_frame_this_id,
@@ -2034,6 +2035,7 @@ sh_stub_unwind_sniffer (const struct frame_unwind *self,
 
 static const struct frame_unwind sh_stub_unwind =
 {
+  "sh stub",
   NORMAL_FRAME,
   default_frame_unwind_stop_reason,
   sh_stub_this_id,

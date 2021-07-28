@@ -1889,6 +1889,7 @@ record_btrace_frame_dealloc_cache (struct frame_info *self, void *this_cache)
 
 const struct frame_unwind record_btrace_frame_unwind =
 {
+  "record-btrace",
   NORMAL_FRAME,
   record_btrace_frame_unwind_stop_reason,
   record_btrace_frame_this_id,
@@ -1900,6 +1901,7 @@ const struct frame_unwind record_btrace_frame_unwind =
 
 const struct frame_unwind record_btrace_tailcall_frame_unwind =
 {
+  "record-btrace tailcall",
   TAILCALL_FRAME,
   record_btrace_frame_unwind_stop_reason,
   record_btrace_frame_this_id,
@@ -2793,8 +2795,7 @@ record_btrace_set_replay (struct thread_info *tp,
   /* Start anew from the new replay position.  */
   record_btrace_clear_histories (btinfo);
 
-  inferior_thread ()->suspend.stop_pc
-    = regcache_read_pc (get_current_regcache ());
+  inferior_thread ()->set_stop_pc (regcache_read_pc (get_current_regcache ()));
   print_stack_frame (get_selected_frame (NULL), 1, SRC_AND_LOC, 1);
 }
 
@@ -3109,25 +3110,29 @@ void _initialize_record_btrace ();
 void
 _initialize_record_btrace ()
 {
-  add_prefix_cmd ("btrace", class_obscure, cmd_record_btrace_start,
-		  _("Start branch trace recording."), &record_btrace_cmdlist,
-		  0, &record_cmdlist);
-  add_alias_cmd ("b", "btrace", class_obscure, 1, &record_cmdlist);
+  cmd_list_element *record_btrace_cmd
+    = add_prefix_cmd ("btrace", class_obscure, cmd_record_btrace_start,
+		      _("Start branch trace recording."),
+		      &record_btrace_cmdlist, 0, &record_cmdlist);
+  add_alias_cmd ("b", record_btrace_cmd, class_obscure, 1, &record_cmdlist);
 
-  add_cmd ("bts", class_obscure, cmd_record_btrace_bts_start,
-	   _("\
+  cmd_list_element *record_btrace_bts_cmd
+    = add_cmd ("bts", class_obscure, cmd_record_btrace_bts_start,
+	       _("\
 Start branch trace recording in Branch Trace Store (BTS) format.\n\n\
 The processor stores a from/to record for each branch into a cyclic buffer.\n\
 This format may not be available on all processors."),
-	   &record_btrace_cmdlist);
-  add_alias_cmd ("bts", "btrace bts", class_obscure, 1, &record_cmdlist);
+	     &record_btrace_cmdlist);
+  add_alias_cmd ("bts", record_btrace_bts_cmd, class_obscure, 1,
+		 &record_cmdlist);
 
-  add_cmd ("pt", class_obscure, cmd_record_btrace_pt_start,
-	   _("\
+  cmd_list_element *record_btrace_pt_cmd
+    = add_cmd ("pt", class_obscure, cmd_record_btrace_pt_start,
+	       _("\
 Start branch trace recording in Intel Processor Trace format.\n\n\
 This format may not be available on all processors."),
-	   &record_btrace_cmdlist);
-  add_alias_cmd ("pt", "btrace pt", class_obscure, 1, &record_cmdlist);
+	     &record_btrace_cmdlist);
+  add_alias_cmd ("pt", record_btrace_pt_cmd, class_obscure, 1, &record_cmdlist);
 
   add_basic_prefix_cmd ("btrace", class_support,
 			_("Set record options."), &set_record_btrace_cmdlist,

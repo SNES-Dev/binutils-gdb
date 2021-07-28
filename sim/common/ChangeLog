@@ -1,3 +1,404 @@
+2021-07-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (SIM_RESERVED_BITS): Delete.
+
+2021-07-01  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (GUILE): New variable.
+	(CGEN): Use $(GUILE).
+
+2021-06-30  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (SIM_SCACHE): Delete.
+	* cgen-scache.h (WITH_SCACHE): Delete.
+	* sim-profile.c (profile_info): Check CGEN_ARCH.
+
+2021-06-30  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-scache.c (scache_install): Rename to ...
+	(sim_install_scache): ... this.  New prototype.
+	* cgen-scache.h (scache_install): Delete.
+	* sim-module.c (early_modules): Delete scache_install.
+
+2021-06-30  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-module.c (early_modules): Delete profile_install.
+	* sim-profile.c (profile_install): Rename to ...
+	(sim_install_profile): ... this.  New prototype.
+	* sim-profile.h (profile_install): Delete.
+
+2021-06-30  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-module.c (early_modules): Delete trace_install.
+	* sim-trace.c (trace_install): Rename to ...
+	(sim_install_trace): ... this.  New prototype.
+	* sim-trace.h (trace_install): Delete.
+
+2021-06-30  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-engine.c (sim_engine_install): Rename to ...
+	(sim_install_engine): ... this.  New prototype.
+	* sim-engine.h (sim_engine_install): Delete.
+	* sim-module.c (early_modules): Delete sim_engine_install.
+
+2021-06-30  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-config.h (WITH_MODEL): Delete.
+	(CURRENT_MODEL, MODEL_ISSUE_IGNORE, MODEL_ISSUE_PROCESS,
+	WITH_MODEL_ISSUE, CURRENT_MODEL_ISSUE): Likewise.
+
+2021-06-30  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (SIM_DEFAULT_MODEL): Delete.
+	* sim-base.h (struct sim_state): Add model_name.
+	(STATE_MODEL_NAME): Define.
+	* sim-model.c (model_option_handler): Set STATE_MODEL_NAME.
+	(sim_model_init): Delete WITH_MODEL_P check.  Change
+	WITH_DEFAULT_MODEL to STATE_MODEL_NAME.
+	* sim-model.h (WITH_DEFAULT_MODEL): Delete.
+	(WITH_MODEL_P): Delete.
+
+2021-06-30  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-defs.h (cgen_cpu_max_extra_bytes): Add SIM_DESC arg.
+	* cgen-utils.c (cgen_cpu_max_extra_bytes): Likewise.  Change sim_machs
+	to STATE_MACHS.
+	* sim-base.h (struct sim_state): Add machs.
+	(STATE_MACHS): New define.
+	* sim-cpu.c (sim_cpu_alloc): Pass sd to cgen_cpu_max_extra_bytes.
+	* sim-model.c (model_option_handler): Pass sd to sim_model_lookup.
+	Change sim_machs to STATE_MACHS.
+	(sim_model_lookup): Add SIM_DESC arg.  Change sim_machs to
+	STATE_MACHS.
+	(sim_mach_lookup): Likewiwse.
+	(sim_mach_lookup_bfd_name): Likewise.
+	(sim_model_init): Pass sd to sim_model_lookup and
+	sim_mach_lookup_bfd_name.
+	(sim_machs): Delete.
+	* sim-model.h (enum mach_attr): Delete.
+	(SIM_MODEL): Change num to int.
+	(sim_machs): Delete.
+	(sim_model_lookup): Add SIM_DESC arg.
+	(sim_mach_lookup): Likewise.
+	(sim_mach_lookup_bfd_name): Likewise.
+
+2021-06-29  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (Makefile): Replace $(arch) and pass more files to
+	config.status.
+
+2021-06-29  Mike Frysinger  <vapier@gentoo.org>
+
+	* callback.c [!HAVE_KILL] (os_kill): Return ENOSYS.
+
+2021-06-29  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-model.c (model_option_handler): Make machp const.
+	(sim_model_lookup): Likewise.
+	(sim_mach_lookup): Likewise.
+	(sim_mach_lookup_bfd_name): Likewise.
+	(sim_machs): Add const.
+	* sim-model.h (sim_machs): Likewise.
+
+2021-06-29  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-io.h (sim_io_vprintf): Add ATTRIBUTE_PRINTF.
+	(sim_io_evprintf): Likewise.
+
+2021-06-29  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-io.c (sim_io_error): Change "" to " ".
+
+2021-06-29  Mike Frysinger  <vapier@gentoo.org>
+
+	* callback.c (sim_cb_printf, sim_cb_eprintf): Delete.
+	(os_poll_quit): Delete __GO32__ support.
+	* sim-utils.h (sim_cb_printf, sim_cb_eprintf): Delete.
+
+2021-06-29  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-types.h (HAVE_LONGLONG): Delete define.
+	[!HAVE_LONGLONG]: Delete all protected code.
+	* cgen-utils.c (make_struct_di): Delete.
+
+2021-06-27  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-trace.c: Include diagnostics.h.
+	(cgen_trace_extract): Call DIAGNOSTIC_PUSH,
+	DIAGNOSTIC_IGNORE_FORMAT_NONLITERAL, and DIAGNOSTIC_POP.
+
+2021-06-27  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-run.c (engine_run_n): Assert cpu arguments are valid.
+
+2021-06-27  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-trace.h (cgen_trace_printf): Add ATTRIBUTE_PRINTF_2.
+	(sim_disasm_sprintf): Likewise.
+
+2021-06-27  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-trace.c (cgen_trace_extract): Make name & fmt const.
+	(cgen_trace_result): Make name const.
+	(cgen_trace_printf): Make fmt const.
+	* cgen-trace.h (cgen_trace_extract): Make 3rd arg const.
+	(cgen_trace_result): Make 2nd arg const.
+	(cgen_trace_printf): Likewise.
+
+2021-06-27  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-mem.h (DECLARE_GETMEM_EXTERN): New macro.
+	(DECLARE_GETMEM): Use DECLARE_GETMEM_EXTERN.
+	(DECLARE_SETMEM_EXTERN): New macro.
+	(DECLARE_SETMEM): Use DECLARE_SETMEM_EXTERN.
+	(DECLARE_GETIMEM_EXTERN): New macro.
+	(DECLARE_GETIMEM): Use DECLARE_GETIMEM_EXTERN.
+	(DECLARE_GETT_EXTERN): New macro.
+	(DECLARE_GETT): Use DECLARE_GETT_EXTERN.
+	(DECLARE_SETT_EXTERN): New macro.
+	(DECLARE_SETT): Use DECLARE_SETT_EXTERN.
+
+2021-06-27  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-ops.h: Move prototype blocks before function definitions.
+
+2021-06-27  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-ops.h (SUBWORDSIQI): Add int 2nd argument.
+	(SUBWORDSIHI, SUBWORDSIUQI, SUBWORDDIUQI): Likewise.
+	(ADDCFSI): Change return type to BI.
+	(ADDOFSI, SUBCFSI, SUBOFSI, ADDCFHI, ADDOFHI, SUBCFHI, SUBOFHI,
+	ADDCFQI, ADDOFQI, SUBCFQI, SUBOFQI): Likewise.
+	(MUL1OFSI): Change SI arguments to USI.
+
+2021-06-23  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-syscall.c (sim_syscall_multi): Handle CB_SYS_kill.
+
+2021-06-23  Mike Frysinger  <vapier@gentoo.org>
+
+	* callback.c (os_kill): New function.
+	(default_callback): Add os_kill.
+	* syscall.c (cb_syscall): Handle CB_SYS_kill.
+
+2021-06-23  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (srcdir): Change to abs_srcdir.
+
+2021-06-22  Mike Frysinger  <vapier@gentoo.org>
+
+	* callback.c (cb_target_to_host_signal): New function.
+
+2021-06-22  Mike Frysinger  <vapier@gentoo.org>
+
+	* callback.c: Include signal.h.
+	(cb_init_signal_map): New prototype.
+	(os_init): Assign signal_map.
+	* gentmap.c (signal_tdefs): New array.
+	(gen_targ_vals_h): Output signal_tdefs.
+	(gen_targ_map_c): Likewise.
+
+2021-06-22  Mike Frysinger  <vapier@gentoo.org>
+
+	* callback.c (os_getpid): New function.
+	(default_callback): Add os_getpid.
+	* syscall.c (cb_syscall): Change getpid to cb->getpid.
+
+2021-06-22  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (VPATH): Use $(srcdir).
+	(config.status): New variable.
+	(stamp-hw): Depend on $(config.status).
+	(Makefile): Likewise.  Change rule based on SIM_COMMON_BUILD.
+	(config.status): Disable when SIM_COMMON_BUILD is true.
+	(.gdbinit): Likewise.
+
+2021-06-21  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in: Move sim-hw settings to ../arch-subdir.mk.in.
+
+2021-06-21  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (SIM_HW): Delete.
+	(SIM_HW_OBJS): Redefine.
+	(SIM_HW_SOCKSER, SIM_HW_DEVICES): Define.
+	(stamp-hw): Change SIM_HW to SIM_HW_DEVICES.
+
+2021-06-20  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (CGENDIR): Delete.
+
+2021-06-19  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (SIM_INLINE): Delete.
+
+2021-06-19  Simon Marchi  <simon.marchi@polymtl.ca>
+
+	* sim-inline.h: Move UNUSED before TYPE.
+
+2021-06-19  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (clean): Delete BUILT_SRC_FROM_COMMON usage.
+
+2021-06-19  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (CSEARCH): Change @INCINTL@ to $(INTL_CFLAGS).
+	(LIBINTL, LIBINTL_DEP): Delete.
+
+2021-06-19  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in: Move dependency vars to ../arch-subdir.mk.in.
+
+2021-06-19  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in: Move toolchain vars to ../arch-subdir.mk.in.
+
+2021-06-19  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (lt_cv_dlopen_libs): Delete.
+	(@PLUGINS_TRUE@LIBDL): Likewise.
+	(ZLIB): Use $(zlibdir).
+
+2021-06-19  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (CONFIG_LIBS): Add $(COMMON_LIBS).
+
+2021-06-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (WARN_CFLAGS, WERROR_CFLAGS): Delete.
+
+2021-06-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in: Include ../arch-subdir.mk.
+
+2021-06-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-run.c: Include sim-signal.h.
+	* cgen-utils.c, nrun.c, sim-core.c, sim-engine.c, sim-reason.c,
+	sim-resume.c, sim-signal.c, sim-stop.c, sim-watch.c: Likewise.
+	* sim-basics.h: Delete sim-signal.h include.
+
+2021-06-18  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-basics.h: Delete libiberty.h include.
+
+2021-06-17  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (SIM_ENDIAN): Delete.
+	* sim-config.c (sim_config): Delete WITH_DEFAULT_TARGET_BYTE_ORDER.
+	(sim_config_print): Likewise.
+	* sim-config.h (WITH_TARGET_BYTE_ORDER): Delete.
+	(WITH_DEFAULT_TARGET_BYTE_ORDER): Likewise.
+
+2021-06-17  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-trace.c: Include sim/callback.h.
+	* nrun.c, sim-hw.c, sim-io.c, sim-syscall.c, sim-trace.c: Likewise.
+	* sim-basics.h: Delete sim/callback.h include.
+	* sim-endian.h: Include bfd.h.
+	* sim-syscall.h (struct cb_syscall): New forward decl.
+	* sim-utils.h (sim_analyze_program): Likewise.
+
+2021-06-16  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (CONFIG_CFLAGS): Change @DEFS@ to -DHAVE_CONFIG_H.
+	(generated_files): Delete config.h.
+	(distclean): Likewise.
+	(config.h, stamp-h): Delete rules.
+	* defs.h [SIM_COMMON_BUILD]: Delete config.h include and PACKAGE*
+	defines.
+
+2021-06-15  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in: Add stamp-modules rule to avoid rebuilds.
+	(clean): Delete modules.c files.
+	* local.mk: Add version.c-stamp rule to avoid rebuilds.
+	(CLEANFILES): Add version.c files.
+
+2021-06-14  Mike Frysinger  <vapier@gentoo.org>
+
+	* local.mk (%D%/version.c): Use AM_V_GEN & AM_V_at wrappers.
+
+2021-06-14  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (GNULIB_BUILDDIR): Rename to ...
+	(GNULIB_PARENT_DIR): ... this.  Remove "gnulib" from value.
+
+2021-06-12  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (COMMON_OBJS_NAMES): Add portability.o.
+	* local.mk (%C%_libcommon_a_SOURCES): Add %D%/portability.c.
+	* portability.c, portability.h: New files.
+
+2021-06-12  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (SIM_NEW_COMMON_OBJS): Move sim-load.o to ...
+	(COMMON_OBJS_NAMES): ... here.  Rename var from COMMON_OBJS.
+	(COMMON_OBJS): Redefine.
+	* defs.h [SIM_COMMON_BUILD]: Do not include ../config.h.
+	* local.mk (%C%_libcommon_a_CPPFLAGS): New variable.
+	(%C%_libcommon_a_SOURCES): Add %D%/sim-load.c.
+
+2021-06-12  Mike Frysinger  <vapier@gentoo.org>
+
+	* dv-sockser.c: Include sys/select.h.
+
+2021-06-12  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in: Delete SIM_ALIGNMENT.
+	* sim-config.c (sim_config): Change WITH_DEFAULT_ALIGNMENT to
+	NONSTRICT_ALIGNMENT.
+	(sim_config_print): Delete WITH_DEFAULT_ALIGNMENT logic.
+	* sim-config.h (WITH_DEFAULT_ALIGNMENT): Delete.
+
+2021-06-12  Mike Frysinger  <vapier@gentoo.org>
+
+	* defs.h: Include ../config.h.  Undefine PACKAGE* defines.
+
+2021-06-09  Mike Frysinger  <vapier@gentoo.org>
+
+	* sim-basics.h (NULL): Delete.
+
+2021-06-09  Mike Frysinger  <vapier@gentoo.org>
+
+	* nrun.c (main): Set default_callback.target_endian to
+	current_target_byte_order when it's BFD_ENDIAN_UNKNOWN.
+
+2021-06-09  Mike Frysinger  <vapier@gentoo.org>
+
+	* cgen-defs.h (STATE_RUN_FAST_P, CGEN_STATE, cgen_init): Delete.
+	* cgen-run.c (cgen_get_fast_p): New function.
+	(sim_resume): Move fast_p up and call cgen_get_fast_p.
+	* cgen-utils.c (cgen_init): Delete.
+	* sim-base.h: Delete cgen-sim.h include.
+	(struct sim_state): Delete cgen_state and STATE_CGEN_STATE.
+
+2021-06-08  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (IGEN_RUN): New variable.
+	(IGEN): Remove ASAN_OPTIONS.
+
+2021-06-05  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (COMMON_OBJS): Define.
+	(LIB_OBJS): Replace version.o with $(COMMON_OBJS).
+	(version.c): Delete target.
+	(generated_files): Delete version.c.
+	* local.mk: New file.
+
+2021-05-29  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (EXTRA_LIBS): Add $(LIBGNU_EXTRA_LIBS).
+
+2021-05-29  Mike Frysinger  <vapier@gentoo.org>
+
+	* Make-common.in (GNULIB_BUILDDIR): Define.
+	Include $(GNULIB_BUILDDIR)/Makefile.gnulib.inc.
+	(CSEARCH): Add -I../...
+	(ALL_CFLAGS): Add $(INCGNU).
+	(EXTRA_LIBS): Add $(LIBGNU).
+	* defs.h: Include gnulib/config.h.  Undefine PACKAGE* defines.
+
 2021-05-17  Mike Frysinger  <vapier@gentoo.org>
 
 	* sim-base.h (SIM_HAVE_COMMON_SIM_STATE): Delete.

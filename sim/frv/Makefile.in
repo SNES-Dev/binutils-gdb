@@ -36,9 +36,12 @@ SIM_EXTRA_DEPS = \
 	registers.h profile.h eng.h \
 	$(sim-options_h)
 
-SIM_EXTRA_CFLAGS = @sim_trapdump@
+SIM_EXTRA_CFLAGS = @SIM_FRV_TRAPDUMP_FLAGS@
 
 SIM_EXTRA_CLEAN = frv-clean
+
+# Code doesn't build cleanly yet.
+SIM_WERROR_CFLAGS =
 
 ## COMMON_POST_CONFIG_FRAG
 
@@ -65,11 +68,6 @@ frv-clean:
 	rm -f mloop.c eng.h stamp-mloop
 	rm -f tmp-*
 	rm -f stamp-arch stamp-cpu
-
-# cgen support, enable with --enable-cgen-maint
-CGEN_MAINT = ; @true
-# The following line is commented in or out depending upon --enable-cgen-maint.
-@CGEN_MAINT@CGEN_MAINT =
 
 stamp-arch: $(CGEN_READ_SCM) $(CGEN_ARCH_SCM) $(srcdir)/../../cpu/frv.cpu
 	$(MAKE) cgen-arch $(CGEN_FLAGS_TO_PASS) mach=all \

@@ -22,7 +22,6 @@
 M32R_OBJS = m32r.o cpu.o decode.o sem.o model.o mloop.o
 M32RX_OBJS = m32rx.o cpux.o decodex.o modelx.o mloopx.o
 M32R2_OBJS = m32r2.o cpu2.o decode2.o model2.o mloop2.o
-TRAPS_OBJ = @traps_obj@
 
 SIM_OBJS = \
 	$(SIM_NEW_COMMON_OBJS) \
@@ -32,7 +31,9 @@ SIM_OBJS = \
 	$(M32R_OBJS) \
 	$(M32RX_OBJS) \
 	$(M32R2_OBJS) \
-	$(TRAPS_OBJ)
+	traps.o
+
+SIM_EXTRA_HW_DEVICES = m32r_cache m32r_uart
 
 # Extra headers included by sim-main.h.
 SIM_EXTRA_DEPS = \
@@ -40,9 +41,10 @@ SIM_EXTRA_DEPS = \
 	arch.h cpuall.h m32r-sim.h $(srcdir)/../../opcodes/m32r-desc.h \
 	eng.h engx.h eng2.h
 
-SIM_EXTRA_CFLAGS = @sim_extra_cflags@
-
 SIM_EXTRA_CLEAN = m32r-clean
+
+# Code doesn't build cleanly yet.
+SIM_WERROR_CFLAGS =
 
 ## COMMON_POST_CONFIG_FRAG
 
@@ -104,11 +106,6 @@ m32r-clean:
 	rm -f mloop2.c eng2.h stamp-2mloop
 	rm -f stamp-arch stamp-cpu stamp-xcpu stamp-2cpu
 	rm -f tmp-*
-
-# cgen support, enable with --enable-cgen-maint
-CGEN_MAINT = ; @true
-# The following line is commented in or out depending upon --enable-cgen-maint.
-@CGEN_MAINT@CGEN_MAINT =
 
 # NOTE: Generated source files are specified as full paths,
 # e.g. $(srcdir)/arch.c, because make may decide the files live

@@ -1,3 +1,168 @@
+2021-07-26  Roland McGrath  <mcgrathr@google.com>
+
+	* testsuite/ld-x86-64/x86-64.exp (Build textrel-1): Use --warn-textrel.
+
+2021-07-06  Michael Matz  <matz@suse.de>
+
+	PR ld/28021
+	* testsuite/ld-riscv-elf/relax-twice.ver: New.
+	* testsuite/ld-riscv-elf/relax-twice-1.s: New.
+	* testsuite/ld-riscv-elf/relax-twice-2.s: New.
+	* testsuite/ld-riscv-elf/ld-riscv-elf.exp
+	(run_relax_twice_test): New, and call it.
+
+2021-07-03  Nick Clifton  <nickc@redhat.com>
+
+	* configure: Regenerate.
+	* po/ld.pot: Regenerate.
+
+2021-07-03  Nick Clifton  <nickc@redhat.com>
+
+	* 2.37 release branch created.
+
+2021-06-22  Nelson Chu  <nelson.chu@sifive.com>
+
+	* testsuite/ld-riscv-elf/ld-riscv-elf.exp: Updated.
+	* testsuite/ld-riscv-elf/pcrel-lo-addend-3a.d: New testcase.
+	* testsuite/ld-riscv-elf/pcrel-lo-addend-3a.s: Likewise.
+	* testsuite/ld-riscv-elf/pcrel-lo-addend-3b.d: New testcase.
+	Should report error since the %pcrel_lo with addend refers to
+	%got_pcrel_hi.
+	* testsuite/ld-riscv-elf/pcrel-lo-addend-3b.s: Likewise.
+	* testsuite/ld-riscv-elf/pcrel-lo-addend-3c.d: New testcase.
+	Should report error since the %got_pcrel_hi with addend.
+	* testsuite/ld-riscv-elf/pcrel-lo-addend-3c.s: Likewise.
+	* testsuite/ld-riscv-elf/pcrel-lo-addend-3.ld: Likewise.
+
+2021-06-19  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27998
+	* testsuite/ld-i386/i386.exp: Run PR ld/27998 tests.
+	* testsuite/ld-i386/pr27998a.d: New file.
+	* testsuite/ld-i386/pr27998a.s: Likewise.
+	* testsuite/ld-i386/pr27998b.d: Likewise.
+	* testsuite/ld-i386/pr27998b.s: Likewise.
+
+2021-06-19  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* testsuite/ld-x86-64/textrel-1.err: New file.
+	* testsuite/ld-x86-64/textrel-1a.s: Likewise.
+	* testsuite/ld-x86-64/textrel-1b.s: Likewise.
+	* testsuite/ld-x86-64/x86-64.exp: Run textrel-1 tests.
+
+2021-06-18  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* testsuite/ld-elf/property-and-1.d: Skip am33_2.0, hppa-hpux
+	and mn10300.
+	Pass --generate-missing-build-notes=no to assembler.  Allow
+	other note sections for xtensa.
+	* testsuite/ld-elf/property-and-2.d: Likewise.
+	* testsuite/ld-elf/property-and-3.d: Likewise.
+	* testsuite/ld-elf/property-and-4.d: Likewise.
+	* testsuite/ld-elf/property-or-1.d: Likewise.
+	* testsuite/ld-elf/property-or-2.d: Likewise.
+	* testsuite/ld-elf/property-or-3.d: Likewise.
+	* testsuite/ld-elf/property-or-4.d: Likewise.
+
+2021-06-18  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* ld.texi: Move -z unique-symbol after -z undefs.
+
+2021-06-18  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* testsuite/ld-elf/property-and-1.d: New file.
+	* testsuite/ld-elf/property-and-1.s: Likewise.
+	* testsuite/ld-elf/property-and-2.d: Likewise.
+	* testsuite/ld-elf/property-and-2.s: Likewise.
+	* testsuite/ld-elf/property-and-3.d: Likewise.
+	* testsuite/ld-elf/property-and-3.s: Likewise.
+	* testsuite/ld-elf/property-and-4.d: Likewise.
+	* testsuite/ld-elf/property-and-empty.s: Likewise.
+	* testsuite/ld-elf/property-or-1.d: Likewise.
+	* testsuite/ld-elf/property-or-1.s: Likewise.
+	* testsuite/ld-elf/property-or-2.d: Likewise.
+	* testsuite/ld-elf/property-or-2.s: Likewise.
+	* testsuite/ld-elf/property-or-3.d: Likewise.
+	* testsuite/ld-elf/property-or-3.s: Likewise.
+	* testsuite/ld-elf/property-or-4.d: Likewise.
+	* testsuite/ld-elf/property-or-empty.s: Likewise.
+
+2021-06-17  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27973
+	* testsuite/ld-x86-64/x86-64.exp: Pass $NOPIE_LDFLAGS and
+	$NOPIE_CFLAGS to protected-func-1 without PIE.
+
+2021-06-17  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27973
+	* testsuite/ld-x86-64/x86-64.exp: Run protected function tests.
+	* testsuite/ld-x86-64/protected-func-1.h: New file.
+	* testsuite/ld-x86-64/protected-func-1a.s: Likewise.
+	* testsuite/ld-x86-64/protected-func-1b.c: Likewise.
+
+2021-06-17  Fangrui Song  <maskray@google.com>
+
+	* ldlex.h (enum option_values): Add OPTION_NO_PIE.
+	* lexsup.c (struct ld_options): Add -no-pie.
+	(parse_args): Handle -no-pie.
+	* ld.texi: Document -no-pie.
+
+2021-06-15  Alan Modra  <amodra@gmail.com>
+
+	* testsuite/ld-pie/vaddr-0.d: Update expected output.
+
+2021-06-11  Alan Modra  <amodra@gmail.com>
+
+	PR 27952
+	* ldelf.c (ldelf_after_open): Error on input PIEs too.
+
+2021-06-09  Nick Clifton  <nickc@redhat.com>
+
+	PR 27666
+	* testsuite/ld-sparc/sparc.exp: Do not run the sparctests or
+	sparc64tests for Solaris2 targets.
+
+2021-06-03  Alan Modra  <amodra@gmail.com>
+
+	PR 2589
+	* ld.texi (link-time runtime library search path): Mention
+	plugin library path.  Correct order of search.
+
+2021-05-31  Nelson Chu  <nelson.chu@sifive.com>
+	    Lifang Xia  <lifang_xia@c-sky.com>
+
+	PR 27566
+	* emultempl/riscvelf.em (after_allocation): Call
+	riscv_set_data_segment_info to set data segment phase before relaxing.
+	* testsuite/ld-riscv-elf/ld-riscv-elf.exp: Updated.
+	* testsuite/ld-riscv-elf/relro-relax-lui.d: New testcase.
+	* testsuite/ld-riscv-elf/relro-relax-lui.s: Likewise.
+	* testsuite/ld-riscv-elf/relro-relax-pcrel.d: Likewise.
+	* testsuite/ld-riscv-elf/relro-relax-pcrel.s: Likewise.
+
+2021-05-28  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27905
+	* testsuite/ld-i386/pcrel16-2.d: xfail.
+	* testsuite/ld-x86-64/pcrel16-2.d: Likewise.
+
+2021-05-26  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR ld/27905
+	* testsuite/ld-i386/code16.d: New file.
+	* testsuite/ld-i386/code16.t: Likewise.
+	* testsuite/ld-x86-64/code16.d: Likewise.
+	* testsuite/ld-x86-64/code16.t: Likewise.
+	* testsuite/ld-i386/i386.exp: Run code16.
+	* testsuite/ld-x86-64/x86-64.exp: Likewise.
+
+2021-05-26  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* testsuite/ld-x86-64/ilp32-12.d: New file.
+	* testsuite/ld-x86-64/ilp32-12.s: Likewise.
+	* testsuite/ld-x86-64/x86-64.exp: Run ilp32-12.
+
 2021-05-14  Nelson Chu  <nelson.chu@sifive.com>
 
 	* testsuite/ld-riscv-elf/ld-riscv-elf.exp: Updated.

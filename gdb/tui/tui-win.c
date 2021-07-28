@@ -498,14 +498,11 @@ tui_resize_all (void)
   height_diff = screenheight - tui_term_height ();
   if (height_diff || width_diff)
     {
-      struct tui_win_info *win_with_focus = tui_win_with_focus ();
-
 #ifdef HAVE_RESIZE_TERM
       resize_term (screenheight, screenwidth);
 #endif      
       /* Turn keypad off while we resize.  */
-      if (win_with_focus != TUI_CMD_WIN)
-	keypad (TUI_CMD_WIN->handle.get (), FALSE);
+      keypad (TUI_CMD_WIN->handle.get (), FALSE);
       tui_update_gdb_sizes ();
       tui_set_term_height_to (screenheight);
       tui_set_term_width_to (screenwidth);
@@ -515,10 +512,8 @@ tui_resize_all (void)
       erase ();
       clearok (curscr, TRUE);
       tui_apply_current_layout ();
-      /* Turn keypad back on, unless focus is in the command
-	 window.  */
-      if (win_with_focus != TUI_CMD_WIN)
-	keypad (TUI_CMD_WIN->handle.get (), TRUE);
+      /* Turn keypad back on.  */
+      keypad (TUI_CMD_WIN->handle.get (), TRUE);
     }
 }
 
@@ -703,7 +698,6 @@ tui_set_focus_command (const char *arg, int from_tty)
     error (_("Window \"%s\" is not visible"), arg);
 
   tui_set_win_focus_to (win_info);
-  keypad (TUI_CMD_WIN->handle.get (), win_info != TUI_CMD_WIN);
   printf_filtered (_("Focus set to %s window.\n"),
 		   tui_win_with_focus ()->name ());
 }
@@ -990,7 +984,6 @@ _initialize_tui_win ()
 {
   static struct cmd_list_element *tui_setlist;
   static struct cmd_list_element *tui_showlist;
-  struct cmd_list_element *cmd;
 
   /* Define the classes of commands.
      They will appear in the help list in the reverse of this order.  */
@@ -1004,26 +997,29 @@ _initialize_tui_win ()
   add_com ("refresh", class_tui, tui_refresh_all_command,
 	   _("Refresh the terminal display."));
 
-  cmd = add_com ("tabset", class_tui, tui_set_tab_width_command, _("\
+  cmd_list_element *tabset_cmd
+    = add_com ("tabset", class_tui, tui_set_tab_width_command, _("\
 Set the width (in characters) of tab stops.\n\
 Usage: tabset N"));
-  deprecate_cmd (cmd, "set tui tab-width");
+  deprecate_cmd (tabset_cmd, "set tui tab-width");
 
-  cmd = add_com ("winheight", class_tui, tui_set_win_height_command, _("\
+  cmd_list_element *winheight_cmd
+    = add_com ("winheight", class_tui, tui_set_win_height_command, _("\
 Set or modify the height of a specified window.\n\
 Usage: winheight WINDOW-NAME [+ | -] NUM-LINES\n\
 Use \"info win\" to see the names of the windows currently being displayed."));
-  add_com_alias ("wh", "winheight", class_tui, 0);
-  set_cmd_completer (cmd, winheight_completer);
+  add_com_alias ("wh", winheight_cmd, class_tui, 0);
+  set_cmd_completer (winheight_cmd, winheight_completer);
   add_info ("win", tui_all_windows_info,
 	    _("List of all displayed windows.\n\
 Usage: info win"));
-  cmd = add_com ("focus", class_tui, tui_set_focus_command, _("\
+  cmd_list_element *focus_cmd
+    = add_com ("focus", class_tui, tui_set_focus_command, _("\
 Set focus to named window or next/prev window.\n\
 Usage: focus [WINDOW-NAME | next | prev]\n\
 Use \"info win\" to see the names of the windows currently being displayed."));
-  add_com_alias ("fs", "focus", class_tui, 0);
-  set_cmd_completer (cmd, focus_completer);
+  add_com_alias ("fs", focus_cmd, class_tui, 0);
+  set_cmd_completer (focus_cmd, focus_completer);
   add_com ("+", class_tui, tui_scroll_forward_command, _("\
 Scroll window forward.\n\
 Usage: + [N] [WIN]\n\

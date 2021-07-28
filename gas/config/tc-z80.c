@@ -3703,14 +3703,14 @@ md_assemble (char *str)
 static int
 signed_overflow (signed long value, unsigned bitsize)
 {
-  signed long max = (signed long)(1UL << (bitsize-1));
-  return value < -max || value >= max;
+  signed long max = (signed long) ((1UL << (bitsize - 1)) - 1);
+  return value < -max - 1 || value > max;
 }
 
 static int
 unsigned_overflow (unsigned long value, unsigned bitsize)
 {
-  return (value >> bitsize) != 0;
+  return value >> (bitsize - 1) >> 1 != 0;
 }
 
 static int
@@ -3853,7 +3853,7 @@ tc_gen_reloc (asection *seg ATTRIBUTE_UNUSED , fixS *fixp)
 
   if (fixp->fx_subsy != NULL)
     {
-      as_bad_where (fixp->fx_file, fixp->fx_line, _("expression too complex"));
+      as_bad_subtract (fixp);
       return NULL;
     }
 

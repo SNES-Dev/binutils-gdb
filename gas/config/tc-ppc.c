@@ -1883,7 +1883,7 @@ md_begin (void)
      data csects.  These symbols will not be output.  */
   ppc_init_xcoff_section (&ppc_xcoff_text_section, text_section, true);
   ppc_init_xcoff_section (&ppc_xcoff_data_section, data_section, true);
-  ppc_init_xcoff_section (&ppc_xcoff_bss_section, bss_section, false);
+  ppc_init_xcoff_section (&ppc_xcoff_bss_section, bss_section, true);
 #endif
 }
 
@@ -4039,6 +4039,11 @@ md_assemble (char *str)
 	 boundaries.  */
       frag_align_code (6, 4);
       record_alignment (now_seg, 6);
+#ifdef OBJ_XCOFF
+      /* Update alignment of the containing csect.  */
+      if (symbol_get_tc (ppc_current_csect)->align < 6)
+	symbol_get_tc (ppc_current_csect)->align = 6;
+#endif
 
       /* Update "dot" in any expressions used by this instruction, and
 	 a label attached to the instruction.  By "attached" we mean
@@ -4623,7 +4628,7 @@ ppc_change_debug_section (unsigned int idx, subsegT subseg)
   flagword oldflags;
   const struct xcoff_dwsect_name *dw = &xcoff_dwsect_names[idx];
 
-  sec = subseg_new (dw->name, subseg);
+  sec = subseg_new (dw->xcoff_name, subseg);
   oldflags = bfd_section_flags (sec);
   if (oldflags == SEC_NO_FLAGS)
     {
@@ -5986,7 +5991,10 @@ ppc_frob_symbol (symbolS *sym)
 	      a->x_csect.x_scnlen.l = (S_GET_VALUE (symbol_get_tc (sym)->next)
 				       - S_GET_VALUE (sym));
 	    }
-	  a->x_csect.x_smtyp = (symbol_get_tc (sym)->align << 3) | XTY_SD;
+	  if (symbol_get_tc (sym)->symbol_class == XMC_BS)
+	    a->x_csect.x_smtyp = (symbol_get_tc (sym)->align << 3) | XTY_CM;
+	  else
+	    a->x_csect.x_smtyp = (symbol_get_tc (sym)->align << 3) | XTY_SD;
 	}
       else if (S_GET_SEGMENT (sym) == bss_section
 	       || S_GET_SEGMENT (sym) == ppc_xcoff_tbss_section.segment)
@@ -6415,7 +6423,8 @@ ppc_fix_adjustable (fixS *fix)
   /* Adjust a reloc against a .lcomm symbol to be against the base
      .lcomm.  */
   if (symseg == bss_section
-      && ! S_IS_EXTERNAL (fix->fx_addsy))
+      && ! S_IS_EXTERNAL (fix->fx_addsy)
+      && symbol_get_tc (fix->fx_addsy)->subseg == 0)
     {
       symbolS *sy = symbol_get_frag (fix->fx_addsy)->fr_symbol;
 
@@ -7411,11 +7420,9 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg)
 	symbol_get_bfdsym (fixP->fx_addsy)->flags |= BSF_KEEP;
     }
 #else
-  if (fixP->fx_r_type != BFD_RELOC_PPC_TOC16
-      && fixP->fx_r_type != BFD_RELOC_PPC_TOC16_HI
-      && fixP->fx_r_type != BFD_RELOC_PPC_TOC16_LO)
-    fixP->fx_addnumber = 0;
-  else
+  if (fixP->fx_r_type == BFD_RELOC_PPC_TOC16
+      || fixP->fx_r_type == BFD_RELOC_PPC_TOC16_HI
+      || fixP->fx_r_type == BFD_RELOC_PPC_TOC16_LO)
     {
       /* We want to use the offset within the toc, not the actual VMA
 	 of the symbol.  */
@@ -7430,6 +7437,15 @@ md_apply_fix (fixS *fixP, valueT *valP, segT seg)
       /* Set *valP to avoid errors.  */
       *valP = value;
     }
+  else if (fixP->fx_r_type == BFD_RELOC_PPC_TLSM
+	   || fixP->fx_r_type == BFD_RELOC_PPC64_TLSM)
+    /* AIX ld expects the section contents for these relocations
+       to be zero.  Arrange for that to occur when
+       bfd_install_relocation is called.  */
+    fixP->fx_addnumber = (- bfd_section_vma (S_GET_SEGMENT (fixP->fx_addsy))
+			  - S_GET_VALUE (fixP->fx_addsy));
+  else
+    fixP->fx_addnumber = 0;
 #endif
 }
 
@@ -7460,7 +7476,7 @@ tc_gen_reloc (asection *seg ATTRIBUTE_UNUSED, fixS *fixp)
     }
   reloc->addend = fixp->fx_addnumber;
 
-  if (fixp->fx_subsy && fixp->fx_addsy)
+  if (fixp->fx_subsy != NULL)
     {
       relocs[1] = reloc = XNEW (arelent);
       relocs[2] = NULL;
@@ -7474,9 +7490,11 @@ tc_gen_reloc (asection *seg ATTRIBUTE_UNUSED, fixS *fixp)
 
       if (reloc->howto == (reloc_howto_type *) NULL)
         {
-          as_bad_where (fixp->fx_file, fixp->fx_line,
-            _("reloc %d not supported by object file format"),
-            BFD_RELOC_PPC_NEG);
+	  as_bad_subtract (fixp);
+	  free (relocs[1]->sym_ptr_ptr);
+	  free (relocs[1]);
+	  free (relocs[0]->sym_ptr_ptr);
+	  free (relocs[0]);
 	  relocs[0] = NULL;
         }
     }

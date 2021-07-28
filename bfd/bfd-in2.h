@@ -6712,9 +6712,18 @@ struct bfd
   /* The number of sections.  */
   unsigned int section_count;
 
+  /* The archive plugin file descriptor.  */
+  int archive_plugin_fd;
+
+  /* The number of opens on the archive plugin file descriptor.  */
+  unsigned int archive_plugin_fd_open_count;
+
   /* A field used by _bfd_generic_link_add_archive_symbols.  This will
      be used only for archive elements.  */
   int archive_pass;
+
+  /* The total size of memory from bfd_alloc.  */
+  bfd_size_type alloc_size;
 
   /* Stuff only useful for object files:
      The start address.  */

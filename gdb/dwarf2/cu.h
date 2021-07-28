@@ -103,7 +103,6 @@ struct dwarf2_cu
   gdb::optional<CORE_ADDR> base_address;
 
   /* The language we are debugging.  */
-  enum language language = language_unknown;
   const struct language_defn *language_defn = nullptr;
 
   const char *producer = nullptr;
@@ -264,25 +263,16 @@ public:
 
   bool processing_has_namespace_info : 1;
 
+  /* This flag will be set when reading partial DIEs if we need to load
+     absolutely all DIEs for this compilation unit, instead of just the ones
+     we think are interesting.  It gets set if we look for a DIE in the
+     hash table and don't find it.  */
+  bool load_all_dies : 1;
+
   struct partial_die_info *find_partial_die (sect_offset sect_off);
 
-  /* If this CU was inherited by another CU (via specification,
-     abstract_origin, etc), this is the ancestor CU.  */
-  dwarf2_cu *ancestor;
-
   /* Get the buildsym_compunit for this CU.  */
-  buildsym_compunit *get_builder ()
-  {
-    /* If this CU has a builder associated with it, use that.  */
-    if (m_builder != nullptr)
-      return m_builder.get ();
-
-    /* Otherwise, search ancestors for a valid builder.  */
-    if (ancestor != nullptr)
-      return ancestor->get_builder ();
-
-    return nullptr;
-  }
+  buildsym_compunit *get_builder ();
 };
 
 #endif /* GDB_DWARF2_CU_H */

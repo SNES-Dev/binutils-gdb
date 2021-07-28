@@ -953,26 +953,9 @@ psymtab_to_fullname (struct partial_symtab *ps)
      to handle cases like the file being moved.  */
   if (ps->fullname == NULL)
     {
-      gdb::unique_xmalloc_ptr<char> fullname;
-      scoped_fd fd = find_and_open_source (ps->filename, ps->dirname,
-					   &fullname);
+      gdb::unique_xmalloc_ptr<char> fullname
+	= find_source_or_rewrite (ps->filename, ps->dirname);
       ps->fullname = fullname.release ();
-
-      if (fd.get () < 0)
-	{
-	  /* rewrite_source_path would be applied by find_and_open_source, we
-	     should report the pathname where GDB tried to find the file.  */
-
-	  if (ps->dirname == NULL || IS_ABSOLUTE_PATH (ps->filename))
-	    fullname.reset (xstrdup (ps->filename));
-	  else
-	    fullname.reset (concat (ps->dirname, SLASH_STRING,
-				    ps->filename, (char *) NULL));
-
-	  ps->fullname = rewrite_source_path (fullname.get ()).release ();
-	  if (ps->fullname == NULL)
-	    ps->fullname = fullname.release ();
-	}
     }
 
   return ps->fullname;
@@ -1130,6 +1113,9 @@ psymbol_functions::expand_symtabs_matching
   if (lookup_name != nullptr)
     psym_lookup_name = lookup_name->make_ignore_params ();
 
+  /* This invariant is documented in quick-functions.h.  */
+  gdb_assert (lookup_name != nullptr || symbol_matcher == nullptr);
+
   for (partial_symtab *ps : m_partial_symtabs->range ())
     {
       QUIT;
@@ -1157,7 +1143,7 @@ psymbol_functions::expand_symtabs_matching
 	    continue;
 	}
 
-      if ((symbol_matcher == NULL && lookup_name == NULL)
+      if (lookup_name == nullptr
 	  || recursively_search_psymtabs (ps, objfile, search_flags,
 					  domain, search,
 					  *psym_lookup_name,
@@ -1182,6 +1168,24 @@ bool
 psymbol_functions::has_symbols (struct objfile *objfile)
 {
   return m_partial_symtabs->psymtabs != NULL;
+}
+
+/* See quick_symbol_functions::has_unexpanded_symtabs in quick-symbol.h.  */
+
+bool
+psymbol_functions::has_unexpanded_symtabs (struct objfile *objfile)
+{
+  for (partial_symtab *psymtab : require_partial_symbols (objfile))
+    {
+      /* Is this already expanded?  */
+      if (psymtab->readin_p (objfile))
+	continue;
+
+      /* It has not yet been expanded.  */
+      return true;
+    }
+
+  return false;
 }
 
 /* Helper function for psym_find_compunit_symtab_by_address that fills
@@ -1465,52 +1469,39 @@ psymtab_storage::discard_psymtab (struct partial_symtab *pst)
 
 
 
-/* We need to pass a couple of items to the addrmap_foreach function,
-   so use a struct.  */
-
-struct dump_psymtab_addrmap_data
-{
-  struct objfile *objfile;
-  struct partial_symtab *psymtab;
-  struct ui_file *outfile;
-
-  /* Non-zero if the previously printed addrmap entry was for PSYMTAB.
-     If so, we want to print the next one as well (since the next addrmap
-     entry defines the end of the range).  */
-  int previous_matched;
-};
-
 /* Helper function for dump_psymtab_addrmap to print an addrmap entry.  */
 
 static int
-dump_psymtab_addrmap_1 (void *datap, CORE_ADDR start_addr, void *obj)
+dump_psymtab_addrmap_1 (struct objfile *objfile,
+			struct partial_symtab *psymtab,
+			struct ui_file *outfile,
+			int *previous_matched,
+			CORE_ADDR start_addr,
+			void *obj)
 {
-  struct dump_psymtab_addrmap_data *data
-    = (struct dump_psymtab_addrmap_data *) datap;
-  struct gdbarch *gdbarch = data->objfile->arch ();
+  struct gdbarch *gdbarch = objfile->arch ();
   struct partial_symtab *addrmap_psymtab = (struct partial_symtab *) obj;
   const char *psymtab_address_or_end = NULL;
 
   QUIT;
 
-  if (data->psymtab == NULL
-      || data->psymtab == addrmap_psymtab)
+  if (psymtab == NULL
+      || psymtab == addrmap_psymtab)
     psymtab_address_or_end = host_address_to_string (addrmap_psymtab);
-  else if (data->previous_matched)
+  else if (*previous_matched)
     psymtab_address_or_end = "<ends here>";
 
-  if (data->psymtab == NULL
-      || data->psymtab == addrmap_psymtab
-      || data->previous_matched)
+  if (psymtab == NULL
+      || psymtab == addrmap_psymtab
+      || *previous_matched)
     {
-      fprintf_filtered (data->outfile, "  %s%s %s\n",
-			data->psymtab != NULL ? "  " : "",
+      fprintf_filtered (outfile, "  %s%s %s\n",
+			psymtab != NULL ? "  " : "",
 			paddress (gdbarch, start_addr),
 			psymtab_address_or_end);
     }
 
-  data->previous_matched = (data->psymtab == NULL
-			    || data->psymtab == addrmap_psymtab);
+  *previous_matched = psymtab == NULL || psymtab == addrmap_psymtab;
 
   return 0;
 }
@@ -1524,20 +1515,24 @@ dump_psymtab_addrmap (struct objfile *objfile,
 		      struct partial_symtab *psymtab,
 		      struct ui_file *outfile)
 {
-  struct dump_psymtab_addrmap_data addrmap_dump_data;
-
   if ((psymtab == NULL
        || psymtab->psymtabs_addrmap_supported)
       && partial_symtabs->psymtabs_addrmap != NULL)
     {
-      addrmap_dump_data.objfile = objfile;
-      addrmap_dump_data.psymtab = psymtab;
-      addrmap_dump_data.outfile = outfile;
-      addrmap_dump_data.previous_matched = 0;
+      /* Non-zero if the previously printed addrmap entry was for
+	 PSYMTAB.  If so, we want to print the next one as well (since
+	 the next addrmap entry defines the end of the range).  */
+      int previous_matched = 0;
+
+      auto callback = [&] (CORE_ADDR start_addr, void *obj)
+      {
+	return dump_psymtab_addrmap_1 (objfile, psymtab, outfile,
+				       &previous_matched, start_addr, obj);
+      };
+
       fprintf_filtered (outfile, "%sddress map:\n",
 			psymtab == NULL ? "Entire a" : "  A");
-      addrmap_foreach (partial_symtabs->psymtabs_addrmap,
-		       dump_psymtab_addrmap_1, &addrmap_dump_data);
+      addrmap_foreach (partial_symtabs->psymtabs_addrmap, callback);
     }
 }
 

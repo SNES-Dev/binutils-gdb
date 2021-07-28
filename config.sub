@@ -4,7 +4,6 @@
 
 timestamp='2021-05-03'
 
-
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or
@@ -137,7 +136,7 @@ case $1 in
 			| netbsd*-eabi* | kopensolaris*-gnu* | cloudabi*-eabi* \
 			| storm-chaos* | os2-emx* | rtmk-nova* \
 			| phantom-kernel* | phantom-user* \
-			| snes*-elf* | snes*-xo65* | nes*-xo65*)
+			| snes*-elf* | snes*-xo65* | nes*-xo65* | snes*-coff*)
 				basic_machine=$field1
 				basic_os=$maybe_os
 				;;
@@ -1778,7 +1777,7 @@ case $kernel-$os in
 		;;
 	phantom-kernel* | phantom-user*)
 		;;
-	snes*-elf* | snes*-xo65* | nes*-xo65* )
+	snes*-elf* | snes*-xo65* | nes*-xo65* | snes*-coff* )
 		;; 
 	*-eabi* | *-gnueabi*)
 		;;

@@ -32,6 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <errno.h>
 #include <unistd.h>
 #include "sim-options.h"
+#include "sim-hw.h"
 #include "dis-asm.h"
 #include "environ.h"
 
@@ -478,7 +479,7 @@ aux_ent_entry (struct bfd *ebfd)
    interp_load_addr offset.  */
 
 static int
-cris_write_interp (SIM_DESC sd, SIM_ADDR mem, unsigned char *buf, int length)
+cris_write_interp (SIM_DESC sd, SIM_ADDR mem, const unsigned char *buf, int length)
 {
   return sim_write (sd, mem + interp_load_addr, buf, length);
 }
@@ -607,6 +608,8 @@ cris_handle_interpreter (SIM_DESC sd, struct bfd *abfd)
   return ok;
 }
 
+extern const SIM_MACH * const cris_sim_machs[];
+
 /* Create an instance of the simulator.  */
 
 SIM_DESC
@@ -653,6 +656,11 @@ sim_open (SIM_OPEN_KIND kind, host_callback *callback, struct bfd *abfd,
      releases (up to and including 2.95.3 (.4 in debian) or a bug in the
      standard ;-) that the rest of the elements won't be initialized.  */
   bfd_byte sp_init[4] = {0, 0, 0, 0};
+
+  /* Set default options before parsing user options.  */
+  STATE_MACHS (sd) = cris_sim_machs;
+  STATE_MODEL_NAME (sd) = "crisv32";
+  current_target_byte_order = BFD_ENDIAN_LITTLE;
 
   /* The cpu data is kept in a separately allocated chunk of memory.  */
   if (sim_cpu_alloc_all (sd, 1) != SIM_RC_OK)
@@ -879,7 +887,7 @@ sim_open (SIM_OPEN_KIND kind, host_callback *callback, struct bfd *abfd,
 
   /* Allocate core managed memory if none specified by user.  */
   if (sim_core_read_buffer (sd, NULL, read_map, &c, startmem, 1) == 0)
-    sim_do_commandf (sd, "memory region 0x%" PRIx32 "x,0x%" PRIu32 "x",
+    sim_do_commandf (sd, "memory region 0x%" PRIx32 ",0x%" PRIu32,
 		     startmem, endmem - startmem);
 
   /* Allocate simulator I/O managed memory if none specified by user.  */
@@ -914,7 +922,7 @@ sim_open (SIM_OPEN_KIND kind, host_callback *callback, struct bfd *abfd,
 	CPU_CRIS_MISC_PROFILE (cpu)->flags = STATE_TRACE_FLAGS (sd)[0];
 
 	/* Set SP to the stack we allocated above.  */
-	(* CPU_REG_STORE (cpu)) (cpu, H_GR_SP, (char *) sp_init, 4);
+	(* CPU_REG_STORE (cpu)) (cpu, H_GR_SP, (unsigned char *) sp_init, 4);
 
 	/* Set the simulator environment data.  */
 	cpu->highest_mmapped_page = NULL;
@@ -939,10 +947,6 @@ sim_open (SIM_OPEN_KIND kind, host_callback *callback, struct bfd *abfd,
     sim_profile_set_option (sd, "-model", PROFILE_MODEL_IDX, "on");
 #endif
   }
-
-  /* Initialize various cgen things not done by common framework.
-     Must be done after cris_cgen_cpu_open.  */
-  cgen_init (sd);
 
   cris_set_callbacks (callback);
 
