@@ -453,6 +453,10 @@
    architecture was derived.  */
 #define EM_CSKY_OLD		EM_MCORE
 
+/* temporary value for Clever architecture, pending official registration, see https://github.com/chorman0773/Clever-ISA/issues/7 */
+
+#define EM_CLEVER 0x434C /* Clever Architecture. */
+
 /* See the above comment before you add a new EM_* value here.  */
 
 /* Values for e_version.  */

@@ -475,6 +475,7 @@ do
     crx_elf32_vec)		 tb="$tb elf32-crx.lo elf32.lo $elf" ;;
     csky_elf32_be_vec)		 tb="$tb elf32-csky.lo elf32.lo $elf" ;;
     csky_elf32_le_vec)		 tb="$tb elf32-csky.lo elf32.lo $elf" ;;
+    clever_elf64_vec)      tb="$tb elf64-clever.lo elf64.lo $elf" ;;
     d10v_elf32_vec)		 tb="$tb elf32-d10v.lo elf32.lo $elf" ;;
     d30v_elf32_vec)		 tb="$tb elf32-d30v.lo elf32.lo $elf" ;;
     dlx_elf32_be_vec)		 tb="$tb elf32-dlx.lo elf32.lo $elf" ;;

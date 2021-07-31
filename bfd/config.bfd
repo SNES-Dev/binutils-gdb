@@ -457,6 +457,12 @@ case "${targ}" in
     targ_selvecs="csky_elf32_be_vec csky_elf32_le_vec"
     ;;
 
+  #ifdef BFD64
+    clever-*-elf* )
+      targ_defvec=clever_elf64_vec
+      ;;
+  #endif
+
   d10v-*-*)
     targ_defvec=d10v_elf32_vec
     ;;

@@ -2,7 +2,7 @@
 # Configuration validation subroutine script.
 #   Copyright 1992-2021 Free Software Foundation, Inc.
 
-timestamp='2021-05-03'
+timestamp='2021-07-16'
 
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
@@ -925,6 +925,14 @@ case $basic_machine in
 		cpu=sparc
 		vendor=$(echo "$basic_machine" | sed 's/-.*//')
 		;;
+	clever*-* )
+		cpu=clever
+		vendor=$(echo "$basic_machine" | sed 's/.*-//') 
+		;;
+	clever* )
+		cpu=clever
+		vendor=unknown
+		;;
 	*-*)
 		# shellcheck disable=SC2162
 		IFS="-" read cpu vendor <<EOF
@@ -1261,7 +1269,8 @@ case $cpu-$vendor in
 			| x86 | x86_64 | xc16x | xgate | xps100 \
 			| xstormy16 | xtensa* \
 			| ymp \
-			| z8k | z80)
+			| z8k | z80 \
+			| clever )
 				;;
 
 			*)
