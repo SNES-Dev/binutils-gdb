@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <limits.h>
+#include <stdlib.h>
 
 
 
@@ -230,6 +231,17 @@ w65_op_from_param(char *param){
         while(*look&&ISSPACE(*look))look++;
         while(*look&&(ISALNUM(*look)||*look=='$'||*look=='.'||*look=='_'))
           look++;
+        if(*look=='+'){
+          *look = '\0';
+          look++;
+          if(ISDIGIT(*look)||*look=='-')
+            op.value = strtol(look,&look,0);
+        }else if(*look=='-'){
+            char* pos = look;
+            if(ISDIGIT(*(look+1)))
+              op.value = strtol(look,&look,0);
+            *pos = '\0';
+        }
         *look = '\0';
         op.symbol = param;
       }
@@ -247,9 +259,20 @@ w65_op_from_param(char *param){
         tail = param;
         while(*tail&&(ISALNUM(*tail)||*tail=='$'||*tail=='.'||*tail=='_'))
           tail++;
-        if(ISSPACE(*tail)){
-          char* tail2 = tail++;
+        if(*tail=='+'){
           *tail = '\0';
+          tail++;
+          if(ISDIGIT(*tail)||*tail=='-')
+            op.value = strtol(tail,&tail,0);
+        }else if(*tail=='-'){
+            char* pos = tail;
+            if(ISDIGIT(*(tail+1)))
+              op.value = strtol(tail,&tail,0);
+            *pos = '\0';
+        }
+        if(ISSPACE(*tail)){
+          char* tail2 = ++tail;
+          
           while(*tail2&&ISSPACE(*tail2))tail2++;
           if(*tail2==',')
             idx=1;
@@ -362,7 +385,7 @@ print_insn(const w65_insn* insn,const struct w65_operand* op){
     md_number_to_chars(frag,0,insn_size-1);
     symbolS* sym = symbol_find_or_make(op->symbol);
     
-    fixS *fix =fix_new(frag_now,frag - frag_now->fr_literal,insn_size-1,sym,0,howto->pc_relative,reloc_ty);
+    fixS *fix =fix_new(frag_now,frag - frag_now->fr_literal,insn_size-1,sym,op->value,howto->pc_relative,reloc_ty);
     if(reloc_ty==BFD_RELOC_8_PCREL)
       fix->fx_signed = 1; // rel8 is signed
   }else if(((op->md&0xff)==REL8)||((op->md&0xff)==REL16)){
@@ -384,15 +407,9 @@ w65_assemble(char *op,char *size,char *param)
   struct w65_operand opr = {.md = 0};
   const char* op_real = op;
 
-  // special case, lea ABS => lda immA, lea (addr)=>lda addr
-  if(strcmp(op,"lea")==0){
-    op_real = "lda";
-    opr = w65_op_from_param(param);
-  }else{
-    for(char* c = op;*c;c++)
+  for(char* c = op;*c;c++)
       *c = _tolower(*c);
-    opr = w65_op_from_param(param);
-  }
+  opr = w65_op_from_param(param);
 
 
   // Optional addr-mode suffix
