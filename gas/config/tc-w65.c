@@ -202,7 +202,13 @@ w65_op_from_param(char *param){
         as_bad(_("Invalid operand: %s"),--param);
      *look = '\0';
      op = w65_op_from_param(param);
-     
+     if(op.md&INDEXED_X)
+      op.md = (op.md&~INDEXED_X)|INDIRECT_X;
+     else if(op.md&INDEXED_Y)
+      op.md = (op.md&~INDEXED_Y)|INDIRECT_Y;
+     else 
+      op.md |= INDIRECT;
+
      ++look;
      while(*look&&ISSPACE(*look)) look++;
      if(*look==','){
@@ -211,13 +217,11 @@ w65_op_from_param(char *param){
        if(*look=='%')
         look++;
        if(*look=='X'||*look=='x')
-        op.md |= INDIRECT_X;
+        op.md |= INDEXED_X;
        else if(*look=='Y'||*look=='y')
-        op.md |= INDIRECT_Y;
+        op.md |= INDEXED_Y;
         else
           as_bad(_("Invalid Index: %s"),look);
-     }else{
-       op.md |= INDIRECT;
      }
    }else if(*param=='#'){
       ++param;
