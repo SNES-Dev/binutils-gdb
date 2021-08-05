@@ -302,7 +302,7 @@ w65_op_from_param(char *param){
             op.md = DIRECT;
             tail++;
             while(*tail&&ISSPACE(*tail))tail++;
-            if(*tail!=','||*tail=='+'){
+            if(*tail==','||*tail=='+'){
               tail++;
               while(*tail&&ISSPACE(*tail))tail++;
               continue;
