@@ -271,7 +271,9 @@ TARGET_LIBOPCODES_CFILES = \
 	xgate-dis.c \
 	xgate-opc.c \
 	z80-dis.c \
-	z8k-dis.c
+	z8k-dis.c \
+	spc700-dis.c \
+	spc700-opc.c
 
 # C source files that correspond to .o's ending up in libopcodes.
 LIBOPCODES_CFILES = \

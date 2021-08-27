@@ -1,4 +1,5 @@
 main:
+    .acc16
     adc (0,%d+%x)
     adc 0,%s
     adc 0,%d

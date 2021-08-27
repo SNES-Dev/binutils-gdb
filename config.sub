@@ -2,7 +2,7 @@
 # Configuration validation subroutine script.
 #   Copyright 1992-2021 Free Software Foundation, Inc.
 
-timestamp='2021-07-16'
+timestamp='2021-08-26'
 
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
@@ -896,6 +896,7 @@ case $basic_machine in
 		vendor=wrs
 		basic_os=vxworks
 		;;
+
 	tower | tower-32)
 		cpu=m68k
 		vendor=ncr
@@ -1255,6 +1256,7 @@ case $cpu-$vendor in
 			| sparclite \
 			| sparcv8 | sparcv9 | sparcv9b | sparcv9v | sv1 | sx* \
 			| spu \
+			| spc700 \
 			| tahoe \
 			| thumbv7* \
 			| tic30 | tic4x | tic54x | tic55x | tic6x | tic80 \

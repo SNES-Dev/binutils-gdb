@@ -13302,6 +13302,7 @@ do
     crx_elf32_vec)		 tb="$tb elf32-crx.lo elf32.lo $elf" ;;
     csky_elf32_be_vec)		 tb="$tb elf32-csky.lo elf32.lo $elf" ;;
     csky_elf32_le_vec)		 tb="$tb elf32-csky.lo elf32.lo $elf" ;;
+    clever_elf64_vec)      tb="$tb elf64-clever.lo elf64.lo $elf" ;;
     d10v_elf32_vec)		 tb="$tb elf32-d10v.lo elf32.lo $elf" ;;
     d30v_elf32_vec)		 tb="$tb elf32-d30v.lo elf32.lo $elf" ;;
     dlx_elf32_be_vec)		 tb="$tb elf32-dlx.lo elf32.lo $elf" ;;
@@ -13474,6 +13475,7 @@ do
     sparc_elf64_vec)		 tb="$tb elf64-sparc.lo elfxx-sparc.lo elf-vxworks.lo elf64.lo $elf"; target_size=64 ;;
     sparc_elf64_fbsd_vec)	 tb="$tb elf64-sparc.lo elfxx-sparc.lo elf-vxworks.lo elf64.lo $elf"; target_size=64 ;;
     sparc_elf64_sol2_vec)	 tb="$tb elf64-sparc.lo elfxx-sparc.lo elf-vxworks.lo elf64.lo $elf"; target_size=64 ;;
+    spc700_coff_vec)                tb="$tb coff-spc700.lo reloc16.lo $coff" ;;
     spu_elf32_vec)		 tb="$tb elf32-spu.lo elf32.lo $elf" ;;
     sym_vec)			 tb="$tb xsym.lo" ;;
     tic30_coff_vec)		 tb="$tb coff-tic30.lo $coffgen" ;;

@@ -201,7 +201,9 @@ TARGET_CPU_CFILES = \
 	config/tc-xgate.c \
 	config/tc-xtensa.c \
 	config/tc-z80.c \
-	config/tc-z8k.c
+	config/tc-z8k.c \
+	config/tc-spc700.c \
+	config/xtensa-relax.c
 
 TARGET_CPU_HFILES = \
 	config/tc-aarch64.h \
@@ -276,11 +278,14 @@ TARGET_CPU_HFILES = \
 	config/tc-xtensa.h \
 	config/tc-z80.h \
 	config/tc-z8k.h
+	config/tc-spc700.h \
+	config/xtensa-relax.h
 
 TARGET_EXTRA_FILES = \
 	config/bfin-lex-wrapper.c \
 	config/xtensa-relax.c \
-	config/xtensa-relax.h
+	config/tc-z8k.h 
+	
 
 # OBJ files in config
 

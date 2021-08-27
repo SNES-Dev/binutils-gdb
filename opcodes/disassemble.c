@@ -100,6 +100,7 @@
 #define ARCH_xtensa
 #define ARCH_z80
 #define ARCH_z8k
+#define ARCH_spc700
 #endif
 
 #ifdef ARCH_m32c
@@ -510,6 +511,11 @@ disassembler (enum bfd_architecture a,
 	disassemble = print_insn_z8001;
       else
 	disassemble = print_insn_z8002;
+      break;
+#endif
+#ifdef ARCH_spc700
+    case bfd_arch_spc700:
+      disassemble = print_insn_spc700;
       break;
 #endif
 #ifdef ARCH_vax

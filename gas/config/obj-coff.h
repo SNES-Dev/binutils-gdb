@@ -70,6 +70,11 @@
 #define TARGET_FORMAT "coff-z8k"
 #endif
 
+#ifdef TC_SPC700
+#include "coff/spc700.h"
+#define TARGET_FORMAT "coff-spc700"
+#endif
+
 #ifdef TC_SH
 
 #ifdef TE_PE

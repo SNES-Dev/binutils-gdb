@@ -1329,6 +1329,10 @@ case "${targ}" in
     targ_defvec=sparc_elf32_vec
     ;;
 
+  spc700-*-coff | spc700-*-snes-coff )
+    targ_defvec=spc700_coff_vec
+    ;;
+
   spu-*-elf)
     targ_defvec=spu_elf32_vec
     want64=true
