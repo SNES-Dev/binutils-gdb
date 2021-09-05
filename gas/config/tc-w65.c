@@ -163,6 +163,7 @@ struct w65_operand{
   w65_addr_mode md;
   bfd_vma value;
   const char* symbol;
+  bfd_boolean bank;
 };
 
 static struct w65_operand
@@ -251,6 +252,11 @@ w65_op_from_param(char *param){
       }
       if(op.value<0x100&&!op.symbol)
         op.md = IMM8;
+    }else if(*param==':'){
+      ++param;
+      op.md = IMM8;
+      op.bank = true;
+      op.symbol = param;
     }else{ // TODO: Direct Page Addressing
       char* tail;
       _Bool idx = 0;
@@ -384,7 +390,11 @@ print_insn(const w65_insn* insn,const struct w65_operand* op){
   frag++;
 
   if(op->symbol!=0){
-    bfd_reloc_code_real_type reloc_ty = w65_addr_mode_to_reloc_code(op->md);
+    bfd_reloc_code_real_type reloc_ty;
+    if(op->md == IMM8 && op->bank)
+      reloc_ty = BFD_RELOC_WDC65816_BANK;
+    else
+      reloc_ty = w65_addr_mode_to_reloc_code(op->md);
     reloc_howto_type* howto = bfd_reloc_type_lookup(stdoutput,reloc_ty);
     md_number_to_chars(frag,0,insn_size-1);
     symbolS* sym = symbol_find_or_make(op->symbol);
