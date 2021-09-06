@@ -252,7 +252,7 @@ w65_op_from_param(char *param){
       }
       if(op.value<0x100&&!op.symbol)
         op.md = IMM8;
-    }else if(*param==':'){
+    }else if(*param=='^'){
       ++param;
       op.md = IMM8;
       op.bank = true;
@@ -391,7 +391,7 @@ print_insn(const w65_insn* insn,const struct w65_operand* op){
 
   if(op->symbol!=0){
     bfd_reloc_code_real_type reloc_ty;
-    if(op->md == IMM8 && op->bank)
+    if(op->md >= IMMA && op->md <= IMM16 && op->bank)
       reloc_ty = BFD_RELOC_WDC65816_BANK;
     else
       reloc_ty = w65_addr_mode_to_reloc_code(op->md);
