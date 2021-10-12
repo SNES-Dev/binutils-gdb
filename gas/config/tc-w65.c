@@ -3,8 +3,6 @@
 #include <limits.h>
 #include <stdlib.h>
 
-
-
 #include "as.h"
 #include "safe-ctype.h"
 #include "opcode/w65.h"
@@ -159,172 +157,252 @@ reset_vars (char *op)
   ins_parse [sizeof ins_parse - 1] = 0;
 }
 
+
+
 struct w65_operand{
   w65_addr_mode md;
-  bfd_vma value;
-  const char* symbol;
+  expressionS expr;
   bfd_boolean bank;
 };
+
+static void parse_tail(struct w65_operand* op, char* tail, int x_flag, int y_flag){
+  if(*tail==',')
+    tail++;
+  while(*tail&&ISSPACE(*tail))tail++;
+  if(*tail=='%')
+    tail++;
+  while(*tail&&ISSPACE(*tail))tail++;
+  switch(*tail){
+    case 'D':
+      op->md |= DIRECT;
+      break;
+    case 'X':
+      op->md |= x_flag;
+      break;
+    case 'Y':
+      op->md |= y_flag;
+    
+  }
+}
 
 static struct w65_operand
 w65_op_from_param(char *param){
    struct w65_operand op = {.md = 0};
-   while(ISSPACE(*param))param++;
-   if(!*param)
-    op.md = IMPLIED;
-   else if(*param=='['){
-     param++;
-     char *look = param;
-     while(*look&&*look!=']')
-      look++;
-     if(!*look)
-        as_bad(_("Invalid operand: %s"),--param);
-     *look = '\0';
-     op = w65_op_from_param(param);
-     op.md |= INDIRECT_LONG;
-     ++look;
-     while(*look&&ISSPACE(*look)) look++;
-     if(*look==','){
-       look++;
-       while(*look&&ISSPACE(*look))look++;
-       if(*look=='%')
-        look++;
-       if(*look=='Y'||*look=='y')
-        op.md |= INDIRECT_Y;
-        else
-          as_bad(_("Invalid Index: %s"),look);
-     }
-   }else if(*param=='('){
-     param++;
-     char *look = param;
-     while(*look&&*look!=')')
-      look++;
-     if(!*look)
-        as_bad(_("Invalid operand: %s"),--param);
-     *look = '\0';
-     op = w65_op_from_param(param);
-     if(op.md&INDEXED_X)
-      op.md = (op.md&~INDEXED_X)|INDIRECT_X;
-     else if(op.md&INDEXED_Y)
-      op.md = (op.md&~INDEXED_Y)|INDIRECT_Y;
-     else 
-      op.md |= INDIRECT;
-
-     ++look;
-     while(*look&&ISSPACE(*look)) look++;
-     if(*look==','){
-       look++;
-       while(*look&&ISSPACE(*look))look++;
-       if(*look=='%')
-        look++;
-       if(*look=='X'||*look=='x')
-        op.md |= INDEXED_X;
-       else if(*look=='Y'||*look=='y')
-        op.md |= INDEXED_Y;
-        else
-          as_bad(_("Invalid Index: %s"),look);
-     }
-   }else if(*param=='#'){
-      ++param;
-      op.md = IMM16; // This will be fixed when searching for opcodes. 
-      if(ISDIGIT(*param)||*param=='-')
-        op.value = strtol(param,NULL,0);
-      else if(*param=='$')
-        op.value = strtol(++param,NULL,16);
-      else{
-        char* look = param;
-        while(*look&&ISSPACE(*look))look++;
-        while(*look&&(ISALNUM(*look)||*look=='$'||*look=='.'||*look=='_'))
+  input_line_pointer = param;
+  SKIP_ALL_WHITESPACE();
+  switch(*input_line_pointer){
+    case '[':
+      {
+        op.md |= INDIRECT_LONG;
+        char *look = ++input_line_pointer;
+        while(*look&&*look!=']')
           look++;
-        if(*look=='+'){
-          *look = '\0';
-          look++;
-          if(ISDIGIT(*look)||*look=='-')
-            op.value = strtol(look,&look,0);
-        }else if(*look=='-'){
-            char* pos = look;
-            if(ISDIGIT(*(look+1)))
-              op.value = strtol(look,&look,0);
-            *pos = '\0';
-        }
+        if(!*look)
+          as_bad(_("Invalid Operand: %s"),param);
         *look = '\0';
-        op.symbol = param;
+        look++;
+        expression(&op.expr);
+        if(*input_line_pointer){
+          SKIP_ALL_WHITESPACE();
+          parse_tail(&op,input_line_pointer,INDIRECT_X,INDIRECT_Y);
+        }
+        if(*look){
+          parse_tail(&op,look, INDEXED_X,INDEXED_Y);
+        }
       }
-      if(op.value<0x100&&!op.symbol)
-        op.md = IMM8;
-    }else if(*param=='^'){
-      ++param;
-      op.md = IMM8;
+    case '(':
+      {
+        op.md |= INDIRECT;
+        char *look = ++input_line_pointer;
+        while(*look&&*look!=')')
+          look++;
+        if(!*look)
+          as_bad(_("Invalid Operand: %s"),param);
+        *look = '\0';
+        look++;
+        expression(&op.expr);
+        if(*input_line_pointer){
+          SKIP_ALL_WHITESPACE();
+          parse_tail(&op,input_line_pointer,INDIRECT_X,INDIRECT_Y);
+        }
+        if(*look){
+          parse_tail(&op,look, INDEXED_X,INDEXED_Y);
+        }
+      }
+    break;
+    case '^':
       op.bank = true;
-      op.symbol = param;
-    }else{ // TODO: Direct Page Addressing
-      char* tail;
-      _Bool idx = 0;
-      op.md = ABS;
-      if(ISDIGIT(*param)||*param=='-')
-        op.value = strtol(param,&tail,0);
-      else if(*param=='$')
-        op.value = strtol(++param,NULL,16);
-      else{
-        tail = param;
-        while(*tail&&(ISALNUM(*tail)||*tail=='$'||*tail=='.'||*tail=='_'))
-          tail++;
-        if(*tail=='+'){
-          *tail = '\0';
-          tail++;
-          if(ISDIGIT(*tail)||*tail=='-')
-            op.value = strtol(tail,&tail,0);
-        }else if(*tail=='-'){
-            char* pos = tail;
-            if(ISDIGIT(*(tail+1)))
-              op.value = strtol(tail,&tail,0);
-            *pos = '\0';
-        }
-        if(ISSPACE(*tail)){
-          char* tail2 = ++tail;
+      input_line_pointer++;
+      expression(&op.expr);
+    break;
+    case '#':
+      op.md = IMM16;
+      input_line_pointer++;
+    default:
+      expression(&op.expr);
+      SKIP_ALL_WHITESPACE();
+      if(*input_line_pointer)
+        parse_tail(&op,input_line_pointer, INDEXED_X,INDEXED_Y);
+    break;
+  }
+
+  
+  //  while(ISSPACE(*param))param++;
+  //  if(!*param)
+  //   op.md = IMPLIED;
+  //  else if(*param=='['){
+  //    param++;
+  //    char *look = param;
+  //    while(*look&&*look!=']')
+  //     look++;
+  //    if(!*look)
+  //       as_bad(_("Invalid operand: %s"),--param);
+  //    *look = '\0';
+  //    op = w65_op_from_param(param);
+  //    op.md |= INDIRECT_LONG;
+  //    ++look;
+  //    while(*look&&ISSPACE(*look)) look++;
+  //    if(*look==','){
+  //      look++;
+  //      while(*look&&ISSPACE(*look))look++;
+  //      if(*look=='%')
+  //       look++;
+  //      if(*look=='Y'||*look=='y')
+  //       op.md |= INDIRECT_Y;
+  //       else
+  //         as_bad(_("Invalid Index: %s"),look);
+  //    }
+  //  }else if(*param=='('){
+  //    param++;
+  //    char *look = param;
+  //    while(*look&&*look!=')')
+  //     look++;
+  //    if(!*look)
+  //       as_bad(_("Invalid operand: %s"),--param);
+  //    *look = '\0';
+  //    op = w65_op_from_param(param);
+  //    if(op.md&INDEXED_X)
+  //     op.md = (op.md&~INDEXED_X)|INDIRECT_X;
+  //    else if(op.md&INDEXED_Y)
+  //     op.md = (op.md&~INDEXED_Y)|INDIRECT_Y;
+  //    else 
+  //     op.md |= INDIRECT;
+
+  //    ++look;
+  //    while(*look&&ISSPACE(*look)) look++;
+  //    if(*look==','){
+  //      look++;
+  //      while(*look&&ISSPACE(*look))look++;
+  //      if(*look=='%')
+  //       look++;
+  //      if(*look=='X'||*look=='x')
+  //       op.md |= INDEXED_X;
+  //      else if(*look=='Y'||*look=='y')
+  //       op.md |= INDEXED_Y;
+  //       else
+  //         as_bad(_("Invalid Index: %s"),look);
+  //    }
+  //  }else if(*param=='#'){
+  //     ++param;
+  //     op.md = IMM16; // This will be fixed when searching for opcodes. 
+  //     if(ISDIGIT(*param)||*param=='-')
+  //       op.value = strtol(param,NULL,0);
+  //     else if(*param=='$')
+  //       op.value = strtol(++param,NULL,16);
+  //     else{
+  //       char* look = param;
+  //       while(*look&&ISSPACE(*look))look++;
+  //       while(*look&&(ISALNUM(*look)||*look=='$'||*look=='.'||*look=='_'))
+  //         look++;
+  //       if(*look=='+'){
+  //         *look = '\0';
+  //         look++;
+  //         if(ISDIGIT(*look)||*look=='-')
+  //           op.value = strtol(look,&look,0);
+  //       }else if(*look=='-'){
+  //           char* pos = look;
+  //           if(ISDIGIT(*(look+1)))
+  //             op.value = strtol(look,&look,0);
+  //           *pos = '\0';
+  //       }
+  //       *look = '\0';
+  //       op.symbol = param;
+  //     }
+  //     if(op.value<0x100&&!op.symbol)
+  //       op.md = IMM8;
+  //   }else if(*param=='^'){
+  //     ++param;
+  //     op.md = IMM8;
+  //     op.bank = true;
+  //     op.symbol = param;
+  //   }else{ // TODO: Direct Page Addressing
+  //     char* tail;
+  //     _Bool idx = 0;
+  //     op.md = ABS;
+  //     if(ISDIGIT(*param)||*param=='-')
+  //       op.value = strtol(param,&tail,0);
+  //     else if(*param=='$')
+  //       op.value = strtol(++param,NULL,16);
+  //     else{
+  //       tail = param;
+  //       while(*tail&&(ISALNUM(*tail)||*tail=='$'||*tail=='.'||*tail=='_'))
+  //         tail++;
+  //       if(*tail=='+'){
+  //         *tail = '\0';
+  //         tail++;
+  //         if(ISDIGIT(*tail)||*tail=='-')
+  //           op.value = strtol(tail,&tail,0);
+  //       }else if(*tail=='-'){
+  //           char* pos = tail;
+  //           if(ISDIGIT(*(tail+1)))
+  //             op.value = strtol(tail,&tail,0);
+  //           *pos = '\0';
+  //       }
+  //       if(ISSPACE(*tail)){
+  //         char* tail2 = ++tail;
           
-          while(*tail2&&ISSPACE(*tail2))tail2++;
-          if(*tail2==',')
-            idx=1;
-        }
-        else if(*tail==',')
-          idx = 1;
-        *tail = '\0';
-        op.symbol = param;
-      }
-      if(idx||ISSPACE(*tail)||*tail==','){
-        idx |= *tail==',';
-        tail++;
-        while(*tail&&ISSPACE(*tail))tail++;
-        if(!idx||*tail==','){
-          idx = 1;
-          tail++;
-        }
-        while(*tail&&ISSPACE(*tail))tail++;
-        while(idx){
-          if(*tail=='%')
-            tail++;
-          if(*tail=='x'||*tail=='X')
-            op.md |= INDEXED_X;
-          else if(*tail=='y'||*tail=='Y')
-            op.md |= INDEXED_Y;
-          else if(*tail=='d'||*tail=='D'){
-            op.md = DIRECT;
-            tail++;
-            while(*tail&&ISSPACE(*tail))tail++;
-            if(*tail==','||*tail=='+'){
-              tail++;
-              while(*tail&&ISSPACE(*tail))tail++;
-              continue;
-            }
-          }else if(*tail=='s'||*tail=='S')
-            op.md = STACK;
-          else
-            as_bad(_("Invalid Index: `%s'"),tail);
-          break;
-        }
-      }
-    }
+  //         while(*tail2&&ISSPACE(*tail2))tail2++;
+  //         if(*tail2==',')
+  //           idx=1;
+  //       }
+  //       else if(*tail==',')
+  //         idx = 1;
+  //       *tail = '\0';
+  //       op.symbol = param;
+  //     }
+  //     if(idx||ISSPACE(*tail)||*tail==','){
+  //       idx |= *tail==',';
+  //       tail++;
+  //       while(*tail&&ISSPACE(*tail))tail++;
+  //       if(!idx||*tail==','){
+  //         idx = 1;
+  //         tail++;
+  //       }
+  //       while(*tail&&ISSPACE(*tail))tail++;
+  //       while(idx){
+  //         if(*tail=='%')
+  //           tail++;
+  //         if(*tail=='x'||*tail=='X')
+  //           op.md |= INDEXED_X;
+  //         else if(*tail=='y'||*tail=='Y')
+  //           op.md |= INDEXED_Y;
+  //         else if(*tail=='d'||*tail=='D'){
+  //           op.md = DIRECT;
+  //           tail++;
+  //           while(*tail&&ISSPACE(*tail))tail++;
+  //           if(*tail==','||*tail=='+'){
+  //             tail++;
+  //             while(*tail&&ISSPACE(*tail))tail++;
+  //             continue;
+  //           }
+  //         }else if(*tail=='s'||*tail=='S')
+  //           op.md = STACK;
+  //         else
+  //           as_bad(_("Invalid Index: `%s'"),tail);
+  //         break;
+  //       }
+  //     }
+  //   }
   
    return op;
 
@@ -382,37 +460,21 @@ w65_addr_mode_to_reloc_code(w65_addr_mode md){
 }
 
 static void
-print_insn(const w65_insn* insn,const struct w65_operand* op){
+print_insn(const w65_insn* insn,struct w65_operand* op){
   char* frag;
   int insn_size = w65_length_by_addr_mode(insn->oprs,w65_flg);
   frag = frag_more(insn_size);
   frag[0] = insn->opc;
   frag++;
 
-  if(op->symbol!=0){
-    bfd_reloc_code_real_type reloc_ty;
-    if(op->md >= IMMA && op->md <= IMM16 && op->bank)
-      reloc_ty = BFD_RELOC_WDC65816_BANK;
-    else
-      reloc_ty = w65_addr_mode_to_reloc_code(op->md);
-    reloc_howto_type* howto = bfd_reloc_type_lookup(stdoutput,reloc_ty);
-    md_number_to_chars(frag,0,insn_size-1);
-    symbolS* sym = symbol_find_or_make(op->symbol);
-    
-    fixS *fix =fix_new(frag_now,frag - frag_now->fr_literal,insn_size-1,sym,op->value,howto->pc_relative,reloc_ty);
-    if(reloc_ty==BFD_RELOC_8_PCREL)
-      fix->fx_signed = 1; // rel8 is signed
-  }else if(((op->md&0xff)==REL8)||((op->md&0xff)==REL16)){
-    bfd_reloc_code_real_type reloc_ty = w65_addr_mode_to_reloc_code(op->md);
-    reloc_howto_type* howto = bfd_reloc_type_lookup(stdoutput,reloc_ty);
-    symbolS* sym = frag_now->fr_symbol;
-    offsetT off = (op->value-frag_now->fr_offset);
-    fixS *fix =fix_new(frag_now,frag - frag_now->fr_literal,insn_size-1,sym,off,howto->pc_relative,reloc_ty);
-    if(reloc_ty==BFD_RELOC_8_PCREL)
-      fix->fx_signed = 1; // rel8 is signed
-  }else{
-    md_number_to_chars(frag,op->value,insn_size-1);
-  }
+  int reloc;
+  if(op->bank)
+    reloc = BFD_RELOC_WDC65816_BANK;
+  else
+    reloc = w65_addr_mode_to_reloc_code(op->md);
+
+  fix_new_exp(frag_now,frag-frag_now->fr_literal,insn_size-1,&op->expr,op->md==REL8||op->md==REL16,reloc);
+  md_number_to_chars(frag,0,insn_size-1);
 }
 
 static void
