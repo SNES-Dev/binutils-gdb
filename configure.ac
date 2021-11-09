@@ -336,7 +336,6 @@ case "${ENABLE_GOLD}" in
       *-*-elf* | *-*-sysv4* | *-*-unixware* | *-*-eabi* | hppa*64*-*-hpux* \
       | *-*-linux* | *-*-gnu* | frv-*-uclinux* | *-*-irix5* | *-*-irix6* \
       | *-*-netbsd* | *-*-openbsd* | *-*-freebsd* | *-*-dragonfly* \
-
       | *-*-solaris2* | *-*-nto* | *-*-nacl* | *-*-haiku* \
       | *-*-phantom* )
         case "${target}" in

@@ -563,6 +563,7 @@ disassembler (enum bfd_architecture a,
     case bfd_arch_w65:
       disassemble = print_insn_w65;
       break;
+#endif
 #ifdef ARCH_loongarch
     case bfd_arch_loongarch:
       disassemble = print_insn_loongarch;

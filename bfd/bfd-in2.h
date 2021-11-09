@@ -1930,13 +1930,10 @@ enum bfd_architecture
 #define bfd_mach_ck807         6
 #define bfd_mach_ck810         7
 #define bfd_mach_ck860         8
-<<<<<<< HEAD
   bfd_arch_w65,    /* WDC 65816 Processor */
-=======
   bfd_arch_loongarch,       /* LoongArch */
 #define bfd_mach_loongarch32   1
 #define bfd_mach_loongarch64   2
->>>>>>> d98c63919a079429b3f218c81ba03b04fd78df02
   bfd_arch_last
   };
 
@@ -6269,20 +6266,10 @@ assembler and not (currently) written to any object files.  */
 /* S12Z relocations.  */
   BFD_RELOC_S12Z_OPR,
 
-<<<<<<< HEAD
 /* wdc65c816 relocations.  */
   BFD_RELOC_WDC65816_BANK,
   BFD_RELOC_WDC65816_DIR,
 
-  /* SPC700 relocations. */
-  BFD_RELOC_SPC700_ABS16,
-  BFD_RELOC_SPC700_DPLO8,
-  BFD_RELOC_SPC700_DPHI8,
-  BFD_RELOC_SPC700_IMM8,
-  BFD_RELOC_SPC700_PC8,
-  BFD_RELOC_SPC700_PCALL8,
-
-=======
 /* LARCH relocations.  */
   BFD_RELOC_LARCH_TLS_DTPMOD32,
   BFD_RELOC_LARCH_TLS_DTPREL32,
@@ -6327,7 +6314,6 @@ assembler and not (currently) written to any object files.  */
   BFD_RELOC_LARCH_SUB24,
   BFD_RELOC_LARCH_SUB32,
   BFD_RELOC_LARCH_SUB64,
->>>>>>> d98c63919a079429b3f218c81ba03b04fd78df02
   BFD_RELOC_UNUSED };
 
 typedef enum bfd_reloc_code_real bfd_reloc_code_real_type;

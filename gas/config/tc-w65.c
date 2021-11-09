@@ -210,6 +210,7 @@ w65_op_from_param(char *param){
           parse_tail(&op,look, INDEXED_X,INDEXED_Y);
         }
       }
+    break;
     case '(':
       {
         op.md |= INDIRECT;
@@ -238,6 +239,7 @@ w65_op_from_param(char *param){
     case '#':
       op.md = IMM16;
       input_line_pointer++;
+      __attribute__((fallthrough));
     default:
       expression(&op.expr);
       SKIP_ALL_WHITESPACE();
