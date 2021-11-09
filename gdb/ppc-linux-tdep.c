@@ -1371,7 +1371,7 @@ static struct linux_record_tdep ppc64_linux_record_tdep;
    SYSCALL.  */
 
 static enum gdb_syscall
-ppc_canonicalize_syscall (int syscall)
+ppc_canonicalize_syscall (int syscall, int wordsize)
 {
   int result = -1;
 
@@ -1391,6 +1391,15 @@ ppc_canonicalize_syscall (int syscall)
     result = syscall += 259 - 240;
   else if (syscall >= 250 && syscall <= 251)	/* tgkill */
     result = syscall + 270 - 250;
+  else if (syscall == 286)
+    result = gdb_sys_openat;
+  else if (syscall == 291)
+    {
+      if (wordsize == 64)
+	result = gdb_sys_newfstatat;
+      else
+	result = gdb_sys_fstatat64;
+    }
   else if (syscall == 336)
     result = gdb_sys_recv;
   else if (syscall == 337)
@@ -1414,7 +1423,7 @@ ppc_linux_syscall_record (struct regcache *regcache)
   int ret;
 
   regcache_raw_read_unsigned (regcache, tdep->ppc_gp0_regnum, &scnum);
-  syscall_gdb = ppc_canonicalize_syscall (scnum);
+  syscall_gdb = ppc_canonicalize_syscall (scnum, tdep->wordsize);
 
   if (syscall_gdb < 0)
     {
@@ -1973,6 +1982,38 @@ ppc_floatformat_for_type (struct gdbarch *gdbarch,
   return default_floatformat_for_type (gdbarch, name, len);
 }
 
+/* Specify the powerpc64le target triplet.
+   This can be variations of
+	ppc64le-{distro}-linux-gcc
+   and
+	powerpc64le-{distro}-linux-gcc.  */
+
+static const char *
+ppc64le_gnu_triplet_regexp (struct gdbarch *gdbarch)
+{
+  return "p(ower)?pc64le";
+}
+
+/* Specify the powerpc64 target triplet.
+   This can be variations of
+	ppc64-{distro}-linux-gcc
+   and
+	powerpc64-{distro}-linux-gcc.  */
+
+static const char *
+ppc64_gnu_triplet_regexp (struct gdbarch *gdbarch)
+{
+  return "p(ower)?pc64";
+}
+
+/* Implement the linux_gcc_target_options method.  */
+
+static std::string
+ppc64_linux_gcc_target_options (struct gdbarch *gdbarch)
+{
+  return "";
+}
+
 static void
 ppc_linux_init_abi (struct gdbarch_info info,
 		    struct gdbarch *gdbarch)
@@ -2035,7 +2076,7 @@ ppc_linux_init_abi (struct gdbarch_info info,
       /* Shared library handling.  */
       set_gdbarch_skip_trampoline_code (gdbarch, ppc_skip_trampoline_code);
       set_solib_svr4_fetch_link_map_offsets
-	(gdbarch, svr4_ilp32_fetch_link_map_offsets);
+	(gdbarch, linux_ilp32_fetch_link_map_offsets);
 
       /* Setting the correct XML syscall filename.  */
       set_xml_syscall_file_name (gdbarch, XML_SYSCALL_FILENAME_PPC);
@@ -2087,7 +2128,7 @@ ppc_linux_init_abi (struct gdbarch_info info,
       /* Shared library handling.  */
       set_gdbarch_skip_trampoline_code (gdbarch, ppc64_skip_trampoline_code);
       set_solib_svr4_fetch_link_map_offsets
-	(gdbarch, svr4_lp64_fetch_link_map_offsets);
+	(gdbarch, linux_lp64_fetch_link_map_offsets);
 
       /* Setting the correct XML syscall filename.  */
       set_xml_syscall_file_name (gdbarch, XML_SYSCALL_FILENAME_PPC64);
@@ -2103,6 +2144,13 @@ ppc_linux_init_abi (struct gdbarch_info info,
 	set_gdbarch_gcore_bfd_target (gdbarch, "elf64-powerpcle");
       else
 	set_gdbarch_gcore_bfd_target (gdbarch, "elf64-powerpc");
+     /* Set compiler triplet.  */
+      if (gdbarch_byte_order (gdbarch) == BFD_ENDIAN_LITTLE)
+	set_gdbarch_gnu_triplet_regexp (gdbarch, ppc64le_gnu_triplet_regexp);
+      else
+	set_gdbarch_gnu_triplet_regexp (gdbarch, ppc64_gnu_triplet_regexp);
+      /* Set GCC target options.  */
+      set_gdbarch_gcc_target_options (gdbarch, ppc64_linux_gcc_target_options);
     }
 
   set_gdbarch_core_read_description (gdbarch, ppc_linux_core_read_description);

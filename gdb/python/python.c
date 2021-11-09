@@ -35,6 +35,8 @@
 #include <ctype.h>
 #include "location.h"
 #include "run-on-main-thread.h"
+#include "gdbsupport/selftest.h"
+#include "observable.h"
 
 /* Declared constants and enum for python stack printing.  */
 static const char python_excp_none[] = "none";
@@ -448,9 +450,9 @@ python_command (const char *arg, int from_tty)
    NULL (and set a Python exception) on error.  Helper function for
    get_parameter.  */
 PyObject *
-gdbpy_parameter_value (enum var_types type, void *var)
+gdbpy_parameter_value (const setting &var)
 {
-  switch (type)
+  switch (var.type ())
     {
     case var_string:
     case var_string_noescape:
@@ -458,16 +460,18 @@ gdbpy_parameter_value (enum var_types type, void *var)
     case var_filename:
     case var_enum:
       {
-	const char *str = *(char **) var;
+	const char *str;
+	if (var.type () == var_enum)
+	  str = var.get<const char *> ();
+	else
+	  str = var.get<std::string> ().c_str ();
 
-	if (! str)
-	  str = "";
 	return host_string_to_python_string (str).release ();
       }
 
     case var_boolean:
       {
-	if (* (bool *) var)
+	if (var.get<bool> ())
 	  Py_RETURN_TRUE;
 	else
 	  Py_RETURN_FALSE;
@@ -475,7 +479,7 @@ gdbpy_parameter_value (enum var_types type, void *var)
 
     case var_auto_boolean:
       {
-	enum auto_boolean ab = * (enum auto_boolean *) var;
+	enum auto_boolean ab = var.get<enum auto_boolean> ();
 
 	if (ab == AUTO_BOOLEAN_TRUE)
 	  Py_RETURN_TRUE;
@@ -486,16 +490,16 @@ gdbpy_parameter_value (enum var_types type, void *var)
       }
 
     case var_integer:
-      if ((* (int *) var) == INT_MAX)
+      if (var.get<int> () == INT_MAX)
 	Py_RETURN_NONE;
       /* Fall through.  */
     case var_zinteger:
     case var_zuinteger_unlimited:
-      return gdb_py_object_from_longest (* (int *) var).release ();
+      return gdb_py_object_from_longest (var.get<int> ()).release ();
 
     case var_uinteger:
       {
-	unsigned int val = * (unsigned int *) var;
+	unsigned int val = var.get<unsigned int> ();
 
 	if (val == UINT_MAX)
 	  Py_RETURN_NONE;
@@ -504,7 +508,7 @@ gdbpy_parameter_value (enum var_types type, void *var)
 
     case var_zuinteger:
       {
-	unsigned int val = * (unsigned int *) var;
+	unsigned int val = var.get<unsigned int> ();
 	return gdb_py_object_from_ulongest (val).release ();
       }
     }
@@ -541,10 +545,11 @@ gdbpy_parameter (PyObject *self, PyObject *args)
     return PyErr_Format (PyExc_RuntimeError,
 			 _("Could not find parameter `%s'."), arg);
 
-  if (! cmd->var)
+  if (!cmd->var.has_value ())
     return PyErr_Format (PyExc_RuntimeError,
 			 _("`%s' is not a parameter."), arg);
-  return gdbpy_parameter_value (cmd->var_type, cmd->var);
+
+  return gdbpy_parameter_value (*cmd->var);
 }
 
 /* Wrapper for target_charset.  */
@@ -1716,6 +1721,38 @@ init__gdb_module (void)
 }
 #endif
 
+/* Emit a gdb.GdbExitingEvent, return a negative value if there are any
+   errors, otherwise, return 0.  */
+
+static int
+emit_exiting_event (int exit_code)
+{
+  gdbpy_ref<> event_obj = create_event_object (&gdb_exiting_event_object_type);
+  if (event_obj == nullptr)
+    return -1;
+
+  gdbpy_ref<> code = gdb_py_object_from_longest (exit_code);
+  if (evpy_add_attribute (event_obj.get (), "exit_code", code.get ()) < 0)
+    return -1;
+
+  return evpy_emit_event (event_obj.get (), gdb_py_events.gdb_exiting);
+}
+
+/* Callback for the gdb_exiting observable.  EXIT_CODE is the value GDB
+   will exit with.  */
+
+static void
+gdbpy_gdb_exiting (int exit_code)
+{
+  if (!gdb_python_initialized)
+    return;
+
+  gdbpy_enter enter_py (python_gdbarch, python_language);
+
+  if (emit_exiting_event (exit_code) < 0)
+    gdbpy_print_stack ();
+}
+
 static bool
 do_start_initialization ()
 {
@@ -1839,6 +1876,7 @@ do_start_initialization ()
       || gdbpy_initialize_registers () < 0
       || gdbpy_initialize_xmethods () < 0
       || gdbpy_initialize_unwind () < 0
+      || gdbpy_initialize_membuf () < 0
       || gdbpy_initialize_tui () < 0)
     return false;
 
@@ -1867,6 +1905,8 @@ do_start_initialization ()
   if (gdbpy_value_cst == NULL)
     return false;
 
+  gdb::observers::gdb_exiting.attach (gdbpy_gdb_exiting, "python");
+
   /* Release the GIL while gdb runs.  */
   PyEval_SaveThread ();
 
@@ -1876,6 +1916,72 @@ do_start_initialization ()
   gdb_python_initialized = 1;
   return true;
 }
+
+#if GDB_SELF_TEST
+namespace selftests {
+
+/* Entry point for python unit tests.  */
+
+static void
+test_python ()
+{
+#define CMD(S) execute_command_to_string (S, "python print(5)", 0, true)
+
+  std::string output;
+
+  CMD (output);
+  SELF_CHECK (output == "5\n");
+  output.clear ();
+
+  bool saw_exception = false;
+  {
+    scoped_restore reset_gdb_python_initialized
+      = make_scoped_restore (&gdb_python_initialized, 0);
+    try
+      {
+	CMD (output);
+      }
+    catch (const gdb_exception &e)
+      {
+	saw_exception = true;
+	SELF_CHECK (e.reason == RETURN_ERROR);
+	SELF_CHECK (e.error == GENERIC_ERROR);
+	SELF_CHECK (*e.message == "Python not initialized");
+      }
+    SELF_CHECK (saw_exception);
+    SELF_CHECK (output.empty ());
+  }
+
+  saw_exception = false;
+  {
+    scoped_restore save_hook
+      = make_scoped_restore (&hook_set_active_ext_lang,
+			     []() { raise (SIGINT); });
+    try
+      {
+	CMD (output);
+      }
+    catch (const gdb_exception &e)
+      {
+	saw_exception = true;
+	SELF_CHECK (e.reason == RETURN_ERROR);
+	SELF_CHECK (e.error == GENERIC_ERROR);
+	SELF_CHECK (*e.message == "Error while executing Python code.");
+      }
+    SELF_CHECK (saw_exception);
+    std::string ref_output("Traceback (most recent call last):\n"
+			   "  File \"<string>\", line 1, in <module>\n"
+			   "KeyboardInterrupt\n");
+    SELF_CHECK (output == ref_output);
+  }
+
+#undef CMD
+}
+
+#undef CHECK_OUTPUT
+
+} // namespace selftests
+#endif /* GDB_SELF_TEST */
 
 #endif /* HAVE_PYTHON */
 
@@ -1935,13 +2041,11 @@ This command is only a placeholder.")
   add_com_alias ("py", python_cmd_element, class_obscure, 1);
 
   /* Add set/show python print-stack.  */
-  add_basic_prefix_cmd ("python", no_class,
-			_("Prefix command for python preference settings."),
-			&user_show_python_list, 0, &showlist);
-
-  add_show_prefix_cmd ("python", no_class,
-		       _("Prefix command for python preference settings."),
-		       &user_set_python_list, 0, &setlist);
+  add_setshow_prefix_cmd ("python", no_class,
+			  _("Prefix command for python preference settings."),
+			  _("Prefix command for python preference settings."),
+			  &user_set_python_list, &user_show_python_list,
+			  &setlist, &showlist);
 
   add_setshow_enum_cmd ("print-stack", no_class, python_excp_enums,
 			&gdbpy_should_print_stack, _("\
@@ -1977,6 +2081,12 @@ python executable."),
 				show_python_dont_write_bytecode,
 				&user_set_python_list,
 				&user_show_python_list);
+
+#ifdef HAVE_PYTHON
+#if GDB_SELF_TEST
+  selftests::register_test ("python", selftests::test_python);
+#endif /* GDB_SELF_TEST */
+#endif /* HAVE_PYTHON */
 }
 
 #ifdef HAVE_PYTHON
@@ -2076,6 +2186,8 @@ PyMethodDef python_GdbMethods[] =
 {
   { "history", gdbpy_history, METH_VARARGS,
     "Get a value from history" },
+  { "add_history", gdbpy_add_history, METH_VARARGS,
+    "Add a value to the value history list" },
   { "execute", (PyCFunction) execute_gdb_command, METH_VARARGS | METH_KEYWORDS,
     "execute (command [, from_tty] [, to_string]) -> [String]\n\
 Evaluate command, a string, as a gdb CLI command.  Optionally returns\n\
@@ -2210,6 +2322,10 @@ Set the value of the convenience variable $NAME." },
     "register_window_type (NAME, CONSTRUCSTOR) -> None\n\
 Register a TUI window constructor." },
 #endif	/* TUI */
+
+  { "architecture_names", gdbpy_all_architecture_names, METH_NOARGS,
+    "architecture_names () -> List.\n\
+Return a list of all the architecture names GDB understands." },
 
   {NULL, NULL, 0, NULL}
 };

@@ -71,16 +71,16 @@ static void step_1 (int, int, const char *);
    Arguments are separated by spaces.  Empty string (pointer to '\0')
    means no args.  */
 
-static char *inferior_args_scratch;
+static std::string inferior_args_scratch;
 
 /* Scratch area where the new cwd will be stored by 'set cwd'.  */
 
-static char *inferior_cwd_scratch;
+static std::string inferior_cwd_scratch;
 
 /* Scratch area where 'set inferior-tty' will store user-provided value.
    We'll immediate copy it into per-inferior storage.  */
 
-static char *inferior_io_terminal_scratch;
+static std::string inferior_io_terminal_scratch;
 
 /* Pid of our debugged inferior, or 0 if no inferior now.
    Since various parts of infrun.c test this to see whether there is a program
@@ -249,7 +249,7 @@ post_create_inferior (int from_tty)
      missing registers info), ignore it.  */
   thread_info *thr = inferior_thread ();
 
-  thr->set_stop_pc (0);
+  thr->clear_stop_pc ();
   try
     {
       regcache *rc = get_thread_regcache (thr);
@@ -482,8 +482,7 @@ run_command_1 (const char *args, int from_tty, enum run_how run_how)
     {
       thread_info *thr = inferior_thread ();
       target_waitstatus ws;
-      ws.kind = TARGET_WAITKIND_STOPPED;
-      ws.value.sig = GDB_SIGNAL_0;
+      ws.set_stopped (GDB_SIGNAL_0);
       thr->set_pending_waitstatus (ws);
     }
 
@@ -604,6 +603,8 @@ continue_1 (int all_threads)
       /* Backup current thread and selected frame and restore on scope
 	 exit.  */
       scoped_restore_current_thread restore_thread;
+      scoped_disable_commit_resumed disable_commit_resumed
+	("continue all threads in non-stop");
 
       iterate_over_threads (proceed_thread_callback, NULL);
 
@@ -624,6 +625,8 @@ continue_1 (int all_threads)
 	  */
 	  target_terminal::inferior ();
 	}
+
+      disable_commit_resumed.reset_and_commit ();
     }
   else
     {
@@ -670,7 +673,7 @@ continue_command (const char *args, int from_tty)
      stopped at.  */
   if (args != NULL)
     {
-      bpstat bs = NULL;
+      bpstat *bs = nullptr;
       int num, stat;
       int stopped = 0;
       struct thread_info *tp;
@@ -1431,7 +1434,7 @@ get_return_value (struct value *function, struct type *value_type)
     case RETURN_VALUE_ABI_PRESERVES_ADDRESS:
       value = allocate_value (value_type);
       gdbarch_return_value (gdbarch, function, value_type, stop_regs,
-			    value_contents_raw (value), NULL);
+			    value_contents_raw (value).data (), NULL);
       break;
     case RETURN_VALUE_STRUCT_CONVENTION:
       value = NULL;
@@ -1828,7 +1831,7 @@ finish_command (const char *arg, int from_tty)
 static void
 info_program_command (const char *args, int from_tty)
 {
-  bpstat bs;
+  bpstat *bs;
   int num, stat;
   ptid_t ptid;
   process_stratum_target *proc_target;
@@ -2021,7 +2024,6 @@ path_info (const char *args, int from_tty)
 static void
 path_command (const char *dirname, int from_tty)
 {
-  char *exec_path;
   const char *env;
 
   dont_repeat ();
@@ -2029,10 +2031,9 @@ path_command (const char *dirname, int from_tty)
   /* Can be null if path is not set.  */
   if (!env)
     env = "";
-  exec_path = xstrdup (env);
-  mod_path (dirname, &exec_path);
-  current_inferior ()->environment.set (path_var_name, exec_path);
-  xfree (exec_path);
+  std::string exec_path = env;
+  mod_path (dirname, exec_path);
+  current_inferior ()->environment.set (path_var_name, exec_path.c_str ());
   if (from_tty)
     path_info (NULL, from_tty);
 }
@@ -2079,7 +2080,7 @@ default_print_one_register_info (struct ui_file *file,
       || regtype->code () == TYPE_CODE_DECFLOAT)
     {
       struct value_print_options opts;
-      const gdb_byte *valaddr = value_contents_for_printing (val);
+      const gdb_byte *valaddr = value_contents_for_printing (val).data ();
       enum bfd_endian byte_order = type_byte_order (regtype);
 
       get_user_print_options (&opts);
@@ -2371,7 +2372,7 @@ proceed_after_attach (inferior *inf)
   scoped_restore_current_thread restore_thread;
 
   for (thread_info *thread : inf->non_exited_threads ())
-    if (!thread->executing
+    if (!thread->executing ()
 	&& !thread->stop_requested
 	&& thread->stop_signal () == GDB_SIGNAL_0)
       {
@@ -2644,7 +2645,7 @@ notice_new_inferior (thread_info *thr, bool leave_running, int from_tty)
   /* When we "notice" a new inferior we need to do all the things we
      would normally do if we had just attached to it.  */
 
-  if (thr->executing)
+  if (thr->executing ())
     {
       struct inferior *inferior = current_inferior ();
 

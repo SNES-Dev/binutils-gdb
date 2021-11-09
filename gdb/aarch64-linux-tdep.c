@@ -1621,7 +1621,7 @@ aarch64_linux_set_memtags (struct gdbarch *gdbarch, struct value *address,
 
       /* Update the value's content with the tag.  */
       enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
-      gdb_byte *srcbuf = value_contents_raw (address);
+      gdb_byte *srcbuf = value_contents_raw (address).data ();
       store_unsigned_integer (srcbuf, sizeof (addr), byte_order, addr);
     }
   else
@@ -1795,7 +1795,7 @@ aarch64_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   linux_init_abi (info, gdbarch, 1);
 
   set_solib_svr4_fetch_link_map_offsets (gdbarch,
-					 svr4_lp64_fetch_link_map_offsets);
+					 linux_lp64_fetch_link_map_offsets);
 
   /* Enable TLS support.  */
   set_gdbarch_fetch_tls_load_module_address (gdbarch,

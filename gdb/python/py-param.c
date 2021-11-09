@@ -64,8 +64,9 @@ union parmpy_variable
   /* Hold an unsigned integer value, for uinteger.  */
   unsigned int uintval;
 
-  /* Hold a string, for the various string types.  */
-  char *stringval;
+  /* Hold a string, for the various string types.  The std::string is
+     new-ed.  */
+  std::string *stringval;
 
   /* Hold a string, for enums.  */
   const char *cstringval;
@@ -87,6 +88,29 @@ struct parmpy_object
      NULL-terminated.  */
   const char **enumeration;
 };
+
+/* Wraps a setting around an existing parmpy_object.  This abstraction
+   is used to manipulate the value in S->VALUE in a type safe manner using
+   the setting interface.  */
+
+static setting
+make_setting (parmpy_object *s)
+{
+  if (var_type_uses<bool> (s->type))
+    return setting (s->type, &s->value.boolval);
+  else if (var_type_uses<int> (s->type))
+    return setting (s->type, &s->value.intval);
+  else if (var_type_uses<auto_boolean> (s->type))
+    return setting (s->type, &s->value.autoboolval);
+  else if (var_type_uses<unsigned int> (s->type))
+    return setting (s->type, &s->value.uintval);
+  else if (var_type_uses<std::string> (s->type))
+    return setting (s->type, s->value.stringval);
+  else if (var_type_uses<const char *> (s->type))
+    return setting (s->type, &s->value.cstringval);
+  else
+    gdb_assert_not_reached ("unhandled var type");
+}
 
 extern PyTypeObject parmpy_object_type
     CPYCHECKER_TYPE_OBJECT_FOR_TYPEDEF ("parmpy_object");
@@ -110,7 +134,7 @@ get_attr (PyObject *obj, PyObject *attr_name)
     {
       parmpy_object *self = (parmpy_object *) obj;
 
-      return gdbpy_parameter_value (self->type, &self->value);
+      return gdbpy_parameter_value (make_setting (self));
     }
 
   return PyObject_GenericGetAttr (obj, attr_name);
@@ -139,13 +163,7 @@ set_parameter_value (parmpy_object *self, PyObject *value)
 	  return -1;
 	}
       if (value == Py_None)
-	{
-	  xfree (self->value.stringval);
-	  if (self->type == var_optional_filename)
-	    self->value.stringval = xstrdup ("");
-	  else
-	    self->value.stringval = NULL;
-	}
+	self->value.stringval->clear ();
       else
 	{
 	  gdb::unique_xmalloc_ptr<char>
@@ -153,8 +171,7 @@ set_parameter_value (parmpy_object *self, PyObject *value)
 	  if (string == NULL)
 	    return -1;
 
-	  xfree (self->value.stringval);
-	  self->value.stringval = string.release ();
+	  *self->value.stringval = string.get ();
 	}
       break;
 
@@ -501,14 +518,14 @@ add_setshow_generic (int parmclass, enum command_class cmdclass,
 
     case var_string:
       commands = add_setshow_string_cmd (cmd_name.get (), cmdclass,
-					 &self->value.stringval, set_doc,
+					 self->value.stringval, set_doc,
 					 show_doc, help_doc, get_set_value,
 					 get_show_value, set_list, show_list);
       break;
 
     case var_string_noescape:
       commands = add_setshow_string_noescape_cmd (cmd_name.get (), cmdclass,
-						  &self->value.stringval,
+						  self->value.stringval,
 						  set_doc, show_doc, help_doc,
 						  get_set_value, get_show_value,
 						  set_list, show_list);
@@ -516,7 +533,7 @@ add_setshow_generic (int parmclass, enum command_class cmdclass,
 
     case var_optional_filename:
       commands = add_setshow_optional_filename_cmd (cmd_name.get (), cmdclass,
-						    &self->value.stringval,
+						    self->value.stringval,
 						    set_doc, show_doc, help_doc,
 						    get_set_value,
 						    get_show_value, set_list,
@@ -525,7 +542,7 @@ add_setshow_generic (int parmclass, enum command_class cmdclass,
 
     case var_filename:
       commands = add_setshow_filename_cmd (cmd_name.get (), cmdclass,
-					   &self->value.stringval, set_doc,
+					   self->value.stringval, set_doc,
 					   show_doc, help_doc, get_set_value,
 					   get_show_value, set_list, show_list);
       break;
@@ -708,6 +725,9 @@ parmpy_init (PyObject *self, PyObject *args, PyObject *kwds)
   obj->type = (enum var_types) parmclass;
   memset (&obj->value, 0, sizeof (obj->value));
 
+  if (var_type_uses<std::string> (obj->type))
+    obj->value.stringval = new std::string;
+
   gdb::unique_xmalloc_ptr<char> cmd_name
     = gdbpy_parse_command_name (name, &set_list, &setlist);
   if (cmd_name == nullptr)
@@ -740,7 +760,16 @@ parmpy_init (PyObject *self, PyObject *args, PyObject *kwds)
   return 0;
 }
 
-
+/* Deallocate function for a gdb.Parameter.  */
+
+static void
+parmpy_dealloc (PyObject *obj)
+{
+  parmpy_object *parm_obj = (parmpy_object *) obj;
+
+  if (var_type_uses<std::string> (parm_obj->type))
+    delete parm_obj->value.stringval;
+}
 
 /* Initialize the 'parameters' module.  */
 int
@@ -779,7 +808,7 @@ PyTypeObject parmpy_object_type =
   "gdb.Parameter",		  /*tp_name*/
   sizeof (parmpy_object),	  /*tp_basicsize*/
   0,				  /*tp_itemsize*/
-  0,				  /*tp_dealloc*/
+  parmpy_dealloc,		  /*tp_dealloc*/
   0,				  /*tp_print*/
   0,				  /*tp_getattr*/
   0,				  /*tp_setattr*/

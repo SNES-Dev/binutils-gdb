@@ -523,7 +523,7 @@ const char EXP_CHARS[] = "eE";
 /* As in 0f12.456  */
 /* or	 0d1.2345e12  */
 
-const char FLT_CHARS[] = "rRsSfFdDxXeEpPhH";
+const char FLT_CHARS[] = "rRsSfFdDxXeEpPhHb";
 
 /* Prefix character that indicates the start of an immediate value.  */
 #define is_immediate_prefix(C) ((C) == '#')
@@ -643,54 +643,6 @@ aarch64_get_expression (expressionS *  ep,
 const char *
 md_atof (int type, char *litP, int *sizeP)
 {
-  /* If this is a bfloat16 type, then parse it slightly differently -
-     as it does not follow the IEEE standard exactly.  */
-  if (type == 'b')
-    {
-      char * t;
-      LITTLENUM_TYPE words[MAX_LITTLENUMS];
-      FLONUM_TYPE generic_float;
-
-      t = atof_ieee_detail (input_line_pointer, 1, 8, words, &generic_float);
-
-      if (t)
-	input_line_pointer = t;
-      else
-	return _("invalid floating point number");
-
-      switch (generic_float.sign)
-	{
-	/* Is +Inf.  */
-	case 'P':
-	  words[0] = 0x7f80;
-	  break;
-
-	/* Is -Inf.  */
-	case 'N':
-	  words[0] = 0xff80;
-	  break;
-
-	/* Is NaN.  */
-	/* bfloat16 has two types of NaN - quiet and signalling.
-	   Quiet NaN has bit[6] == 1 && faction != 0, whereas
-	   signalling Nan's have bit[0] == 0 && fraction != 0.
-	   Chose this specific encoding as it is the same form
-	   as used by other IEEE 754 encodings in GAS.  */
-	case 0:
-	  words[0] = 0x7fff;
-	  break;
-
-	default:
-	  break;
-	}
-
-      *sizeP = 2;
-
-      md_number_to_chars (litP, (valueT) words[0], sizeof (LITTLENUM_TYPE));
-
-      return NULL;
-    }
-
   return ieee_md_atof (type, litP, sizeP, target_big_endian);
 }
 
@@ -9099,6 +9051,18 @@ static const struct aarch64_cpu_option_table aarch64_cpus[] = {
                    | AARCH64_FEATURE_RCPC
                    | AARCH64_FEATURE_SSBS),
    "Cortex-A78C"},
+  {"cortex-a510", AARCH64_FEATURE (AARCH64_ARCH_V9,
+                  AARCH64_FEATURE_BFLOAT16
+                  | AARCH64_FEATURE_I8MM
+                  | AARCH64_FEATURE_MEMTAG
+                  | AARCH64_FEATURE_SVE2_BITPERM),
+   "Cortex-A510"},
+  {"cortex-a710", AARCH64_FEATURE (AARCH64_ARCH_V9,
+                  AARCH64_FEATURE_BFLOAT16
+                  | AARCH64_FEATURE_I8MM
+                  | AARCH64_FEATURE_MEMTAG
+                  | AARCH64_FEATURE_SVE2_BITPERM),
+   "Cortex-A710"},
   {"ares", AARCH64_FEATURE (AARCH64_ARCH_V8_2,
 				  AARCH64_FEATURE_RCPC | AARCH64_FEATURE_F16
 				  | AARCH64_FEATURE_DOTPROD
@@ -9168,6 +9132,12 @@ static const struct aarch64_cpu_option_table aarch64_cpus[] = {
                 | AARCH64_FEATURE_SSBS
                 | AARCH64_FEATURE_PROFILE),
                 "Cortex-X1"},
+  {"cortex-x2", AARCH64_FEATURE (AARCH64_ARCH_V9,
+                AARCH64_FEATURE_BFLOAT16
+                | AARCH64_FEATURE_I8MM
+                | AARCH64_FEATURE_MEMTAG
+                | AARCH64_FEATURE_SVE2_BITPERM),
+                "Cortex-X2"},
   {"generic", AARCH64_ARCH_V8, NULL},
 
   {NULL, AARCH64_ARCH_NONE, NULL}
@@ -9192,6 +9162,7 @@ static const struct aarch64_arch_option_table aarch64_archs[] = {
   {"armv8.6-a", AARCH64_ARCH_V8_6},
   {"armv8.7-a", AARCH64_ARCH_V8_7},
   {"armv8-r",	AARCH64_ARCH_V8_R},
+  {"armv9-a",	AARCH64_ARCH_V9},
   {NULL, AARCH64_ARCH_NONE}
 };
 

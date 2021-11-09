@@ -162,6 +162,12 @@
 /* Define to 1 if your system has the etext variable. */
 #undef HAVE_ETEXT
 
+/* Define to 1 if execinfo.h backtrace functions are available. */
+#undef HAVE_EXECINFO_BACKTRACE
+
+/* Define to 1 if you have the <execinfo.h> header file. */
+#undef HAVE_EXECINFO_H
+
 /* Define to 1 if you have the `fdwalk' function. */
 #undef HAVE_FDWALK
 
@@ -221,6 +227,9 @@
 
 /* Define if you have the babeltrace library. */
 #undef HAVE_LIBBABELTRACE
+
+/* Define if libbacktrace is being used. */
+#undef HAVE_LIBBACKTRACE
 
 /* Define to 1 if debuginfod is enabled. */
 #undef HAVE_LIBDEBUGINFOD

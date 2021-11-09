@@ -1662,8 +1662,10 @@ _bfd_coff_read_string_table (bfd *abfd)
   char extstrsize[STRING_SIZE_SIZE];
   bfd_size_type strsize;
   char *strings;
-  file_ptr pos;
+  ufile_ptr pos;
   ufile_ptr filesize;
+  size_t symesz;
+  size_t size;
 
   if (obj_coff_strings (abfd) != NULL)
     return obj_coff_strings (abfd);
@@ -1674,9 +1676,16 @@ _bfd_coff_read_string_table (bfd *abfd)
       return NULL;
     }
 
+  symesz = bfd_coff_symesz (abfd);
   pos = obj_sym_filepos (abfd);
-  pos += obj_raw_syment_count (abfd) * bfd_coff_symesz (abfd);
-  if (bfd_seek (abfd, pos, SEEK_SET) != 0)
+  if (_bfd_mul_overflow (obj_raw_syment_count (abfd), symesz, &size)
+      || pos + size < pos)
+    {
+      bfd_set_error (bfd_error_file_truncated);
+      return NULL;
+    }
+
+  if (bfd_seek (abfd, pos + size, SEEK_SET) != 0)
     return NULL;
 
   if (bfd_bread (extstrsize, (bfd_size_type) sizeof extstrsize, abfd)
@@ -1798,7 +1807,7 @@ coff_get_normalized_symtab (bfd *abfd)
 
   /* Mark the end of the symbols.  */
   symesz = bfd_coff_symesz (abfd);
-  raw_end = (char *) raw_src + obj_raw_syment_count (abfd) * symesz;
+  raw_end = PTR_ADD (raw_src, obj_raw_syment_count (abfd) * symesz);
 
   /* FIXME SOMEDAY.  A string table size of zero is very weird, but
      probably possible.  If one shows up, it will probably kill us.  */
@@ -1987,7 +1996,7 @@ coff_get_reloc_upper_bound (bfd *abfd, sec_ptr asect)
       return -1;
     }
 #endif
-  return (asect->reloc_count + 1) * sizeof (arelent *);
+  return (asect->reloc_count + 1L) * sizeof (arelent *);
 }
 
 asymbol *
@@ -2043,8 +2052,10 @@ coff_get_symbol_info (bfd *abfd, asymbol *symbol, symbol_info *ret)
   if (coffsymbol (symbol)->native != NULL
       && coffsymbol (symbol)->native->fix_value
       && coffsymbol (symbol)->native->is_sym)
-    ret->value = coffsymbol (symbol)->native->u.syment.n_value -
-      (bfd_hostptr_t) obj_raw_syments (abfd);
+    ret->value =
+      ((coffsymbol (symbol)->native->u.syment.n_value -
+	(bfd_hostptr_t) obj_raw_syments (abfd))
+       / sizeof (combined_entry_type));
 }
 
 /* Print out information about COFF symbol.  */
@@ -2092,7 +2103,8 @@ coff_print_symbol (bfd *abfd,
 	  if (! combined->fix_value)
 	    val = (bfd_vma) combined->u.syment.n_value;
 	  else
-	    val = combined->u.syment.n_value - (bfd_hostptr_t) root;
+	    val = ((combined->u.syment.n_value - (bfd_hostptr_t) root)
+		   / sizeof (combined_entry_type));
 
 	  fprintf (file, "(sec %2d)(fl 0x%02x)(ty %3x)(scl %3d) (nx %d) 0x",
 		   combined->u.syment.n_scnum,

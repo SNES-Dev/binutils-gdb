@@ -680,10 +680,9 @@ gdbsim_target_open (const char *args, int from_tty)
   int len;
   char *arg_buf;
   struct sim_inferior_data *sim_data;
-  const char *sysroot;
   SIM_DESC gdbsim_desc;
 
-  sysroot = gdb_sysroot;
+  const char *sysroot = gdb_sysroot.c_str ();
   if (is_target_filename (sysroot))
     sysroot += strlen (TARGET_SYSROOT_PREFIX);
 
@@ -981,8 +980,7 @@ gdbsim_target::wait (ptid_t ptid, struct target_waitstatus *status,
   switch (reason)
     {
     case sim_exited:
-      status->kind = TARGET_WAITKIND_EXITED;
-      status->value.integer = sigrc;
+      status->set_exited (sigrc);
       break;
     case sim_stopped:
       switch (sigrc)
@@ -993,14 +991,12 @@ gdbsim_target::wait (ptid_t ptid, struct target_waitstatus *status,
 	case GDB_SIGNAL_INT:
 	case GDB_SIGNAL_TRAP:
 	default:
-	  status->kind = TARGET_WAITKIND_STOPPED;
-	  status->value.sig = (enum gdb_signal) sigrc;
+	  status->set_stopped ((gdb_signal) sigrc);
 	  break;
 	}
       break;
     case sim_signalled:
-      status->kind = TARGET_WAITKIND_SIGNALLED;
-      status->value.sig = (enum gdb_signal) sigrc;
+      status->set_signalled ((gdb_signal) sigrc);
       break;
     case sim_running:
     case sim_polling:

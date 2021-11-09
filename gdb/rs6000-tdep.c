@@ -2137,6 +2137,12 @@ skip_prologue (struct gdbarch *gdbarch, CORE_ADDR pc, CORE_ADDR lim_pc,
 	    /* Never skip branches.  */
 	    break;
 
+	  /* Test based on opcode and mask values of
+	     powerpc_opcodes[svc..svcla] in opcodes/ppc-opc.c.  */
+	  if ((op & 0xffff0000) == 0x44000000)
+	    /* Never skip system calls.  */
+	    break;
+
 	  if (num_skip_non_prologue_insns++ > max_skip_non_prologue_insns)
 	    /* Do not scan too many insns, scanning insns is expensive with
 	       remote targets.  */
@@ -4993,20 +4999,20 @@ ppc_process_record_op31 (struct gdbarch *gdbarch, struct regcache *regcache,
       switch (ext)
 	{
 	case 167:	/* Store Vector Element Halfword Indexed */
-	  addr = addr & ~0x1ULL;
+	  ea = ea & ~0x1ULL;
 	  break;
 
 	case 199:	/* Store Vector Element Word Indexed */
-	  addr = addr & ~0x3ULL;
+	  ea = ea & ~0x3ULL;
 	  break;
 
 	case 231:	/* Store Vector Indexed */
 	case 487:	/* Store Vector Indexed LRU */
-	  addr = addr & ~0xfULL;
+	  ea = ea & ~0xfULL;
 	  break;
 	}
 
-      record_full_arch_list_add_mem (addr, size);
+      record_full_arch_list_add_mem (ea, size);
       return 0;
 
     case 397:		/* Store VSX Vector with Length */
@@ -7411,13 +7417,11 @@ _initialize_rs6000_tdep ()
 
   /* Add root prefix command for all "set powerpc"/"show powerpc"
      commands.  */
-  add_basic_prefix_cmd ("powerpc", no_class,
-			_("Various PowerPC-specific commands."),
-			&setpowerpccmdlist, 0, &setlist);
-
-  add_show_prefix_cmd ("powerpc", no_class,
-		       _("Various PowerPC-specific commands."),
-		       &showpowerpccmdlist, 0, &showlist);
+  add_setshow_prefix_cmd ("powerpc", no_class,
+			  _("Various PowerPC-specific commands."),
+			  _("Various PowerPC-specific commands."),
+			  &setpowerpccmdlist, &showpowerpccmdlist,
+			  &setlist, &showlist);
 
   /* Add a command to allow the user to force the ABI.  */
   add_setshow_auto_boolean_cmd ("soft-float", class_support,

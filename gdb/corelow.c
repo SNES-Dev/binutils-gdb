@@ -428,7 +428,8 @@ core_target_open (const char *arg, int from_tty)
     }
 
   gdb::unique_xmalloc_ptr<char> filename (tilde_expand (arg));
-  if (!IS_ABSOLUTE_PATH (filename.get ()))
+  if (strlen (filename.get ()) != 0
+      && !IS_ABSOLUTE_PATH (filename.get ()))
     filename = gdb_abspath (filename.get ());
 
   flags = O_BINARY | O_LARGEFILE;
@@ -436,7 +437,7 @@ core_target_open (const char *arg, int from_tty)
     flags |= O_RDWR;
   else
     flags |= O_RDONLY;
-  scratch_chan = gdb_open_cloexec (filename.get (), flags, 0);
+  scratch_chan = gdb_open_cloexec (filename.get (), flags, 0).release ();
   if (scratch_chan < 0)
     perror_with_name (filename.get ());
 

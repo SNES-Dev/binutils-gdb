@@ -4585,7 +4585,7 @@ mips_eabi_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
 	    fprintf_unfiltered (gdb_stdlog, " push");
 	}
       else
-	val = value_contents (arg);
+	val = value_contents (arg).data ();
 
       /* 32-bit ABIs always start floating point arguments in an
 	 even-numbered floating point register.  Round the FP register
@@ -4858,11 +4858,11 @@ mips_n32n64_fp_arg_chunk_p (struct gdbarch *gdbarch, struct type *arg_type,
 
       /* We're only looking at normal fields.  */
       if (field_is_static (&arg_type->field (i))
-	  || (TYPE_FIELD_BITPOS (arg_type, i) % 8) != 0)
+	  || (arg_type->field (i).loc_bitpos () % 8) != 0)
 	continue;
 
       /* If we have gone past the offset, there is no double to pass.  */
-      pos = TYPE_FIELD_BITPOS (arg_type, i) / 8;
+      pos = arg_type->field (i).loc_bitpos () / 8;
       if (pos > offset)
 	return 0;
 
@@ -4960,7 +4960,7 @@ mips_n32n64_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
 			    "mips_n32n64_push_dummy_call: %d len=%d type=%d",
 			    argnum + 1, len, (int) typecode);
 
-      val = value_contents (arg);
+      val = value_contents (arg).data ();
 
       /* A 128-bit long double value requires an even-odd pair of
 	 floating-point registers.  */
@@ -5248,8 +5248,7 @@ mips_n32n64_return_value (struct gdbarch *gdbarch, struct value *function,
 				: MIPS_V0_REGNUM);
 	   field < type->num_fields (); field++, regnum += 2)
 	{
-	  int offset = (FIELD_BITPOS (type->field (field))
-			/ TARGET_CHAR_BIT);
+	  int offset = type->field (field).loc_bitpos () / TARGET_CHAR_BIT;
 	  if (mips_debug)
 	    fprintf_unfiltered (gdb_stderr, "Return float struct+%d\n",
 				offset);
@@ -5427,7 +5426,7 @@ mips_o32_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
 			    "mips_o32_push_dummy_call: %d len=%d type=%d",
 			    argnum + 1, len, (int) typecode);
 
-      val = value_contents (arg);
+      val = value_contents (arg).data ();
 
       /* 32-bit ABIs always start floating point arguments in an
 	 even-numbered floating point register.  Round the FP register
@@ -5800,8 +5799,7 @@ mips_o32_return_value (struct gdbarch *gdbarch, struct value *function,
       for (field = 0, regnum = mips_regnum (gdbarch)->fp0;
 	   field < type->num_fields (); field++, regnum += 2)
 	{
-	  int offset = (FIELD_BITPOS (type->fields ()[field])
-			/ TARGET_CHAR_BIT);
+	  int offset = (type->fields ()[field].loc_bitpos () / TARGET_CHAR_BIT);
 	  if (mips_debug)
 	    fprintf_unfiltered (gdb_stderr, "Return float struct+%d\n",
 				offset);
@@ -5949,7 +5947,7 @@ mips_o64_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
 			    "mips_o64_push_dummy_call: %d len=%d type=%d",
 			    argnum + 1, len, (int) typecode);
 
-      val = value_contents (arg);
+      val = value_contents (arg).data ();
 
       /* Floating point arguments passed in registers have to be
 	 treated specially.  On 32-bit architectures, doubles are
@@ -6556,7 +6554,7 @@ print_gp_register_row (struct ui_file *file, struct frame_info *frame,
 	  col++;
 	  continue;
 	}
-      raw_buffer = value_contents_all (value);
+      raw_buffer = value_contents_all (value).data ();
       /* pad small registers */
       for (byte = 0;
 	   byte < (mips_abi_regsize (gdbarch)
@@ -8942,13 +8940,11 @@ _initialize_mips_tdep ()
   set_tdesc_property (mips_tdesc_gp64, PROPERTY_GP64, "");
 
   /* Add root prefix command for all "set mips"/"show mips" commands.  */
-  add_basic_prefix_cmd ("mips", no_class,
-			_("Various MIPS specific commands."),
-			&setmipscmdlist, 0, &setlist);
-
-  add_show_prefix_cmd ("mips", no_class,
-		       _("Various MIPS specific commands."),
-		       &showmipscmdlist, 0, &showlist);
+  add_setshow_prefix_cmd ("mips", no_class,
+			  _("Various MIPS specific commands."),
+			  _("Various MIPS specific commands."),
+			  &setmipscmdlist, &showmipscmdlist,
+			  &setlist, &showlist);
 
   /* Allow the user to override the ABI.  */
   add_setshow_enum_cmd ("abi", class_obscure, mips_abi_strings,

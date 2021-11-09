@@ -41,6 +41,11 @@ struct riscv_private_data
   bfd_vma hi_addr[OP_MASK_RD + 1];
 };
 
+/* Used for mapping symbols.  */
+static int last_map_symbol = -1;
+static bfd_vma last_stop_offset = 0;
+enum riscv_seg_mstate last_map_state;
+
 static const char * const *riscv_gpr_names;
 static const char * const *riscv_fpr_names;
 
@@ -151,7 +156,8 @@ arg_print (struct disassemble_info *info, unsigned long val,
 }
 
 static void
-maybe_print_address (struct riscv_private_data *pd, int base_reg, int offset)
+maybe_print_address (struct riscv_private_data *pd, int base_reg, int offset,
+		     int wide)
 {
   if (pd->hi_addr[base_reg] != (bfd_vma)-1)
     {
@@ -162,27 +168,33 @@ maybe_print_address (struct riscv_private_data *pd, int base_reg, int offset)
     pd->print_addr = pd->gp + offset;
   else if (base_reg == X_TP || base_reg == 0)
     pd->print_addr = offset;
+
+  /* Sign-extend a 32-bit value to a 64-bit value.  */
+  if (wide)
+    pd->print_addr = (bfd_vma)(int32_t) pd->print_addr;
 }
 
 /* Print insn arguments for 32/64-bit code.  */
 
 static void
-print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
+print_insn_args (const char *oparg, insn_t l, bfd_vma pc, disassemble_info *info)
 {
   struct riscv_private_data *pd = info->private_data;
   int rs1 = (l >> OP_SH_RS1) & OP_MASK_RS1;
   int rd = (l >> OP_SH_RD) & OP_MASK_RD;
   fprintf_ftype print = info->fprintf_func;
+  const char *opargStart;
 
-  if (*d != '\0')
+  if (*oparg != '\0')
     print (info->stream, "\t");
 
-  for (; *d != '\0'; d++)
+  for (; *oparg != '\0'; oparg++)
     {
-      switch (*d)
+      opargStart = oparg;
+      switch (*oparg)
 	{
 	case 'C': /* RVC */
-	  switch (*++d)
+	  switch (*++oparg)
 	    {
 	    case 's': /* RS1 x8-x15.  */
 	    case 'w': /* RS1 x8-x15.  */
@@ -206,6 +218,11 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 	      break;
 	    case 'o':
 	    case 'j':
+	      if (((l & MASK_C_ADDI) == MATCH_C_ADDI) && rd != 0)
+		maybe_print_address (pd, rd, EXTRACT_CITYPE_IMM (l), 0);
+	      if (info->mach == bfd_mach_riscv64
+		  && ((l & MASK_C_ADDIW) == MATCH_C_ADDIW) && rd != 0)
+		maybe_print_address (pd, rd, EXTRACT_CITYPE_IMM (l), 1);
 	      print (info->stream, "%d", (int)EXTRACT_CITYPE_IMM (l));
 	      break;
 	    case 'k':
@@ -266,19 +283,19 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 	case ')':
 	case '[':
 	case ']':
-	  print (info->stream, "%c", *d);
+	  print (info->stream, "%c", *oparg);
 	  break;
 
 	case '0':
 	  /* Only print constant 0 if it is the last argument.  */
-	  if (!d[1])
+	  if (!oparg[1])
 	    print (info->stream, "0");
 	  break;
 
 	case 'b':
 	case 's':
 	  if ((l & MASK_JALR) == MATCH_JALR)
-	    maybe_print_address (pd, rs1, 0);
+	    maybe_print_address (pd, rs1, 0, 0);
 	  print (info->stream, "%s", riscv_gpr_names[rs1]);
 	  break;
 
@@ -308,17 +325,20 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 	  break;
 
 	case 'o':
-	  maybe_print_address (pd, rs1, EXTRACT_ITYPE_IMM (l));
+	  maybe_print_address (pd, rs1, EXTRACT_ITYPE_IMM (l), 0);
 	  /* Fall through.  */
 	case 'j':
 	  if (((l & MASK_ADDI) == MATCH_ADDI && rs1 != 0)
 	      || (l & MASK_JALR) == MATCH_JALR)
-	    maybe_print_address (pd, rs1, EXTRACT_ITYPE_IMM (l));
+	    maybe_print_address (pd, rs1, EXTRACT_ITYPE_IMM (l), 0);
+	  if (info->mach == bfd_mach_riscv64
+	      && ((l & MASK_ADDIW) == MATCH_ADDIW) && rs1 != 0)
+	    maybe_print_address (pd, rs1, EXTRACT_ITYPE_IMM (l), 1);
 	  print (info->stream, "%d", (int)EXTRACT_ITYPE_IMM (l));
 	  break;
 
 	case 'q':
-	  maybe_print_address (pd, rs1, EXTRACT_STYPE_IMM (l));
+	  maybe_print_address (pd, rs1, EXTRACT_STYPE_IMM (l), 0);
 	  print (info->stream, "%d", (int)EXTRACT_STYPE_IMM (l));
 	  break;
 
@@ -414,7 +434,7 @@ print_insn_args (const char *d, insn_t l, bfd_vma pc, disassemble_info *info)
 	default:
 	  /* xgettext:c-format */
 	  print (info->stream, _("# internal error, undefined modifier (%c)"),
-		 *d);
+		 *opargStart);
 	  return;
 	}
     }
@@ -552,17 +572,235 @@ riscv_disassemble_insn (bfd_vma memaddr, insn_t word, disassemble_info *info)
 
   /* We did not find a match, so just print the instruction bits.  */
   info->insn_type = dis_noninsn;
-  (*info->fprintf_func) (info->stream, "0x%llx", (unsigned long long)word);
+  switch (insnlen)
+    {
+    case 2:
+    case 4:
+    case 8:
+      (*info->fprintf_func) (info->stream, ".%dbyte\t0x%llx",
+                             insnlen, (unsigned long long) word);
+      break;
+    default:
+      {
+        int i;
+        (*info->fprintf_func) (info->stream, ".byte\t");
+        for (i = 0; i < insnlen; ++i)
+          {
+            if (i > 0)
+              (*info->fprintf_func) (info->stream, ", ");
+            (*info->fprintf_func) (info->stream, "0x%02x",
+                                   (unsigned int) (word & 0xff));
+            word >>= 8;
+          }
+      }
+      break;
+    }
   return insnlen;
+}
+
+/* Return true if we find the suitable mapping symbol,
+   and also update the STATE.  Otherwise, return false.  */
+
+static bool
+riscv_get_map_state (int n,
+		     enum riscv_seg_mstate *state,
+		     struct disassemble_info *info)
+{
+  const char *name;
+
+  /* If the symbol is in a different section, ignore it.  */
+  if (info->section != NULL
+      && info->section != info->symtab[n]->section)
+    return false;
+
+  name = bfd_asymbol_name(info->symtab[n]);
+  if (strcmp (name, "$x") == 0)
+    *state = MAP_INSN;
+  else if (strcmp (name, "$d") == 0)
+    *state = MAP_DATA;
+  else
+    return false;
+
+  return true;
+}
+
+/* Check the sorted symbol table (sorted by the symbol value), find the
+   suitable mapping symbols.  */
+
+static enum riscv_seg_mstate
+riscv_search_mapping_symbol (bfd_vma memaddr,
+			     struct disassemble_info *info)
+{
+  enum riscv_seg_mstate mstate;
+  bool from_last_map_symbol;
+  bool found = false;
+  int symbol = -1;
+  int n;
+
+  /* Decide whether to print the data or instruction by default, in case
+     we can not find the corresponding mapping symbols.  */
+  mstate = MAP_DATA;
+  if ((info->section
+       && info->section->flags & SEC_CODE)
+      || !info->section)
+    mstate = MAP_INSN;
+
+  if (info->symtab_size == 0
+      || bfd_asymbol_flavour (*info->symtab) != bfd_target_elf_flavour)
+    return mstate;
+
+  /* Reset the last_map_symbol if we start to dump a new section.  */
+  if (memaddr <= 0)
+    last_map_symbol = -1;
+
+  /* If the last stop offset is different from the current one, then
+     don't use the last_map_symbol to search.  We usually reset the
+     info->stop_offset when handling a new section.  */
+  from_last_map_symbol = (last_map_symbol >= 0
+			  && info->stop_offset == last_stop_offset);
+
+  /* Start scanning at the start of the function, or wherever
+     we finished last time.  */
+  n = info->symtab_pos + 1;
+  if (from_last_map_symbol && n >= last_map_symbol)
+    n = last_map_symbol;
+
+  /* Find the suitable mapping symbol to dump.  */
+  for (; n < info->symtab_size; n++)
+    {
+      bfd_vma addr = bfd_asymbol_value (info->symtab[n]);
+      /* We have searched all possible symbols in the range.  */
+      if (addr > memaddr)
+	break;
+      if (riscv_get_map_state (n, &mstate, info))
+	{
+	  symbol = n;
+	  found = true;
+	  /* Do not stop searching, in case there are some mapping
+	     symbols have the same value, but have different names.
+	     Use the last one.  */
+	}
+    }
+
+  /* We can not find the suitable mapping symbol above.  Therefore, we
+     look forwards and try to find it again, but don't go pass the start
+     of the section.  Otherwise a data section without mapping symbols
+     can pick up a text mapping symbol of a preceeding section.  */
+  if (!found)
+    {
+      n = info->symtab_pos;
+      if (from_last_map_symbol && n >= last_map_symbol)
+	n = last_map_symbol;
+
+      for (; n >= 0; n--)
+	{
+	  bfd_vma addr = bfd_asymbol_value (info->symtab[n]);
+	  /* We have searched all possible symbols in the range.  */
+	  if (addr < (info->section ? info->section->vma : 0))
+	    break;
+	  /* Stop searching once we find the closed mapping symbol.  */
+	  if (riscv_get_map_state (n, &mstate, info))
+	    {
+	      symbol = n;
+	      found = true;
+	      break;
+	    }
+	}
+    }
+
+  /* Save the information for next use.  */
+  last_map_symbol = symbol;
+  last_stop_offset = info->stop_offset;
+
+  return mstate;
+}
+
+/* Decide which data size we should print.  */
+
+static bfd_vma
+riscv_data_length (bfd_vma memaddr,
+		   disassemble_info *info)
+{
+  bfd_vma length;
+  bool found = false;
+
+  length = 4;
+  if (info->symtab_size != 0
+      && bfd_asymbol_flavour (*info->symtab) == bfd_target_elf_flavour
+      && last_map_symbol >= 0)
+    {
+      int n;
+      enum riscv_seg_mstate m = MAP_NONE;
+      for (n = last_map_symbol + 1; n < info->symtab_size; n++)
+	{
+	  bfd_vma addr = bfd_asymbol_value (info->symtab[n]);
+	  if (addr > memaddr
+	      && riscv_get_map_state (n, &m, info))
+	    {
+	      if (addr - memaddr < length)
+		length = addr - memaddr;
+	      found = true;
+	      break;
+	    }
+	}
+    }
+  if (!found)
+    {
+      /* Do not set the length which exceeds the section size.  */
+      bfd_vma offset = info->section->vma + info->section->size;
+      offset -= memaddr;
+      length = (offset < length) ? offset : length;
+    }
+  length = length == 3 ? 2 : length;
+  return length;
+}
+
+/* Dump the data contents.  */
+
+static int
+riscv_disassemble_data (bfd_vma memaddr ATTRIBUTE_UNUSED,
+			insn_t data,
+			disassemble_info *info)
+{
+  info->display_endian = info->endian;
+
+  switch (info->bytes_per_chunk)
+    {
+    case 1:
+      info->bytes_per_line = 6;
+      (*info->fprintf_func) (info->stream, ".byte\t0x%02llx",
+			     (unsigned long long) data);
+      break;
+    case 2:
+      info->bytes_per_line = 8;
+      (*info->fprintf_func) (info->stream, ".short\t0x%04llx",
+			     (unsigned long long) data);
+      break;
+    case 4:
+      info->bytes_per_line = 8;
+      (*info->fprintf_func) (info->stream, ".word\t0x%08llx",
+			     (unsigned long long) data);
+      break;
+    case 8:
+      info->bytes_per_line = 8;
+      (*info->fprintf_func) (info->stream, ".dword\t0x%016llx",
+			     (unsigned long long) data);
+      break;
+    default:
+      abort ();
+    }
+  return info->bytes_per_chunk;
 }
 
 int
 print_insn_riscv (bfd_vma memaddr, struct disassemble_info *info)
 {
-  bfd_byte packet[2];
+  bfd_byte packet[8];
   insn_t insn = 0;
-  bfd_vma n;
+  bfd_vma dump_size;
   int status;
+  enum riscv_seg_mstate mstate;
+  int (*riscv_disassembler) (bfd_vma, insn_t, struct disassemble_info *);
 
   if (info->disassembler_options != NULL)
     {
@@ -573,23 +811,42 @@ print_insn_riscv (bfd_vma memaddr, struct disassemble_info *info)
   else if (riscv_gpr_names == NULL)
     set_default_riscv_dis_options ();
 
-  /* Instructions are a sequence of 2-byte packets in little-endian order.  */
-  for (n = 0; n < sizeof (insn) && n < riscv_insn_length (insn); n += 2)
+  mstate = riscv_search_mapping_symbol (memaddr, info);
+  /* Save the last mapping state.  */
+  last_map_state = mstate;
+
+  /* Set the size to dump.  */
+  if (mstate == MAP_DATA
+      && (info->flags & DISASSEMBLE_DATA) == 0)
     {
-      status = (*info->read_memory_func) (memaddr + n, packet, 2, info);
+      dump_size = riscv_data_length (memaddr, info);
+      info->bytes_per_chunk = dump_size;
+      riscv_disassembler = riscv_disassemble_data;
+    }
+  else
+    {
+      /* Get the first 2-bytes to check the lenghth of instruction.  */
+      status = (*info->read_memory_func) (memaddr, packet, 2, info);
       if (status != 0)
 	{
-	  /* Don't fail just because we fell off the end.  */
-	  if (n > 0)
-	    break;
 	  (*info->memory_error_func) (status, memaddr, info);
 	  return status;
 	}
-
-      insn |= ((insn_t) bfd_getl16 (packet)) << (8 * n);
+      insn = (insn_t) bfd_getl16 (packet);
+      dump_size = riscv_insn_length (insn);
+      riscv_disassembler = riscv_disassemble_insn;
     }
 
-  return riscv_disassemble_insn (memaddr, insn, info);
+  /* Fetch the instruction to dump.  */
+  status = (*info->read_memory_func) (memaddr, packet, dump_size, info);
+  if (status != 0)
+    {
+      (*info->memory_error_func) (status, memaddr, info);
+      return status;
+    }
+  insn = (insn_t) bfd_get_bits (packet, dump_size * 8, false);
+
+  return (*riscv_disassembler) (memaddr, insn, info);
 }
 
 disassembler_ftype
@@ -631,7 +888,8 @@ riscv_symbol_is_valid (asymbol * sym,
 
   name = bfd_asymbol_name (sym);
 
-  return (strcmp (name, RISCV_FAKE_LABEL_NAME) != 0);
+  return (strcmp (name, RISCV_FAKE_LABEL_NAME) != 0
+	  && !riscv_elf_is_mapping_symbols (name));
 }
 
 void

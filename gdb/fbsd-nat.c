@@ -365,7 +365,7 @@ fbsd_nat_target::info_proc (const char *args, enum info_proc_what what)
 	  printf_filtered ("Parent process: %d\n", kp.ki_ppid);
 	  printf_filtered ("Process group: %d\n", kp.ki_pgid);
 	  printf_filtered ("Session id: %d\n", kp.ki_sid);
-	  printf_filtered ("TTY: %ju\n", (uintmax_t) kp.ki_tdev);
+	  printf_filtered ("TTY: %s\n", pulongest (kp.ki_tdev));
 	  printf_filtered ("TTY owner process group: %d\n", kp.ki_tpgid);
 	  printf_filtered ("User IDs (real, effective, saved): %d %d %d\n",
 			   kp.ki_ruid, kp.ki_uid, kp.ki_svuid);
@@ -383,34 +383,35 @@ fbsd_nat_target::info_proc (const char *args, enum info_proc_what what)
 			   kp.ki_rusage.ru_majflt);
 	  printf_filtered ("Major faults, children: %ld\n",
 			   kp.ki_rusage_ch.ru_majflt);
-	  printf_filtered ("utime: %jd.%06ld\n",
-			   (intmax_t) kp.ki_rusage.ru_utime.tv_sec,
+	  printf_filtered ("utime: %s.%06ld\n",
+			   plongest (kp.ki_rusage.ru_utime.tv_sec),
 			   kp.ki_rusage.ru_utime.tv_usec);
-	  printf_filtered ("stime: %jd.%06ld\n",
-			   (intmax_t) kp.ki_rusage.ru_stime.tv_sec,
+	  printf_filtered ("stime: %s.%06ld\n",
+			   plongest (kp.ki_rusage.ru_stime.tv_sec),
 			   kp.ki_rusage.ru_stime.tv_usec);
-	  printf_filtered ("utime, children: %jd.%06ld\n",
-			   (intmax_t) kp.ki_rusage_ch.ru_utime.tv_sec,
+	  printf_filtered ("utime, children: %s.%06ld\n",
+			   plongest (kp.ki_rusage_ch.ru_utime.tv_sec),
 			   kp.ki_rusage_ch.ru_utime.tv_usec);
-	  printf_filtered ("stime, children: %jd.%06ld\n",
-			   (intmax_t) kp.ki_rusage_ch.ru_stime.tv_sec,
+	  printf_filtered ("stime, children: %s.%06ld\n",
+			   plongest (kp.ki_rusage_ch.ru_stime.tv_sec),
 			   kp.ki_rusage_ch.ru_stime.tv_usec);
 	  printf_filtered ("'nice' value: %d\n", kp.ki_nice);
-	  printf_filtered ("Start time: %jd.%06ld\n", kp.ki_start.tv_sec,
+	  printf_filtered ("Start time: %s.%06ld\n",
+			   plongest (kp.ki_start.tv_sec),
 			   kp.ki_start.tv_usec);
 	  pgtok = getpagesize () / 1024;
-	  printf_filtered ("Virtual memory size: %ju kB\n",
-			   (uintmax_t) kp.ki_size / 1024);
-	  printf_filtered ("Data size: %ju kB\n",
-			   (uintmax_t) kp.ki_dsize * pgtok);
-	  printf_filtered ("Stack size: %ju kB\n",
-			   (uintmax_t) kp.ki_ssize * pgtok);
-	  printf_filtered ("Text size: %ju kB\n",
-			   (uintmax_t) kp.ki_tsize * pgtok);
-	  printf_filtered ("Resident set size: %ju kB\n",
-			   (uintmax_t) kp.ki_rssize * pgtok);
-	  printf_filtered ("Maximum RSS: %ju kB\n",
-			   (uintmax_t) kp.ki_rusage.ru_maxrss);
+	  printf_filtered ("Virtual memory size: %s kB\n",
+			   pulongest (kp.ki_size / 1024));
+	  printf_filtered ("Data size: %s kB\n",
+			   pulongest (kp.ki_dsize * pgtok));
+	  printf_filtered ("Stack size: %s kB\n",
+			   pulongest (kp.ki_ssize * pgtok));
+	  printf_filtered ("Text size: %s kB\n",
+			   pulongest (kp.ki_tsize * pgtok));
+	  printf_filtered ("Resident set size: %s kB\n",
+			   pulongest (kp.ki_rssize * pgtok));
+	  printf_filtered ("Maximum RSS: %s kB\n",
+			   pulongest (kp.ki_rusage.ru_maxrss));
 	  printf_filtered ("Pending Signals: ");
 	  for (int i = 0; i < _SIG_WORDS; i++)
 	    printf_filtered ("%08x ", kp.ki_siglist.__bits[i]);
@@ -889,7 +890,7 @@ fbsd_add_threads (fbsd_nat_target *target, pid_t pid)
 
   for (i = 0; i < nlwps; i++)
     {
-      ptid_t ptid = ptid_t (pid, lwps[i], 0);
+      ptid_t ptid = ptid_t (pid, lwps[i]);
 
       if (!in_thread_list (target, ptid))
 	{
@@ -1044,8 +1045,8 @@ fbsd_nat_target::resume (ptid_t ptid, int step, enum gdb_signal signo)
     return;
 #endif
 
-  fbsd_lwp_debug_printf ("ptid (%d, %ld, %ld)", ptid.pid (), ptid.lwp (),
-			 ptid.tid ());
+  fbsd_lwp_debug_printf ("ptid (%d, %ld, %s)", ptid.pid (), ptid.lwp (),
+			 pulongest (ptid.tid ()));
   if (ptid.lwp_p ())
     {
       /* If ptid is a specific LWP, suspend all other LWPs in the process.  */
@@ -1180,7 +1181,7 @@ fbsd_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 	}
 #endif
       wptid = inf_ptrace_target::wait (ptid, ourstatus, target_options);
-      if (ourstatus->kind == TARGET_WAITKIND_STOPPED)
+      if (ourstatus->kind () == TARGET_WAITKIND_STOPPED)
 	{
 	  struct ptrace_lwpinfo pl;
 	  pid_t pid;
@@ -1190,7 +1191,7 @@ fbsd_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 	  if (ptrace (PT_LWPINFO, pid, (caddr_t) &pl, sizeof pl) == -1)
 	    perror_with_name (("ptrace"));
 
-	  wptid = ptid_t (pid, pl.pl_lwpid, 0);
+	  wptid = ptid_t (pid, pl.pl_lwpid);
 
 	  if (debug_fbsd_nat)
 	    {
@@ -1251,7 +1252,7 @@ fbsd_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 					 pl.pl_lwpid);
 		  add_thread (this, wptid);
 		}
-	      ourstatus->kind = TARGET_WAITKIND_SPURIOUS;
+	      ourstatus->set_spurious ();
 	      return wptid;
 	    }
 #endif
@@ -1262,14 +1263,14 @@ fbsd_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 #ifndef PTRACE_VFORK
 	      struct kinfo_proc kp;
 #endif
+	      bool is_vfork = false;
 	      ptid_t child_ptid;
 	      pid_t child;
 
 	      child = pl.pl_child_pid;
-	      ourstatus->kind = TARGET_WAITKIND_FORKED;
 #ifdef PTRACE_VFORK
 	      if (pl.pl_flags & PL_FLAG_VFORKED)
-		ourstatus->kind = TARGET_WAITKIND_VFORKED;
+		is_vfork = true;
 #endif
 
 	      /* Make sure the other end of the fork is stopped too.  */
@@ -1286,7 +1287,7 @@ fbsd_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 		    perror_with_name (("ptrace"));
 
 		  gdb_assert (pl.pl_flags & PL_FLAG_CHILD);
-		  child_ptid = ptid_t (child, pl.pl_lwpid, 0);
+		  child_ptid = ptid_t (child, pl.pl_lwpid);
 		}
 
 	      /* Enable additional events on the child process.  */
@@ -1298,12 +1299,16 @@ fbsd_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 	      if (fbsd_fetch_kinfo_proc (child, &kp))
 		{
 		  if (kp.ki_flag & P_PPWAIT)
-		    ourstatus->kind = TARGET_WAITKIND_VFORKED;
+		    is_vfork = true;
 		}
 	      else
 		warning (_("Failed to fetch process information"));
 #endif
-	      ourstatus->value.related_pid = child_ptid;
+
+	      if (is_vfork)
+		ourstatus->set_vforked (child_ptid);
+	      else
+		ourstatus->set_forked (child_ptid);
 
 	      return wptid;
 	    }
@@ -1320,7 +1325,7 @@ fbsd_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 #ifdef PTRACE_VFORK
 	  if (pl.pl_flags & PL_FLAG_VFORK_DONE)
 	    {
-	      ourstatus->kind = TARGET_WAITKIND_VFORK_DONE;
+	      ourstatus->set_vfork_done ();
 	      return wptid;
 	    }
 #endif
@@ -1328,9 +1333,8 @@ fbsd_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 
 	  if (pl.pl_flags & PL_FLAG_EXEC)
 	    {
-	      ourstatus->kind = TARGET_WAITKIND_EXECD;
-	      ourstatus->value.execd_pathname
-		= xstrdup (pid_to_exec_file (pid));
+	      ourstatus->set_execd
+		(make_unique_xstrdup (pid_to_exec_file (pid)));
 	      return wptid;
 	    }
 
@@ -1347,7 +1351,7 @@ fbsd_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 	     SIGTRAP, so only treat SIGTRAP events as system call
 	     entry/exit events.  */
 	  if (pl.pl_flags & (PL_FLAG_SCE | PL_FLAG_SCX)
-	      && ourstatus->value.sig == SIGTRAP)
+	      && ourstatus->sig () == SIGTRAP)
 	    {
 #ifdef HAVE_STRUCT_PTRACE_LWPINFO_PL_SYSCALL_CODE
 	      if (catch_syscall_enabled ())
@@ -1355,10 +1359,10 @@ fbsd_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
 		  if (catching_syscall_number (pl.pl_syscall_code))
 		    {
 		      if (pl.pl_flags & PL_FLAG_SCE)
-			ourstatus->kind = TARGET_WAITKIND_SYSCALL_ENTRY;
+			ourstatus->set_syscall_entry (pl.pl_syscall_code);
 		      else
-			ourstatus->kind = TARGET_WAITKIND_SYSCALL_RETURN;
-		      ourstatus->value.syscall_number = pl.pl_syscall_code;
+			ourstatus->set_syscall_return (pl.pl_syscall_code);
+
 		      return wptid;
 		    }
 		}
@@ -1471,9 +1475,13 @@ fbsd_nat_target::create_inferior (const char *exec_file,
    the ptid of the followed inferior.  */
 
 void
-fbsd_nat_target::follow_fork (ptid_t child_ptid, target_waitkind fork_kind,
-			      bool follow_child, bool detach_fork)
+fbsd_nat_target::follow_fork (inferior *child_inf, ptid_t child_ptid,
+			      target_waitkind fork_kind, bool follow_child,
+			      bool detach_fork)
 {
+  inf_ptrace_target::follow_fork (child_inf, child_ptid, fork_kind,
+				  follow_child, detach_fork);
+
   if (!follow_child && detach_fork)
     {
       pid_t child_pid = child_ptid.pid ();
@@ -1485,7 +1493,7 @@ fbsd_nat_target::follow_fork (ptid_t child_ptid, target_waitkind fork_kind,
 	perror_with_name (("ptrace"));
 
 #ifndef PTRACE_VFORK
-      if (fork_kind == TARGET_WAITKIND_VFORKED)
+      if (fork_kind () == TARGET_WAITKIND_VFORKED)
 	{
 	  /* We can't insert breakpoints until the child process has
 	     finished with the shared memory region.  The parent

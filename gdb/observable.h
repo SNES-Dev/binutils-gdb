@@ -22,7 +22,7 @@
 
 #include "gdbsupport/observable.h"
 
-struct bpstats;
+struct bpstat;
 struct so_list;
 struct objfile;
 struct thread_info;
@@ -50,7 +50,7 @@ namespace observers
    condition that is not met.  If the breakpoint has any associated
    commands list, the commands are executed after the notification is
    emitted.  */
-extern observable<struct bpstats */* bs */, int /* print_frame */> normal_stop;
+extern observable<struct bpstat */* bs */, int /* print_frame */> normal_stop;
 
 /* The inferior was stopped by a signal.  */
 extern observable<enum gdb_signal /* siggnal */> signal_received;
@@ -248,8 +248,10 @@ extern observable<> source_styling_changed;
 /* The CLI's notion of the current source has changed.  This differs
    from user_selected_context_changed in that it is also set by the
    "list" command.  */
-
 extern observable<> current_source_symtab_and_line_changed;
+
+/* Called when GDB is about to exit.  */
+extern observable<int> gdb_exiting;
 
 } /* namespace observers */
 

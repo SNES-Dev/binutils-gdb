@@ -45,7 +45,12 @@ if { [istarget hppa*-*-*] || [istarget *c54x*-*-*] || [istarget mep*-*-*]} then 
 # No floating point support in assembly code for CRIS and Z80.
 if { ![istarget cris-*-*] && ![istarget crisv32-*-*] 
      && ![istarget z80-*-*] } then {
-    gas_test "float.s" ""   "" "simple FP constants"
+    if { [istarget tic4x-*-*] } then {
+	set as_opt ""
+    } else {
+	set as_opt "--defsym hasnan=1"
+    }
+    gas_test "float.s" $as_opt "" "simple FP constants"
 }
 
 # This test is meaningless for the PA; the difference of two undefined
@@ -68,7 +73,8 @@ if {    ![istarget alpha*-*-*vms*]
      && ![istarget riscv*-*-*]
      && ![istarget rl78-*-*]
      && ![istarget rs6000*-*-aix*]
-     && ![istarget rx-*-*] } then {
+     && ![istarget rx-*-*]
+     && ![istarget loongarch*-*-*] } then {
     gas_test_error "diff1.s" "" "difference of two undefined symbols"
 }
 
@@ -160,9 +166,11 @@ switch -glob $target_triplet {
 	# symbols on relocs.
 	setup_xfail "m68hc1*-*-*" "m6811-*-*" "m6812-*-*" "rl78-*-*"
 	setup_xfail "riscv*-*-*" "rx-*-*" "vax*-*-*" "xgate*-*-*" "z8k-*-*"
+	setup_xfail "loongarch*-*-*"
 	run_dump_test redef2
 	setup_xfail "m68hc1*-*-*" "m6811-*-*" "m6812-*-*" "rl78-*-*"
 	setup_xfail "riscv*-*-*" "rx-*-*" "vax*-*-*" "xgate*-*-*" "z8k-*-*"
+	setup_xfail "loongarch*-*-*"
 	# rs6000-aix disallows redefinition via .comm.
 	if [is_xcoff_format] {
 	    setup_xfail *-*-*

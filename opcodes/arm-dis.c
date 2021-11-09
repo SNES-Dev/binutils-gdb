@@ -10714,7 +10714,7 @@ print_insn_thumb16 (bfd_vma pc, struct disassemble_info *info, long given)
 			if (!bitend)
 			  abort ();
 			reg = given >> bitstart;
-			reg &= (2 << (bitend - bitstart)) - 1;
+			reg &= ((bfd_vma) 2 << (bitend - bitstart)) - 1;
 
 			switch (*c)
 			  {
@@ -11613,6 +11613,7 @@ parse_arm_disassembler_options (const char *options)
 {
   const char *opt;
 
+  force_thumb = false;
   FOR_EACH_DISASSEMBLER_OPTION (opt, options)
     {
       if (startswith (opt, "reg-names-"))
@@ -12027,12 +12028,11 @@ select_arm_features (unsigned long mach,
       ARM_MERGE_FEATURE_SETS (arch_fset, arch_fset, mve_all);
       force_thumb = 1;
       break;
+    case bfd_mach_arm_9:         ARM_SET_FEATURES (ARM_ARCH_V9A); break;
       /* If the machine type is unknown allow all architecture types and all
 	 extensions, with the exception of MVE as that clashes with NEON.  */
     case bfd_mach_arm_unknown:
-      ARM_SET_FEATURES (ARM_FEATURE (-1,
-				     -1 & ~(ARM_EXT2_MVE | ARM_EXT2_MVE_FP),
-				     -1));
+      ARM_SET_FEATURES (ARM_ARCH_UNKNOWN);
       break;
     default:
       abort ();

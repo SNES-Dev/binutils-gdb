@@ -21,6 +21,9 @@
 #ifndef _DEVICE_C_
 #define _DEVICE_C_
 
+/* This must come before any other includes.  */
+#include "defs.h"
+
 #include <stdio.h>
 
 #include "device_table.h"
@@ -1031,8 +1034,8 @@ device_find_ihandle_runtime_property(device *me,
 {
   device_property_entry *entry = find_property_entry(me, property);
   TRACE(trace_devices,
-	("device_find_ihandle_runtime_property(me=0x%lx, property=%s)\n",
-	 (long)me, property));
+	("device_find_ihandle_runtime_property(me=%p, property=%s)\n",
+	 me, property));
   if (entry == NULL
       || entry->value->type != ihandle_property
       || entry->value->disposition != permenant_object)
@@ -1101,8 +1104,8 @@ device_find_integer_property(device *me,
   const device_property *node;
   signed_cell integer;
   TRACE(trace_devices,
-	("device_find_integer(me=0x%lx, property=%s)\n",
-	 (long)me, property));
+	("device_find_integer(me=%p, property=%s)\n",
+	 me, property));
   node = device_find_property(me, property);
   if (node == (device_property*)0
       || node->type != integer_property)
@@ -1123,8 +1126,8 @@ device_find_integer_array_property(device *me,
   int sizeof_integer = sizeof(*integer);
   signed_cell *cell;
   TRACE(trace_devices,
-	("device_find_integer(me=0x%lx, property=%s)\n",
-	 (long)me, property));
+	("device_find_integer(me=%p, property=%s)\n",
+	 me, property));
 
   /* check things sane */
   node = device_find_property(me, property);
@@ -1492,8 +1495,8 @@ device_add_duplicate_property(device *me,
 {
   device_property_entry *master;
   TRACE(trace_devices,
-	("device_add_duplicate_property(me=0x%lx, property=%s, ...)\n",
-	 (long)me, property));
+	("device_add_duplicate_property(me=%p, property=%s, ...)\n",
+	 me, property));
   if (original->disposition != permenant_object)
     device_error(me, "Can only duplicate permenant objects");
   /* find the original's master */

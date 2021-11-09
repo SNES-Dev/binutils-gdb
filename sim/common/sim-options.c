@@ -93,6 +93,7 @@ typedef enum {
   OPTION_DO_COMMAND,
   OPTION_ARCHITECTURE,
   OPTION_TARGET,
+  OPTION_TARGET_INFO,
   OPTION_ARCHITECTURE_INFO,
   OPTION_ENVIRONMENT,
   OPTION_ALIGNMENT,
@@ -113,7 +114,7 @@ static const OPTION standard_options[] =
       standard_option_handler, NULL },
 
   { {"endian", required_argument, NULL, OPTION_ENDIAN},
-      'E', "big|little", "Set endianness",
+      'E', "B|big|L|little", "Set endianness",
       standard_option_handler, NULL },
 
   /* This option isn't supported unless all choices are supported in keeping
@@ -142,7 +143,7 @@ static const OPTION standard_options[] =
       standard_option_handler },
 
   { {"help", no_argument, NULL, OPTION_HELP},
-      'H', NULL, "Print help information",
+      'h', NULL, "Print help information",
       standard_option_handler },
   { {"version", no_argument, NULL, OPTION_VERSION},
       '\0', NULL, "Print version information",
@@ -161,6 +162,10 @@ static const OPTION standard_options[] =
   { {"target", required_argument, NULL, OPTION_TARGET},
       '\0', "BFDNAME", "Specify the object-code format for the object files",
       standard_option_handler },
+  { {"target-info", no_argument, NULL, OPTION_TARGET_INFO},
+      '\0', NULL, "List supported targets", standard_option_handler },
+  { {"info-target", no_argument, NULL, OPTION_TARGET_INFO},
+      '\0', NULL, NULL, standard_option_handler },
 
   { {"load-lma", no_argument, NULL, OPTION_LOAD_LMA},
       '\0', NULL,
@@ -190,7 +195,7 @@ standard_option_handler (SIM_DESC sd, sim_cpu *cpu, int opt,
       break;
 
     case OPTION_ENDIAN:
-      if (strcmp (arg, "big") == 0)
+      if (strcmp (arg, "big") == 0 || strcmp (arg, "B") == 0)
 	{
 	  if (WITH_TARGET_BYTE_ORDER == BFD_ENDIAN_LITTLE)
 	    {
@@ -200,7 +205,7 @@ standard_option_handler (SIM_DESC sd, sim_cpu *cpu, int opt,
 	  /* FIXME:wip: Need to set something in STATE_CONFIG.  */
 	  current_target_byte_order = BFD_ENDIAN_BIG;
 	}
-      else if (strcmp (arg, "little") == 0)
+      else if (strcmp (arg, "little") == 0 || strcmp (arg, "L") == 0)
 	{
 	  if (WITH_TARGET_BYTE_ORDER == BFD_ENDIAN_BIG)
 	    {
@@ -362,6 +367,20 @@ standard_option_handler (SIM_DESC sd, sim_cpu *cpu, int opt,
     case OPTION_TARGET:
       {
 	STATE_TARGET (sd) = xstrdup (arg);
+	break;
+      }
+
+    case OPTION_TARGET_INFO:
+      {
+	const char **list = bfd_target_list ();
+	const char **lp;
+	if (list == NULL)
+	  abort ();
+	sim_io_printf (sd, "Possible targets:");
+	for (lp = list; *lp != NULL; lp++)
+	  sim_io_printf (sd, " %s", *lp);
+	sim_io_printf (sd, "\n");
+	free (list);
 	break;
       }
 

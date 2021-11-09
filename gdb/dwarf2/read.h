@@ -517,16 +517,6 @@ struct dwarf2_per_objfile
 				const struct comp_unit_head *cu_header,
 				unsigned int *bytes_read_ptr);
 
-  /* Resize the M_SYMTABS vector to the needed size (the number of partial
-     symtabs allocated by the per-bfd).  */
-  void resize_symtabs ()
-  {
-    /* The symtabs vector should only grow, not shrink.  */
-    gdb_assert (per_bfd->all_comp_units.size () >= m_symtabs.size ());
-
-    m_symtabs.resize (per_bfd->all_comp_units.size ());
-  }
-
   /* Return true if the symtab corresponding to PER_CU has been set,
      false otherwise.  */
   bool symtab_set_p (const dwarf2_per_cu_data *per_cu) const;
@@ -546,10 +536,6 @@ struct dwarf2_per_objfile
 
   void set_type_for_signatured_type (signatured_type *sig_type,
 				     struct type *type);
-
-  /* Find an integer type SIZE_IN_BYTES bytes in size and return it.
-     UNSIGNED_P controls if the integer is unsigned or not.  */
-  struct type *int_type (int size_in_bytes, bool unsigned_p) const;
 
   /* Get the dwarf2_cu matching PER_CU for this objfile.  */
   dwarf2_cu *get_cu (dwarf2_per_cu_data *per_cu);

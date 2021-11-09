@@ -1,3 +1,40 @@
+2021-10-27  Maciej W. Rozycki  <macro@embecosm.com>
+
+	* Makefile.am: Remove obsolete comment.
+	* configure.ac: Refer `libbfd.la' to link shared BFD library
+	except for Cygwin.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+
+2021-09-27  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2021-09-25  Peter Bergner  <bergner@linux.ibm.com>
+
+	* ppc-opc.c (powerpc_opcodes) <mfppr, mfppr32, mtppr, mtppr32>: Enable
+	on POWER5 and later.
+
+2021-09-20  Andrew Burgess  <andrew.burgess@embecosm.com>
+
+	* riscv-dis.c (riscv_disassemble_insn): Print a .%dbyte opcode
+	before an unknown instruction, '%d' is replaced with the
+	instruction length.
+
+2021-09-02  Nick Clifton  <nickc@redhat.com>
+
+	PR 28292
+	* v850-opc.c (D16): Use BFD_RELOC_V850_LO16_SPLIT_OFFSET in place
+	of BFD_RELOC_16.
+
+2021-08-17  Shahab Vahedi <shahab@synopsys.com>
+
+	* arc-regs.h (DEF): Fix the register numbers.
+
+2021-08-10  Nick Clifton  <nickc@redhat.com>
+
+	* po/sr.po: Updated Serbian translation.
+
 2021-07-26  Chenghua Xu  <xuchenghua@loongson.cn>
 
 	* mips-dis.c (mips_arch_choices): Correct gs264e bfd_mach.

@@ -248,6 +248,10 @@ GDBFLAGS =
 GNULIB_PARENT_DIR = ..
 include $(GNULIB_PARENT_DIR)/gnulib/Makefile.gnulib.inc
 
+# For libbacktrace.
+LIBBACKTRACE_INC=@LIBBACKTRACE_INC@
+LIBBACKTRACE_LIB=@LIBBACKTRACE_LIB@
+
 SUPPORT = ../gdbsupport
 LIBSUPPORT = $(SUPPORT)/libgdbsupport.a
 INCSUPPORT = -I$(srcdir)/.. -I..
@@ -403,6 +407,7 @@ SUBDIR_PYTHON_SRCS = \
 	python/py-instruction.c \
 	python/py-lazy-string.c \
 	python/py-linetable.c \
+	python/py-membuf.c \
 	python/py-newobjfileevent.c \
 	python/py-objfile.c \
 	python/py-param.c \
@@ -456,6 +461,7 @@ SELFTESTS_SRCS = \
 	unittests/offset-type-selftests.c \
 	unittests/observable-selftests.c \
 	unittests/optional-selftests.c \
+	unittests/parallel-for-selftests.c \
 	unittests/parse-connection-spec-selftests.c \
 	unittests/ptid-selftests.c \
 	unittests/main-thread-selftests.c \
@@ -613,9 +619,9 @@ INTERNAL_CFLAGS_BASE = \
 	$(GLOBAL_CFLAGS) $(PROFILE_CFLAGS) \
 	$(GDB_CFLAGS) $(OPCODES_CFLAGS) $(READLINE_CFLAGS) $(ZLIBINC) \
 	$(BFD_CFLAGS) $(INCLUDE_CFLAGS) $(LIBDECNUMBER_CFLAGS) \
-	$(INTL_CFLAGS) $(INCGNU) $(INCSUPPORT) $(ENABLE_CFLAGS) \
-	$(INTERNAL_CPPFLAGS) $(SRCHIGH_CFLAGS) $(TOP_CFLAGS) $(PTHREAD_CFLAGS) \
-	$(DEBUGINFOD_CFLAGS)
+	$(INTL_CFLAGS) $(INCGNU) $(INCSUPPORT) $(LIBBACKTRACE_INC) \
+	$(ENABLE_CFLAGS) $(INTERNAL_CPPFLAGS) $(SRCHIGH_CFLAGS) \
+	$(TOP_CFLAGS) $(PTHREAD_CFLAGS) $(DEBUGINFOD_CFLAGS)
 INTERNAL_WARN_CFLAGS = $(INTERNAL_CFLAGS_BASE) $(GDB_WARN_CFLAGS)
 INTERNAL_CFLAGS = $(INTERNAL_WARN_CFLAGS) $(GDB_WERROR_CFLAGS)
 
@@ -636,12 +642,12 @@ INTERNAL_LDFLAGS = \
 # LIBIBERTY appears twice on purpose.
 CLIBS = $(SIM) $(READLINE) $(OPCODES) $(LIBCTF) $(BFD) $(ZLIB) \
         $(LIBSUPPORT) $(INTL) $(LIBIBERTY) $(LIBDECNUMBER) \
-	$(XM_CLIBS) $(GDBTKLIBS) \
+	$(XM_CLIBS) $(GDBTKLIBS)  $(LIBBACKTRACE_LIB) \
 	@LIBS@ @GUILE_LIBS@ @PYTHON_LIBS@ \
 	$(LIBEXPAT) $(LIBLZMA) $(LIBBABELTRACE) $(LIBIPT) \
 	$(WIN32LIBS) $(LIBGNU) $(LIBGNU_EXTRA_LIBS) $(LIBICONV) \
 	$(LIBMPFR) $(LIBGMP) $(SRCHIGH_LIBS) $(LIBXXHASH) $(PTHREAD_LIBS) \
-	$(DEBUGINFOD_LIBS)
+	$(DEBUGINFOD_LIBS) $(LIBBABELTRACE_LIB)
 CDEPS = $(NAT_CDEPS) $(SIM) $(BFD) $(READLINE_DEPS) $(CTF_DEPS) \
 	$(OPCODES) $(INTL_DEPS) $(LIBIBERTY) $(CONFIG_DEPS) $(LIBGNU) \
 	$(LIBSUPPORT)
@@ -994,6 +1000,7 @@ COMMON_SFILES = \
 	break-catch-syscall.c \
 	break-catch-throw.c \
 	breakpoint.c \
+	bt-utils.c \
 	btrace.c \
 	build-id.c \
 	buildsym-legacy.c \
@@ -1255,6 +1262,7 @@ HFILES_NO_SRCDIR = \
 	breakpoint.h \
 	bsd-kvm.h \
 	bsd-uthread.h \
+	bt-utils.h \
 	build-id.h \
 	buildsym-legacy.h \
 	buildsym.h \
@@ -1376,6 +1384,7 @@ HFILES_NO_SRCDIR = \
 	objfiles.h \
 	obsd-nat.h \
 	obsd-tdep.h \
+	or1k-linux-tdep.h \
 	osabi.h \
 	osdata.h \
 	p-lang.h \
@@ -1674,12 +1683,12 @@ check-perf: force
 	  $(MAKE) $(TARGET_FLAGS_TO_PASS) check-perf; \
 	else true; fi
 
-check-read1: force
+check-read1 check-readmore: force
 	@if [ -f testsuite/Makefile ]; then \
 	  rootme=`pwd`; export rootme; \
 	  rootsrc=`cd $(srcdir); pwd`; export rootsrc; \
 	  cd testsuite; \
-	  $(MAKE) $(TARGET_FLAGS_TO_PASS) check-read1; \
+	  $(MAKE) $(TARGET_FLAGS_TO_PASS) $@; \
 	else true; fi
 
 check-parallel: force
@@ -1811,8 +1820,8 @@ uninstall: force $(CONFIG_UNINSTALL)
 		else \
 		  true ; \
 		fi ; \
-		rm -f $(DESTDIR)$(bindir)/$$transformed_name$(EXEEXT) \
-		      $(DESTDIR)$(man1dir)/$$transformed_name.1
+		rm -f $(DESTDIR)$(bindir)/$$transformed_name$(EXEEXT)
+		rm -f $(DESTDIR)$(includedir)/gdb/jit-reader.h
 	if test "x$(HAVE_NATIVE_GCORE_TARGET)$(HAVE_NATIVE_GCORE_HOST)" != x; \
 	then \
 	  transformed_name=`t='$(program_transform_name)'; \
@@ -1824,6 +1833,14 @@ uninstall: force $(CONFIG_UNINSTALL)
 		  fi ; \
 		  rm -f $(DESTDIR)$(bindir)/$$transformed_name; \
 	fi
+	transformed_name=`t='$(program_transform_name)'; \
+			  echo gdb-add-index | sed -e "$$t"` ; \
+	if test "x$$transformed_name" = x; then \
+	  transformed_name=gdb-add-index ; \
+	else \
+	  true ; \
+	fi ; \
+	rm -f $(DESTDIR)$(bindir)/$$transformed_name
 	@$(MAKE) DO=uninstall "DODIRS=$(SUBDIRS)" $(FLAGS_TO_PASS) subdir_do
 
 # The C++ name parser can be built standalone for testing.
@@ -2246,6 +2263,7 @@ ALLDEPFILES = \
 	nios2-tdep.c \
 	obsd-nat.c \
 	obsd-tdep.c \
+	or1k-linux-nat.c \
 	posix-hdep.c \
 	ppc-fbsd-nat.c \
 	ppc-fbsd-tdep.c \

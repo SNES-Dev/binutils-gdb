@@ -37,6 +37,7 @@
 #include "cp-support.h"
 #include "bcache.h"
 #include "dwarf2/loc.h"
+#include "dwarf2/read.h"
 #include "gdbcore.h"
 #include "floatformat.h"
 #include "f-lang.h"
@@ -1067,12 +1068,12 @@ get_discrete_low_bound (struct type *type)
 	  {
 	    /* The enums may not be sorted by value, so search all
 	       entries.  */
-	    LONGEST low = TYPE_FIELD_ENUMVAL (type, 0);
+	    LONGEST low = type->field (0).loc_enumval ();
 
 	    for (int i = 0; i < type->num_fields (); i++)
 	      {
-		if (TYPE_FIELD_ENUMVAL (type, i) < low)
-		  low = TYPE_FIELD_ENUMVAL (type, i);
+		if (type->field (i).loc_enumval () < low)
+		  low = type->field (i).loc_enumval ();
 	      }
 
 	    /* Set unsigned indicator if warranted.  */
@@ -1138,12 +1139,12 @@ get_discrete_high_bound (struct type *type)
 	  {
 	    /* The enums may not be sorted by value, so search all
 	       entries.  */
-	    LONGEST high = TYPE_FIELD_ENUMVAL (type, 0);
+	    LONGEST high = type->field (0).loc_enumval ();
 
 	    for (int i = 0; i < type->num_fields (); i++)
 	      {
-		if (TYPE_FIELD_ENUMVAL (type, i) > high)
-		  high = TYPE_FIELD_ENUMVAL (type, i);
+		if (type->field (i).loc_enumval () > high)
+		  high = type->field (i).loc_enumval ();
 	      }
 
 	    return high;
@@ -1249,7 +1250,7 @@ discrete_position (struct type *type, LONGEST val)
 
       for (i = 0; i < type->num_fields (); i += 1)
 	{
-	  if (val == TYPE_FIELD_ENUMVAL (type, i))
+	  if (val == type->field (i).loc_enumval ())
 	    return i;
 	}
 
@@ -1846,19 +1847,19 @@ lookup_struct_elt (struct type *type, const char *name, int noerr)
 
   for (i = type->num_fields () - 1; i >= TYPE_N_BASECLASSES (type); i--)
     {
-      const char *t_field_name = TYPE_FIELD_NAME (type, i);
+      const char *t_field_name = type->field (i).name ();
 
       if (t_field_name && (strcmp_iw (t_field_name, name) == 0))
 	{
-	  return {&type->field (i), TYPE_FIELD_BITPOS (type, i)};
+	  return {&type->field (i), type->field (i).loc_bitpos ()};
 	}
-     else if (!t_field_name || *t_field_name == '\0')
+      else if (!t_field_name || *t_field_name == '\0')
 	{
 	  struct_elt elt
 	    = lookup_struct_elt (type->field (i).type (), name, 1);
 	  if (elt.field != NULL)
 	    {
-	      elt.offset += TYPE_FIELD_BITPOS (type, i);
+	      elt.offset += type->field (i).loc_bitpos ();
 	      return elt;
 	    }
 	}
@@ -1891,11 +1892,10 @@ lookup_struct_elt_type (struct type *type, const char *name, int noerr)
     return NULL;
 }
 
-/* Store in *MAX the largest number representable by unsigned integer type
-   TYPE.  */
+/* Return the largest number representable by unsigned integer type TYPE.  */
 
-void
-get_unsigned_type_max (struct type *type, ULONGEST *max)
+ULONGEST
+get_unsigned_type_max (struct type *type)
 {
   unsigned int n;
 
@@ -1905,7 +1905,7 @@ get_unsigned_type_max (struct type *type, ULONGEST *max)
 
   /* Written this way to avoid overflow.  */
   n = TYPE_LENGTH (type) * TARGET_CHAR_BIT;
-  *max = ((((ULONGEST) 1 << (n - 1)) - 1) << 1) | 1;
+  return ((((ULONGEST) 1 << (n - 1)) - 1) << 1) | 1;
 }
 
 /* Store in *MIN, *MAX the smallest and largest numbers representable by
@@ -1923,6 +1923,21 @@ get_signed_type_minmax (struct type *type, LONGEST *min, LONGEST *max)
   n = TYPE_LENGTH (type) * TARGET_CHAR_BIT;
   *min = -((ULONGEST) 1 << (n - 1));
   *max = ((ULONGEST) 1 << (n - 1)) - 1;
+}
+
+/* Return the largest value representable by pointer type TYPE. */
+
+CORE_ADDR
+get_pointer_type_max (struct type *type)
+{
+  unsigned int n;
+
+  type = check_typedef (type);
+  gdb_assert (type->code () == TYPE_CODE_PTR);
+  gdb_assert (TYPE_LENGTH (type) <= sizeof (CORE_ADDR));
+
+  n = TYPE_LENGTH (type) * TARGET_CHAR_BIT;
+  return ((((CORE_ADDR) 1 << (n - 1)) - 1) << 1) | 1;
 }
 
 /* Internal routine called by TYPE_VPTR_FIELDNO to return the value of
@@ -2139,7 +2154,7 @@ is_dynamic_type_internal (struct type *type, int top_level)
 	      return 1;
 	    /* If the field is at a fixed offset, then it is not
 	       dynamic.  */
-	    if (TYPE_FIELD_LOC_KIND (type, i) != FIELD_LOC_KIND_DWARF_BLOCK)
+	    if (type->field (i).loc_kind () != FIELD_LOC_KIND_DWARF_BLOCK)
 	      continue;
 	    /* Do not consider C++ virtual base types to be dynamic
 	       due to the field's offset being dynamic; these are
@@ -2439,7 +2454,7 @@ compute_variant_fields_inner (struct type *type,
     {
       int idx = part.discriminant_index;
 
-      if (TYPE_FIELD_LOC_KIND (type, idx) != FIELD_LOC_KIND_BITPOS)
+      if (type->field (idx).loc_kind () != FIELD_LOC_KIND_BITPOS)
 	error (_("Cannot determine struct field location"
 		 " (invalid location kind)"));
 
@@ -2449,7 +2464,7 @@ compute_variant_fields_inner (struct type *type,
       else
 	{
 	  CORE_ADDR addr = (addr_stack->addr
-			    + (TYPE_FIELD_BITPOS (type, idx)
+			    + (type->field (idx).loc_bitpos ()
 			       / TARGET_CHAR_BIT));
 
 	  LONGEST bitsize = TYPE_FIELD_BITSIZE (type, idx);
@@ -2460,7 +2475,7 @@ compute_variant_fields_inner (struct type *type,
 	  gdb_byte bits[sizeof (ULONGEST)];
 	  read_memory (addr, bits, size);
 
-	  LONGEST bitpos = (TYPE_FIELD_BITPOS (type, idx)
+	  LONGEST bitpos = (type->field (idx).loc_bitpos ()
 			    % TARGET_CHAR_BIT);
 
 	  discr_value = unpack_bits_as_long (type->field (idx).type (),
@@ -2571,12 +2586,12 @@ resolve_dynamic_struct (struct type *type,
       if (field_is_static (&resolved_type->field (i)))
 	continue;
 
-      if (TYPE_FIELD_LOC_KIND (resolved_type, i) == FIELD_LOC_KIND_DWARF_BLOCK)
+      if (resolved_type->field (i).loc_kind () == FIELD_LOC_KIND_DWARF_BLOCK)
 	{
 	  struct dwarf2_property_baton baton;
 	  baton.property_type
 	    = lookup_pointer_type (resolved_type->field (i).type ());
-	  baton.locexpr = *TYPE_FIELD_DWARF_BLOCK (resolved_type, i);
+	  baton.locexpr = *resolved_type->field (i).loc_dwarf_block ();
 
 	  struct dynamic_prop prop;
 	  prop.set_locexpr (&baton);
@@ -2584,8 +2599,8 @@ resolve_dynamic_struct (struct type *type,
 	  CORE_ADDR addr;
 	  if (dwarf2_evaluate_property (&prop, nullptr, addr_stack, &addr,
 					true))
-	    SET_FIELD_BITPOS (resolved_type->field (i),
-			      TARGET_CHAR_BIT * (addr - addr_stack->addr));
+	    resolved_type->field (i).set_loc_bitpos
+	      (TARGET_CHAR_BIT * (addr - addr_stack->addr));
 	}
 
       /* As we know this field is not a static field, the field's
@@ -2595,24 +2610,25 @@ resolve_dynamic_struct (struct type *type,
 	 that verification indicates a bug in our code, the error
 	 is not severe enough to suggest to the user he stops
 	 his debugging session because of it.  */
-      if (TYPE_FIELD_LOC_KIND (resolved_type, i) != FIELD_LOC_KIND_BITPOS)
+      if (resolved_type->field (i).loc_kind () != FIELD_LOC_KIND_BITPOS)
 	error (_("Cannot determine struct field location"
 		 " (invalid location kind)"));
 
       pinfo.type = check_typedef (resolved_type->field (i).type ());
+      size_t offset = resolved_type->field (i).loc_bitpos () / TARGET_CHAR_BIT;
       pinfo.valaddr = addr_stack->valaddr;
-      pinfo.addr
-	= (addr_stack->addr
-	   + (TYPE_FIELD_BITPOS (resolved_type, i) / TARGET_CHAR_BIT));
+      if (!pinfo.valaddr.empty ())
+	pinfo.valaddr = pinfo.valaddr.slice (offset);
+      pinfo.addr = addr_stack->addr + offset;
       pinfo.next = addr_stack;
 
       resolved_type->field (i).set_type
 	(resolve_dynamic_type_internal (resolved_type->field (i).type (),
 					&pinfo, 0));
-      gdb_assert (TYPE_FIELD_LOC_KIND (resolved_type, i)
+      gdb_assert (resolved_type->field (i).loc_kind ()
 		  == FIELD_LOC_KIND_BITPOS);
 
-      new_bit_length = TYPE_FIELD_BITPOS (resolved_type, i);
+      new_bit_length = resolved_type->field (i).loc_bitpos ();
       if (TYPE_FIELD_BITSIZE (resolved_type, i) != 0)
 	new_bit_length += TYPE_FIELD_BITSIZE (resolved_type, i);
       else
@@ -3063,8 +3079,8 @@ check_stub_method (struct type *type, int method_id, int signature_id)
   struct gdbarch *gdbarch = type->arch ();
   struct fn_field *f;
   char *mangled_name = gdb_mangle_name (type, method_id, signature_id);
-  char *demangled_name = gdb_demangle (mangled_name,
-				       DMGL_PARAMS | DMGL_ANSI);
+  gdb::unique_xmalloc_ptr<char> demangled_name
+    = gdb_demangle (mangled_name, DMGL_PARAMS | DMGL_ANSI);
   char *argtypetext, *p;
   int depth = 0, argcount = 1;
   struct field *argtypes;
@@ -3072,7 +3088,7 @@ check_stub_method (struct type *type, int method_id, int signature_id)
 
   /* Make sure we got back a function string that we can use.  */
   if (demangled_name)
-    p = strchr (demangled_name, '(');
+    p = strchr (demangled_name.get (), '(');
   else
     p = NULL;
 
@@ -3163,8 +3179,6 @@ check_stub_method (struct type *type, int method_id, int signature_id)
 			argtypes, argcount, p[-2] == '.');
   mtype->set_is_stub (false);
   TYPE_FN_FIELD_STUB (f, signature_id) = 0;
-
-  xfree (demangled_name);
 }
 
 /* This is the external interface to check_stub_method, above.  This
@@ -3864,7 +3878,7 @@ is_unique_ancestor (struct type *base, struct value *val)
   int offset = -1;
 
   return is_unique_ancestor_worker (base, value_type (val), &offset,
-				    value_contents_for_printing (val),
+				    value_contents_for_printing (val).data (),
 				    value_embedded_offset (val),
 				    value_address (val), val) == 1;
 }
@@ -4190,39 +4204,37 @@ check_types_equal (struct type *type1, struct type *type2,
 
 	  if (FIELD_ARTIFICIAL (*field1) != FIELD_ARTIFICIAL (*field2)
 	      || FIELD_BITSIZE (*field1) != FIELD_BITSIZE (*field2)
-	      || FIELD_LOC_KIND (*field1) != FIELD_LOC_KIND (*field2))
+	      || field1->loc_kind () != field2->loc_kind ())
 	    return false;
-	  if (!compare_maybe_null_strings (FIELD_NAME (*field1),
-					   FIELD_NAME (*field2)))
+	  if (!compare_maybe_null_strings (field1->name (), field2->name ()))
 	    return false;
-	  switch (FIELD_LOC_KIND (*field1))
+	  switch (field1->loc_kind ())
 	    {
 	    case FIELD_LOC_KIND_BITPOS:
-	      if (FIELD_BITPOS (*field1) != FIELD_BITPOS (*field2))
+	      if (field1->loc_bitpos () != field2->loc_bitpos ())
 		return false;
 	      break;
 	    case FIELD_LOC_KIND_ENUMVAL:
-	      if (FIELD_ENUMVAL (*field1) != FIELD_ENUMVAL (*field2))
+	      if (field1->loc_enumval () != field2->loc_enumval ())
 		return false;
 	      /* Don't compare types of enum fields, because they don't
 		 have a type.  */
 	      continue;
 	    case FIELD_LOC_KIND_PHYSADDR:
-	      if (FIELD_STATIC_PHYSADDR (*field1)
-		  != FIELD_STATIC_PHYSADDR (*field2))
+	      if (field1->loc_physaddr () != field2->loc_physaddr ())
 		return false;
 	      break;
 	    case FIELD_LOC_KIND_PHYSNAME:
-	      if (!compare_maybe_null_strings (FIELD_STATIC_PHYSNAME (*field1),
-					       FIELD_STATIC_PHYSNAME (*field2)))
+	      if (!compare_maybe_null_strings (field1->loc_physname (),
+					       field2->loc_physname ()))
 		return false;
 	      break;
 	    case FIELD_LOC_KIND_DWARF_BLOCK:
 	      {
 		struct dwarf2_locexpr_baton *block1, *block2;
 
-		block1 = FIELD_DWARF_BLOCK (*field1);
-		block2 = FIELD_DWARF_BLOCK (*field2);
+		block1 = field1->loc_dwarf_block ();
+		block2 = field2->loc_dwarf_block ();
 		if (block1->per_cu != block2->per_cu
 		    || block1->size != block2->size
 		    || memcmp (block1->data, block2->data, block1->size) != 0)
@@ -4232,7 +4244,7 @@ check_types_equal (struct type *type1, struct type *type2,
 	    default:
 	      internal_error (__FILE__, __LINE__, _("Unsupported field kind "
 						    "%d by check_types_equal"),
-			      FIELD_LOC_KIND (*field1));
+			      field1->loc_kind ());
 	    }
 
 	  worklist->emplace_back (field1->type (), field2->type ());
@@ -4760,7 +4772,7 @@ rank_one_type (struct type *parm, struct type *arg, struct value *value)
       struct type *t2 = arg;
 
       /* For pointers and references, compare target type.  */
-      if (parm->code () == TYPE_CODE_PTR || TYPE_IS_REFERENCE (parm))
+      if (parm->is_pointer_or_reference ())
 	{
 	  t1 = TYPE_TARGET_TYPE (parm);
 	  t2 = TYPE_TARGET_TYPE (arg);
@@ -4862,8 +4874,9 @@ print_args (struct field *args, int nargs, int spaces)
 
       for (i = 0; i < nargs; i++)
 	{
-	  printf_filtered ("%*s[%d] name '%s'\n", spaces, "", i,
-			   args[i].name != NULL ? args[i].name : "<NULL>");
+	  printf_filtered
+	    ("%*s[%d] name '%s'\n", spaces, "", i,
+	     args[i].name () != NULL ? args[i].name () : "<NULL>");
 	  recursive_dump_type (args[i].type (), spaces + 2);
 	}
     }
@@ -4877,8 +4890,8 @@ field_is_static (struct field *f)
      have a dedicated flag that would be set for static fields when
      the type is being created.  But in practice, checking the field
      loc_kind should give us an accurate answer.  */
-  return (FIELD_LOC_KIND (*f) == FIELD_LOC_KIND_PHYSNAME
-	  || FIELD_LOC_KIND (*f) == FIELD_LOC_KIND_PHYSADDR);
+  return (f->loc_kind () == FIELD_LOC_KIND_PHYSNAME
+	  || f->loc_kind () == FIELD_LOC_KIND_PHYSADDR);
 }
 
 static void
@@ -5324,17 +5337,17 @@ recursive_dump_type (struct type *type, int spaces)
     {
       if (type->code () == TYPE_CODE_ENUM)
 	printf_filtered ("%*s[%d] enumval %s type ", spaces + 2, "",
-			 idx, plongest (TYPE_FIELD_ENUMVAL (type, idx)));
+			 idx, plongest (type->field (idx).loc_enumval ()));
       else
 	printf_filtered ("%*s[%d] bitpos %s bitsize %d type ", spaces + 2, "",
-			 idx, plongest (TYPE_FIELD_BITPOS (type, idx)),
+			 idx, plongest (type->field (idx).loc_bitpos ()),
 			 TYPE_FIELD_BITSIZE (type, idx));
       gdb_print_host_address (type->field (idx).type (), gdb_stdout);
       printf_filtered (" name '%s' (",
-		       TYPE_FIELD_NAME (type, idx) != NULL
-		       ? TYPE_FIELD_NAME (type, idx)
+		       type->field (idx).name () != NULL
+		       ? type->field (idx).name ()
 		       : "<NULL>");
-      gdb_print_host_address (TYPE_FIELD_NAME (type, idx), gdb_stdout);
+      gdb_print_host_address (type->field (idx).name (), gdb_stdout);
       printf_filtered (")\n");
       if (type->field (idx).type () != NULL)
 	{
@@ -5543,32 +5556,33 @@ copy_type_recursive (struct objfile *objfile,
 	    new_type->field (i).set_type
 	      (copy_type_recursive (objfile, type->field (i).type (),
 				    copied_types));
-	  if (TYPE_FIELD_NAME (type, i))
-	    TYPE_FIELD_NAME (new_type, i) = 
-	      xstrdup (TYPE_FIELD_NAME (type, i));
-	  switch (TYPE_FIELD_LOC_KIND (type, i))
+	  if (type->field (i).name ())
+	    new_type->field (i).set_name (xstrdup (type->field (i).name ()));
+
+	  switch (type->field (i).loc_kind ())
 	    {
 	    case FIELD_LOC_KIND_BITPOS:
-	      SET_FIELD_BITPOS (new_type->field (i),
-				TYPE_FIELD_BITPOS (type, i));
+	      new_type->field (i).set_loc_bitpos (type->field (i).loc_bitpos ());
 	      break;
 	    case FIELD_LOC_KIND_ENUMVAL:
-	      SET_FIELD_ENUMVAL (new_type->field (i),
-				 TYPE_FIELD_ENUMVAL (type, i));
+	      new_type->field (i).set_loc_enumval (type->field (i).loc_enumval ());
 	      break;
 	    case FIELD_LOC_KIND_PHYSADDR:
-	      SET_FIELD_PHYSADDR (new_type->field (i),
-				  TYPE_FIELD_STATIC_PHYSADDR (type, i));
+	      new_type->field (i).set_loc_physaddr
+		(type->field (i).loc_physaddr ());
 	      break;
 	    case FIELD_LOC_KIND_PHYSNAME:
-	      SET_FIELD_PHYSNAME (new_type->field (i),
-				  xstrdup (TYPE_FIELD_STATIC_PHYSNAME (type,
-								       i)));
+	      new_type->field (i).set_loc_physname
+		(xstrdup (type->field (i).loc_physname ()));
 	      break;
+            case FIELD_LOC_KIND_DWARF_BLOCK:
+              new_type->field (i).set_loc_dwarf_block
+		(type->field (i).loc_dwarf_block ());
+              break;
 	    default:
 	      internal_error (__FILE__, __LINE__,
 			      _("Unexpected type field location kind: %d"),
-			      TYPE_FIELD_LOC_KIND (type, i));
+			      type->field (i).loc_kind ());
 	    }
 	}
     }
@@ -5825,14 +5839,14 @@ append_flags_type_field (struct type *type, int start_bitpos, int nr_bits,
   gdb_assert (type->code () == TYPE_CODE_FLAGS);
   gdb_assert (type->num_fields () + 1 <= type_bitsize);
   gdb_assert (start_bitpos >= 0 && start_bitpos < type_bitsize);
-  gdb_assert (nr_bits >= 1 && nr_bits <= type_bitsize);
+  gdb_assert (nr_bits >= 1 && (start_bitpos + nr_bits) <= type_bitsize);
   gdb_assert (name != NULL);
 
-  TYPE_FIELD_NAME (type, field_nr) = xstrdup (name);
-  type->field (field_nr).set_type (field_type);
-  SET_FIELD_BITPOS (type->field (field_nr), start_bitpos);
-  TYPE_FIELD_BITSIZE (type, field_nr) = nr_bits;
   type->set_num_fields (type->num_fields () + 1);
+  type->field (field_nr).set_name (xstrdup (name));
+  type->field (field_nr).set_type (field_type);
+  type->field (field_nr).set_loc_bitpos (start_bitpos);
+  TYPE_FIELD_BITSIZE (type, field_nr) = nr_bits;
 }
 
 /* Special version of append_flags_type_field to add a flag field.
@@ -5879,7 +5893,7 @@ append_composite_type_field_raw (struct type *t, const char *name,
   f = &t->field (t->num_fields () - 1);
   memset (f, 0, sizeof f[0]);
   f[0].set_type (field);
-  FIELD_NAME (f[0]) = name;
+  f[0].set_name (name);
   return f;
 }
 
@@ -5902,21 +5916,19 @@ append_composite_type_field_aligned (struct type *t, const char *name,
       TYPE_LENGTH (t) = TYPE_LENGTH (t) + TYPE_LENGTH (field);
       if (t->num_fields () > 1)
 	{
-	  SET_FIELD_BITPOS (f[0],
-			    (FIELD_BITPOS (f[-1])
-			     + (TYPE_LENGTH (f[-1].type ())
-				* TARGET_CHAR_BIT)));
+	  f->set_loc_bitpos
+	    (f[-1].loc_bitpos () + (TYPE_LENGTH (f[-1].type ()) * TARGET_CHAR_BIT));
 
 	  if (alignment)
 	    {
 	      int left;
 
 	      alignment *= TARGET_CHAR_BIT;
-	      left = FIELD_BITPOS (f[0]) % alignment;
+	      left = f[0].loc_bitpos () % alignment;
 
 	      if (left)
 		{
-		  SET_FIELD_BITPOS (f[0], FIELD_BITPOS (f[0]) + (alignment - left));
+		  f->set_loc_bitpos (f[0].loc_bitpos () + (alignment - left));
 		  TYPE_LENGTH (t) += (alignment - left) / TARGET_CHAR_BIT;
 		}
 	    }
@@ -6087,7 +6099,7 @@ gdbtypes_post_init (struct gdbarch *gdbarch)
   builtin_type->builtin_string
     = arch_type (gdbarch, TYPE_CODE_STRING, TARGET_CHAR_BIT, "string");
   builtin_type->builtin_bool
-    = arch_type (gdbarch, TYPE_CODE_BOOL, TARGET_CHAR_BIT, "bool");
+    = arch_boolean_type (gdbarch, TARGET_CHAR_BIT, 1, "bool");
 
   /* The following three are about decimal floating point types, which
      are 32-bits, 64-bits and 128-bits respectively.  */
@@ -6289,6 +6301,17 @@ objfile_type (struct objfile *objfile)
 
   objfile_type_data.set (objfile, objfile_type);
   return objfile_type;
+}
+
+/* See gdbtypes.h.  */
+
+CORE_ADDR
+call_site::pc () const
+{
+  compunit_symtab *cust = this->per_objfile->get_symtab (this->per_cu);
+  CORE_ADDR delta
+	= this->per_objfile->objfile->section_offsets[COMPUNIT_BLOCK_LINE_SECTION (cust)];
+  return m_unrelocated_pc + delta;
 }
 
 void _initialize_gdbtypes ();

@@ -527,6 +527,7 @@
 #define SHT_PREINIT_ARRAY 16		/* Array of ptrs to pre-init funcs */
 #define SHT_GROUP	  17		/* Section contains a section group */
 #define SHT_SYMTAB_SHNDX  18		/* Indices for SHN_XINDEX entries */
+#define SHT_RELR	  19		/* RELR relative relocations */
 
 #define SHT_LOOS	0x60000000	/* First of OS specific semantics */
 #define SHT_HIOS	0x6fffffff	/* Last of OS specific semantics */
@@ -676,25 +677,38 @@
 					/*   note name must be "LINUX".  */
 #define NT_ARM_PAC_MASK	0x406		/* AArch pointer authentication code masks */
 					/*   note name must be "LINUX".  */
+#define NT_ARM_PACA_KEYS  0x407		/* ARM pointer authentication address
+					   keys */
+					/*   note name must be "LINUX".  */
+#define NT_ARM_PACG_KEYS  0x408		/* ARM pointer authentication generic
+					   keys */
+					/*  note name must be "LINUX".  */
 #define NT_ARM_TAGGED_ADDR_CTRL	0x409	/* AArch64 tagged address control
 					   (prctl()) */
 					/*   note name must be "LINUX".  */
+#define NT_ARM_PAC_ENABLED_KEYS	0x40a	/* AArch64 pointer authentication
+					   enabled keys (prctl()) */
+					/*   note name must be "LINUX".  */
 #define NT_ARC_V2	0x600		/* ARC HS accumulator/extra registers.  */
 					/*   note name must be "LINUX".  */
-#define NT_RISCV_CSR    0x900		/* RISC-V Control and Status Registers */
+#define NT_LARCH_CPUCFG 0xa00		/* LoongArch CPU config registers */
+					/*   note name must be "LINUX".  */
+#define NT_LARCH_CSR    0xa01		/* LoongArch Control State Registers */
+					/*   note name must be "LINUX".  */
+#define NT_LARCH_LSX    0xa02		/* LoongArch SIMD eXtension registers */
+					/*   note name must be "LINUX".  */
+#define NT_LARCH_LASX   0xa03		/* LoongArch Advanced SIMD eXtension registers */
+					/*   note name must be "LINUX".  */
+#define NT_LARCH_LBT    0xa04		/* LoongArch Binary Translation registers */
 					/*   note name must be "CORE".  */
+#define NT_RISCV_CSR    0x900		/* RISC-V Control and Status Registers */
+					/*   note name must be "LINUX".  */
 #define NT_SIGINFO	0x53494749	/* Fields of siginfo_t.  */
 #define NT_FILE		0x46494c45	/* Description of mapped files.  */
 
 /* The range 0xff000000 to 0xffffffff is set aside for notes that don't
    originate from any particular operating system.  */
 #define NT_GDB_TDESC	0xff000000	/* Contains copy of GDB's target description XML.  */
-#define NT_MEMTAG	0xff000001	/* Contains a copy of the memory tags.  */
-
-/* NT_MEMTAG record types.  */
-
-/* ARM-specific NT_MEMTAG types.  */
-#define NT_MEMTAG_TYPE_AARCH_MTE  0x400	/* MTE memory tags for AArch64.  */
 
 /* Note segments for core files on dir-style procfs systems.  */
 
@@ -742,6 +756,29 @@
 #define NT_OPENBSD_XFPREGS	22
 #define NT_OPENBSD_WCOOKIE	23
 
+
+/* Note segments for core files on Solaris systems.  Note name
+   must start with "CORE".  */
+#define SOLARIS_NT_PRSTATUS    1
+#define SOLARIS_NT_PRFPREG     2
+#define SOLARIS_NT_PRPSINFO    3
+#define SOLARIS_NT_PRXREG      4
+#define SOLARIS_NT_PLATFORM    5
+#define SOLARIS_NT_AUXV        6
+#define SOLARIS_NT_GWINDOWS    7
+#define SOLARIS_NT_ASRS        8
+#define SOLARIS_NT_LDT         9
+#define SOLARIS_NT_PSTATUS    10
+#define SOLARIS_NT_PSINFO     13
+#define SOLARIS_NT_PRCRED     14
+#define SOLARIS_NT_UTSNAME    15
+#define SOLARIS_NT_LWPSTATUS  16
+#define SOLARIS_NT_LWPSINFO   17
+#define SOLARIS_NT_PRPRIV     18
+#define SOLARIS_NT_PRPRIVINFO 19
+#define SOLARIS_NT_CONTENT    20
+#define SOLARIS_NT_ZONENAME   21
+#define SOLARIS_NT_PRCPUXREG  22
 
 /* Note segments for core files on SPU systems.  Note name
    must start with "SPU/".  */
@@ -1073,6 +1110,9 @@
 #define DT_PREINIT_ARRAY   32
 #define DT_PREINIT_ARRAYSZ 33
 #define DT_SYMTAB_SHNDX    34
+#define DT_RELRSZ	35
+#define DT_RELR		36
+#define DT_RELRENT	37
 
 /* Note, the Oct 4, 1999 draft of the ELF ABI changed the values
    for DT_LOOS and DT_HIOS.  Some implementations however, use

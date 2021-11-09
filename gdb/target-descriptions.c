@@ -230,9 +230,9 @@ make_gdb_type (struct gdbarch *gdbarch, struct tdesc_type *ttype)
 	      bitsize = f.end - f.start + 1;
 	      total_size = e->size * TARGET_CHAR_BIT;
 	      if (gdbarch_byte_order (m_gdbarch) == BFD_ENDIAN_BIG)
-		SET_FIELD_BITPOS (fld[0], total_size - f.start - bitsize);
+		fld->set_loc_bitpos (total_size - f.start - bitsize);
 	      else
-		SET_FIELD_BITPOS (fld[0], f.start);
+		fld->set_loc_bitpos (f.start);
 	      FIELD_BITSIZE (fld[0]) = bitsize;
 	    }
 	  else
@@ -298,7 +298,7 @@ make_gdb_type (struct gdbarch *gdbarch, struct tdesc_type *ttype)
 					       xstrdup (f.name.c_str ()),
 					       NULL);
 
-	  SET_FIELD_BITPOS (fld[0], f.start);
+	  fld->set_loc_enumval (f.start);
 	}
     }
 
@@ -510,7 +510,7 @@ target_desc_info_free (struct target_desc_info *tdesc_info)
 
 /* The string manipulated by the "set tdesc filename ..." command.  */
 
-static char *tdesc_filename_cmd_string;
+static std::string tdesc_filename_cmd_string;
 
 /* Fetch the current target's description, and switch the current
    architecture to one which incorporates that description.  */
@@ -1962,14 +1962,12 @@ _initialize_target_descriptions ()
 
   tdesc_data = gdbarch_data_register_pre_init (tdesc_data_init);
 
-  add_basic_prefix_cmd ("tdesc", class_maintenance, _("\
-Set target description specific variables."),
-			&tdesc_set_cmdlist,
-			0 /* allow-unknown */, &setlist);
-  add_show_prefix_cmd ("tdesc", class_maintenance, _("\
-Show target description specific variables."),
-		       &tdesc_show_cmdlist,
-		       0 /* allow-unknown */, &showlist);
+  add_setshow_prefix_cmd ("tdesc", class_maintenance,
+			  _("Set target description specific variables."),
+			  _("Show target description specific variables."),
+			  &tdesc_set_cmdlist, &tdesc_show_cmdlist,
+			  &setlist, &showlist);
+
   add_basic_prefix_cmd ("tdesc", class_maintenance, _("\
 Unset target description specific variables."),
 			&tdesc_unset_cmdlist,

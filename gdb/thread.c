@@ -297,14 +297,7 @@ thread_info::thread_info (struct inferior *inf_, ptid_t ptid_)
   this->per_inf_num = ++inf_->highest_thread_num;
 
   /* Nothing to follow yet.  */
-  memset (&this->pending_follow, 0, sizeof (this->pending_follow));
-  this->pending_follow.kind = TARGET_WAITKIND_SPURIOUS;
-  this->m_suspend.waitstatus.kind = TARGET_WAITKIND_IGNORE;
-}
-
-thread_info::~thread_info ()
-{
-  xfree (this->name);
+  this->pending_follow.set_spurious ();
 }
 
 /* See gdbthread.h.  */
@@ -315,6 +308,16 @@ thread_info::deletable () const
   /* If this is the current thread, or there's code out there that
      relies on it existing (refcount > 0) we can't delete yet.  */
   return refcount () == 0 && !is_current_thread (this);
+}
+
+/* See gdbthread.h.  */
+
+void
+thread_info::set_executing (bool executing)
+{
+  m_executing = executing;
+  if (executing)
+    this->clear_stop_pc ();
 }
 
 /* See gdbthread.h.  */
@@ -380,7 +383,7 @@ thread_is_in_step_over_chain (struct thread_info *tp)
 int
 thread_step_over_chain_length (const thread_step_over_list &l)
 {
-  int num = 1;
+  int num = 0;
 
   for (const thread_info &thread ATTRIBUTE_UNUSED : l)
     ++num;
@@ -625,13 +628,13 @@ any_live_thread_of_inferior (inferior *inf)
       curr_tp = inferior_thread ();
       if (curr_tp->state == THREAD_EXITED)
 	curr_tp = NULL;
-      else if (!curr_tp->executing)
+      else if (!curr_tp->executing ())
 	return curr_tp;
     }
 
   for (thread_info *tp : inf->non_exited_threads ())
     {
-      if (!tp->executing)
+      if (!tp->executing ())
 	return tp;
 
       tp_executing = tp;
@@ -841,24 +844,11 @@ set_running (process_stratum_target *targ, ptid_t ptid, bool running)
     gdb::observers::target_resumed.notify (ptid);
 }
 
-
-/* Helper for set_executing.  Set's the thread's 'executing' field
-   from EXECUTING, and if EXECUTING is true also clears the thread's
-   stop_pc.  */
-
-static void
-set_executing_thread (thread_info *thr, bool executing)
-{
-  thr->executing = executing;
-  if (executing)
-    thr->set_stop_pc (~(CORE_ADDR) 0);
-}
-
 void
 set_executing (process_stratum_target *targ, ptid_t ptid, bool executing)
 {
   for (thread_info *tp : all_non_exited_threads (targ, ptid))
-    set_executing_thread (tp, executing);
+    tp->set_executing (executing);
 
   /* It only takes one running thread to spawn more threads.  */
   if (executing)
@@ -895,7 +885,7 @@ finish_thread_state (process_stratum_target *targ, ptid_t ptid)
   bool any_started = false;
 
   for (thread_info *tp : all_non_exited_threads (targ, ptid))
-    if (set_running_thread (tp, tp->executing))
+    if (set_running_thread (tp, tp->executing ()))
       any_started = true;
 
   if (any_started)
@@ -922,7 +912,7 @@ validate_registers_access (void)
      at the prompt) when a thread is not executing for some internal
      reason, but is marked running from the user's perspective.  E.g.,
      the thread is waiting for its turn in the step-over queue.  */
-  if (tp->executing)
+  if (tp->executing ())
     error (_("Selected thread is running."));
 }
 
@@ -940,7 +930,7 @@ can_access_registers_thread (thread_info *thread)
     return false;
 
   /* ... or from a spinning thread.  FIXME: see validate_registers_access.  */
-  if (thread->executing)
+  if (thread->executing ())
     return false;
 
   return true;
@@ -1001,7 +991,7 @@ thread_target_id_str (thread_info *tp)
 {
   std::string target_id = target_pid_to_str (tp->ptid);
   const char *extra_info = target_extra_thread_info (tp);
-  const char *name = tp->name != nullptr ? tp->name : target_thread_name (tp);
+  const char *name = thread_name (tp);
 
   if (extra_info != nullptr && name != nullptr)
     return string_printf ("%s \"%s\" (%s)", target_id.c_str (), name,
@@ -1143,9 +1133,7 @@ print_thread_info_1 (struct ui_out *uiout, const char *requested_threads,
 	      if (extra_info != nullptr)
 		uiout->field_string ("details", extra_info);
 
-	      const char *name = (tp->name != nullptr
-				  ? tp->name
-				  : target_thread_name (tp));
+	      const char *name = thread_name (tp);
 	      if (name != NULL)
 		uiout->field_string ("name", name);
 	    }
@@ -1460,8 +1448,9 @@ thr_try_catch_cmd (thread_info *thr, const char *cmd, int from_tty,
 
   try
     {
-      std::string cmd_result = execute_command_to_string
-	(cmd, from_tty, gdb_stdout->term_out ());
+      std::string cmd_result;
+      execute_command_to_string
+	(cmd_result, cmd, from_tty, gdb_stdout->term_out ());
       if (!flags.silent || cmd_result.length () > 0)
 	{
 	  if (!flags.quiet)
@@ -1838,8 +1827,7 @@ thread_name_command (const char *arg, int from_tty)
   arg = skip_spaces (arg);
 
   info = inferior_thread ();
-  xfree (info->name);
-  info->name = arg ? xstrdup (arg) : NULL;
+  info->set_name (arg != nullptr ? make_unique_xstrdup (arg) : nullptr);
 }
 
 /* Find thread ids with a name, target pid, or extra info matching ARG.  */
@@ -1866,10 +1854,10 @@ thread_find_command (const char *arg, int from_tty)
     {
       switch_to_inferior_no_thread (tp->inf);
 
-      if (tp->name != NULL && re_exec (tp->name))
+      if (tp->name () != nullptr && re_exec (tp->name ()))
 	{
 	  printf_filtered (_("Thread %s has name '%s'\n"),
-			   print_thread_id (tp), tp->name);
+			   print_thread_id (tp), tp->name ());
 	  match++;
 	}
 
@@ -1997,7 +1985,7 @@ update_threads_executing (void)
 
       for (thread_info *tp : inf->non_exited_threads ())
 	{
-	  if (tp->executing)
+	  if (tp->executing ())
 	    {
 	      targ->threads_executing = true;
 	      return;
@@ -2011,6 +1999,24 @@ update_thread_list (void)
 {
   target_update_thread_list ();
   update_threads_executing ();
+}
+
+/* See gdbthread.h.  */
+
+const char *
+thread_name (thread_info *thread)
+{
+  /* Use the manually set name if there is one.  */
+  const char *name = thread->name ();
+  if (name != nullptr)
+    return name;
+
+  /* Otherwise, ask the target.  Ensure we query the right target stack.  */
+  scoped_restore_current_thread restore_thread;
+  if (thread->inf != current_inferior ())
+    switch_to_inferior_no_thread (thread->inf);
+
+  return target_thread_name (thread);
 }
 
 /* Return a new value for the selected thread's id.  Return a value of

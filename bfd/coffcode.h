@@ -1948,9 +1948,15 @@ coff_set_alignment_hook (bfd * abfd ATTRIBUTE_UNUSED,
       if (bfd_bread (& dst, relsz, abfd) != relsz)
 	return;
 
-      coff_swap_reloc_in (abfd, &dst, &n);
+      bfd_coff_swap_reloc_in (abfd, &dst, &n);
       if (bfd_seek (abfd, oldpos, 0) != 0)
 	return;
+      if (n.r_vaddr < 0x10000)
+	{
+	  _bfd_error_handler (_("%pB: overflow reloc count too small"), abfd);
+	  bfd_set_error (bfd_error_bad_value);
+	  return;
+	}
       section->reloc_count = hdr->s_nreloc = n.r_vaddr - 1;
       section->rel_filepos += relsz;
     }
@@ -2013,7 +2019,7 @@ coff_set_alignment_hook (bfd * abfd, asection * section, void * scnhdr)
       if (bfd_bread (& dst, relsz, abfd) != relsz)
 	return;
 
-      coff_swap_reloc_in (abfd, &dst, &n);
+      bfd_coff_swap_reloc_in (abfd, &dst, &n);
       if (bfd_seek (abfd, oldpos, 0) != 0)
 	return;
       section->reloc_count = hdr->s_nreloc = n.r_vaddr - 1;
@@ -4288,7 +4294,7 @@ buy_and_read (bfd *abfd, file_ptr where,
     }
   if (bfd_seek (abfd, where, SEEK_SET) != 0)
     return NULL;
-  return _bfd_alloc_and_read (abfd, amt, amt);
+  return _bfd_malloc_and_read (abfd, amt, amt);
 }
 
 /*
@@ -4352,23 +4358,6 @@ coff_slurp_line_table (bfd *abfd, asection *asect)
 
   BFD_ASSERT (asect->lineno == NULL);
 
-  if (asect->lineno_count > asect->size)
-    {
-      _bfd_error_handler
-	(_("%pB: warning: line number count (%#lx) exceeds section size (%#lx)"),
-	 abfd, (unsigned long) asect->lineno_count, (unsigned long) asect->size);
-      return false;
-    }
-
-  if (_bfd_mul_overflow (asect->lineno_count + 1, sizeof (alent), &amt))
-    {
-      bfd_set_error (bfd_error_file_too_big);
-      return false;
-    }
-  lineno_cache = (alent *) bfd_alloc (abfd, amt);
-  if (lineno_cache == NULL)
-    return false;
-
   native_lineno = (LINENO *) buy_and_read (abfd, asect->line_filepos,
 					   asect->lineno_count,
 					   bfd_coff_linesz (abfd));
@@ -4376,7 +4365,19 @@ coff_slurp_line_table (bfd *abfd, asection *asect)
     {
       _bfd_error_handler
 	(_("%pB: warning: line number table read failed"), abfd);
-      bfd_release (abfd, lineno_cache);
+      return false;
+    }
+
+  if (_bfd_mul_overflow (asect->lineno_count + 1, sizeof (alent), &amt))
+    {
+      bfd_set_error (bfd_error_file_too_big);
+      free (native_lineno);
+      return false;
+    }
+  lineno_cache = (alent *) bfd_alloc (abfd, amt);
+  if (lineno_cache == NULL)
+    {
+      free (native_lineno);
       return false;
     }
 
@@ -4469,7 +4470,7 @@ coff_slurp_line_table (bfd *abfd, asection *asect)
 
   asect->lineno_count = cache_ptr - lineno_cache;
   memset (cache_ptr, 0, sizeof (*cache_ptr));
-  bfd_release (abfd, native_lineno);
+  free (native_lineno);
 
   /* On some systems (eg AIX5.3) the lineno table may not be sorted.  */
   if (!ordered)
@@ -5069,7 +5070,7 @@ SUBSUBSECTION
 static bool
 coff_slurp_reloc_table (bfd * abfd, sec_ptr asect, asymbol ** symbols)
 {
-  RELOC *native_relocs;
+  bfd_byte *native_relocs;
   arelent *reloc_cache;
   arelent *cache_ptr;
   unsigned int idx;
@@ -5084,31 +5085,37 @@ coff_slurp_reloc_table (bfd * abfd, sec_ptr asect, asymbol ** symbols)
   if (!coff_slurp_symbol_table (abfd))
     return false;
 
-  native_relocs = (RELOC *) buy_and_read (abfd, asect->rel_filepos,
-					  asect->reloc_count,
-					  bfd_coff_relsz (abfd));
+  native_relocs = (bfd_byte *) buy_and_read (abfd, asect->rel_filepos,
+					     asect->reloc_count,
+					     bfd_coff_relsz (abfd));
+  if (native_relocs == NULL)
+    return false;
+
   if (_bfd_mul_overflow (asect->reloc_count, sizeof (arelent), &amt))
     {
       bfd_set_error (bfd_error_file_too_big);
       return false;
     }
   reloc_cache = (arelent *) bfd_alloc (abfd, amt);
-  if (reloc_cache == NULL || native_relocs == NULL)
-    return false;
+  if (reloc_cache == NULL)
+    {
+      free (native_relocs);
+      return false;
+    }
 
   for (idx = 0; idx < asect->reloc_count; idx++)
     {
       struct internal_reloc dst;
-      struct external_reloc *src;
+      void *src;
 #ifndef RELOC_PROCESSING
       asymbol *ptr;
 #endif
 
       cache_ptr = reloc_cache + idx;
-      src = native_relocs + idx;
+      src = native_relocs + idx * (size_t) bfd_coff_relsz (abfd);
 
       dst.r_offset = 0;
-      coff_swap_reloc_in (abfd, src, &dst);
+      bfd_coff_swap_reloc_in (abfd, src, &dst);
 
 #ifdef RELOC_PROCESSING
       RELOC_PROCESSING (cache_ptr, &dst, symbols, abfd, asect);
@@ -5164,10 +5171,12 @@ coff_slurp_reloc_table (bfd * abfd, sec_ptr asect, asymbol ** symbols)
 	    (_("%pB: illegal relocation type %d at address %#" PRIx64),
 	     abfd, dst.r_type, (uint64_t) dst.r_vaddr);
 	  bfd_set_error (bfd_error_bad_value);
+	  free (native_relocs);
 	  return false;
 	}
     }
 
+  free (native_relocs);
   asect->relocation = reloc_cache;
   return true;
 }
@@ -5435,7 +5444,7 @@ static bfd_coff_backend_data ticoff0_swap_table =
 {
   coff_SWAP_aux_in, coff_SWAP_sym_in, coff_SWAP_lineno_in,
   coff_SWAP_aux_out, coff_SWAP_sym_out,
-  coff_SWAP_lineno_out, coff_SWAP_reloc_out,
+  coff_SWAP_lineno_out, coff_swap_reloc_v0_out,
   coff_SWAP_filehdr_out, coff_SWAP_aouthdr_out,
   coff_SWAP_scnhdr_out,
   FILHSZ_V0, AOUTSZ, SCNHSZ_V01, SYMESZ, AUXESZ, RELSZ_V0, LINESZ, FILNMLEN,
@@ -5458,7 +5467,7 @@ static bfd_coff_backend_data ticoff0_swap_table =
 #endif
   32768,
   coff_SWAP_filehdr_in, coff_SWAP_aouthdr_in, coff_SWAP_scnhdr_in,
-  coff_SWAP_reloc_in, ticoff0_bad_format_hook, coff_set_arch_mach_hook,
+  coff_swap_reloc_v0_in, ticoff0_bad_format_hook, coff_set_arch_mach_hook,
   coff_mkobject_hook, styp_to_sec_flags, coff_set_alignment_hook,
   coff_slurp_symbol_table, symname_in_debug_hook, coff_pointerize_aux_hook,
   coff_print_aux, coff_reloc16_extra_cases, coff_reloc16_estimate,

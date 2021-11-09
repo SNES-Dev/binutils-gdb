@@ -1291,6 +1291,7 @@ AC_CHECK_HEADERS(term.h, [], [],
 
 AC_CHECK_HEADERS([sys/socket.h])
 AC_CHECK_HEADERS([ws2tcpip.h])
+AC_CHECK_HEADERS([execinfo.h])
 
 # ------------------------- #
 # Checks for declarations.  #
@@ -1512,27 +1513,6 @@ if test "$gdb_cv_c_long_long" != yes; then
   AC_MSG_ERROR([Compiler must support long long for GDB.])
 fi
 
-# Check if the compiler and runtime support printing long longs.
-
-AC_CACHE_CHECK([for long long support in printf],
-               gdb_cv_printf_has_long_long,
-               [AC_RUN_IFELSE([AC_LANG_PROGRAM([AC_INCLUDES_DEFAULT],
-[[char buf[32];
-  long long l = 0;
-  l = (l << 16) + 0x0123;
-  l = (l << 16) + 0x4567;
-  l = (l << 16) + 0x89ab;
-  l = (l << 16) + 0xcdef;
-  sprintf (buf, "0x%016llx", l);
-  return (strcmp ("0x0123456789abcdef", buf));]])],
-                              gdb_cv_printf_has_long_long=yes,
-                              gdb_cv_printf_has_long_long=no,
-                              gdb_cv_printf_has_long_long=no)])
-if test "$gdb_cv_printf_has_long_long" = yes; then
-  AC_DEFINE(PRINTF_HAS_LONG_LONG, 1,
-            [Define to 1 if the "%ll" format works to print long longs.])
-fi
-
 # Check if the compiler and runtime support printing decfloats.
 
 AC_CACHE_CHECK([for decfloat support in printf],
@@ -1681,6 +1661,27 @@ else
 fi
 AC_SUBST(RDYNAMIC)
 AC_MSG_RESULT($found)
+
+AC_CACHE_CHECK(
+  [whether execinfo.h backtrace is available],
+  gdb_cv_execinfo_backtrace,
+  [AC_LINK_IFELSE(
+     [AC_LANG_PROGRAM(
+        [
+         #include <execinfo.h>
+        ],
+        [
+         int f;
+         void *b[[2]];
+         f = backtrace (b, 2);
+         backtrace_symbols_fd (b, f, 2);
+        ])],
+   [gdb_cv_execinfo_backtrace=yes],
+   [gdb_cv_execinfo_backtrace=no])])
+if test "$gdb_cv_execinfo_backtrace" = yes; then
+  AC_DEFINE(HAVE_EXECINFO_BACKTRACE, 1,
+            [Define to 1 if execinfo.h backtrace functions are available.])
+fi
 
 dnl For certain native configurations, we need to check whether thread
 dnl support can be built in or not.
@@ -2108,6 +2109,29 @@ if test x"${gdb_osabi}" != x ; then
     AC_DEFINE_UNQUOTED(GDB_OSABI_DEFAULT, $gdb_osabi,
 		       [Define to the default OS ABI for this configuration.])
 fi
+
+# Setup possible use of libbacktrace.
+AC_ARG_ENABLE([libbacktrace],
+[AS_HELP_STRING([--enable-libbacktrace],
+                [use libbacktrace to write a backtrace after a fatal signal.])],
+[case "${enableval}" in
+  yes)  enable_libbacktrace=yes ;;
+  no)   enable_libbacktrace=no  ;;
+  *)    AC_MSG_ERROR(bad value ${enableval} for --enable-libbacktrace option) ;;
+esac],
+enable_libbacktrace=yes)
+
+if test "${enable_libbacktrace}" == "yes"; then
+  LIBBACKTRACE_INC="-I$srcdir/../libbacktrace/ -I../libbacktrace/"
+  LIBBACKTRACE_LIB=../libbacktrace/.libs/libbacktrace.a
+  AC_DEFINE(HAVE_LIBBACKTRACE, 1, [Define if libbacktrace is being used.])
+else
+  LIBBACKTRACE_INC=
+  LIBBACKTRACE_LIB=
+fi
+
+AC_SUBST(LIBBACKTRACE_INC)
+AC_SUBST(LIBBACKTRACE_LIB)
 
 # Check for babeltrace and babeltrace-ctf
 AC_ARG_WITH(babeltrace,

@@ -319,6 +319,7 @@ enum riscv_insn_class
   INSN_CLASS_ZBA,
   INSN_CLASS_ZBB,
   INSN_CLASS_ZBC,
+  INSN_CLASS_ZBS,
 };
 
 /* This structure holds information for a particular instruction.  */
@@ -425,6 +426,13 @@ enum
   M_NUM_MACROS
 };
 
+/* The mapping symbol states.  */
+enum riscv_seg_mstate
+{
+  MAP_NONE = 0,		/* Must be zero, for seginfo in new sections.  */
+  MAP_DATA,		/* Data.  */
+  MAP_INSN,		/* Instructions.  */
+};
 
 extern const char * const riscv_gpr_names_numeric[NGPR];
 extern const char * const riscv_gpr_names_abi[NGPR];

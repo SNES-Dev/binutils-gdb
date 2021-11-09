@@ -636,6 +636,8 @@ LIBCTF
 LTLIBBABELTRACE
 LIBBABELTRACE
 HAVE_LIBBABELTRACE
+LIBBACKTRACE_LIB
+LIBBACKTRACE_INC
 HAVE_NATIVE_GCORE_HOST
 NAT_GENERATED_FILES
 XM_CLIBS
@@ -925,6 +927,7 @@ with_tcl
 with_tk
 with_x
 enable_sim
+enable_libbacktrace
 with_babeltrace
 with_libbabeltrace_prefix
 with_libbabeltrace_type
@@ -1601,6 +1604,8 @@ Optional Features:
                           gcc is used
   --enable-ubsan          enable undefined behavior sanitizer (auto/yes/no)
   --enable-sim            link gdb with simulator
+  --enable-libbacktrace   use libbacktrace to write a backtrace after a fatal
+                          signal.
   --enable-libctf         Handle .ctf type-info sections [default=yes]
   --enable-unit-tests     Enable the inclusion of unit tests when compiling
                           GDB
@@ -5841,6 +5846,10 @@ eval ac_res=\$$cachevar
 $as_echo "$ac_res" >&6; }
       if eval test x\$$cachevar = xyes; then
         CXX_DIALECT="$switch"
+        CXX="$CXX $switch"
+        if test -n "$CXXCPP" ; then
+          CXXCPP="$CXXCPP $switch"
+        fi
         ac_success=yes
         break
       fi
@@ -6160,6 +6169,10 @@ eval ac_res=\$$cachevar
 $as_echo "$ac_res" >&6; }
         if eval test x\$$cachevar = xyes; then
           CXX_DIALECT="$switch"
+          CXX="$CXX $switch"
+          if test -n "$CXXCPP" ; then
+            CXXCPP="$CXXCPP $switch"
+          fi
           ac_success=yes
           break
         fi
@@ -12315,6 +12328,18 @@ fi
 
 done
 
+for ac_header in execinfo.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "execinfo.h" "ac_cv_header_execinfo_h" "$ac_includes_default"
+if test "x$ac_cv_header_execinfo_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_EXECINFO_H 1
+_ACEOF
+
+fi
+
+done
+
 
 # ------------------------- #
 # Checks for declarations.  #
@@ -15257,6 +15282,52 @@ fi
     fi
   fi
 
+  # Check if the compiler and runtime support printing long longs.
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for long long support in printf" >&5
+$as_echo_n "checking for long long support in printf... " >&6; }
+if ${gdb_cv_printf_has_long_long+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  if test "$cross_compiling" = yes; then :
+  gdb_cv_printf_has_long_long=no
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$ac_includes_default
+int
+main ()
+{
+char buf[32];
+    long long l = 0;
+    l = (l << 16) + 0x0123;
+    l = (l << 16) + 0x4567;
+    l = (l << 16) + 0x89ab;
+    l = (l << 16) + 0xcdef;
+    sprintf (buf, "0x%016llx", l);
+    return (strcmp ("0x0123456789abcdef", buf));
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_run "$LINENO"; then :
+  gdb_cv_printf_has_long_long=yes
+else
+  gdb_cv_printf_has_long_long=no
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gdb_cv_printf_has_long_long" >&5
+$as_echo "$gdb_cv_printf_has_long_long" >&6; }
+  if test "$gdb_cv_printf_has_long_long" = yes; then
+
+$as_echo "#define PRINTF_HAS_LONG_LONG 1" >>confdefs.h
+
+  fi
+
 
 $as_echo "#define _STRUCTURED_PROC 1" >>confdefs.h
 
@@ -16151,52 +16222,6 @@ if test "$gdb_cv_c_long_long" != yes; then
   as_fn_error $? "Compiler must support long long for GDB." "$LINENO" 5
 fi
 
-# Check if the compiler and runtime support printing long longs.
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for long long support in printf" >&5
-$as_echo_n "checking for long long support in printf... " >&6; }
-if ${gdb_cv_printf_has_long_long+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  if test "$cross_compiling" = yes; then :
-  gdb_cv_printf_has_long_long=no
-else
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-$ac_includes_default
-int
-main ()
-{
-char buf[32];
-  long long l = 0;
-  l = (l << 16) + 0x0123;
-  l = (l << 16) + 0x4567;
-  l = (l << 16) + 0x89ab;
-  l = (l << 16) + 0xcdef;
-  sprintf (buf, "0x%016llx", l);
-  return (strcmp ("0x0123456789abcdef", buf));
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_run "$LINENO"; then :
-  gdb_cv_printf_has_long_long=yes
-else
-  gdb_cv_printf_has_long_long=no
-fi
-rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
-  conftest.$ac_objext conftest.beam conftest.$ac_ext
-fi
-
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gdb_cv_printf_has_long_long" >&5
-$as_echo "$gdb_cv_printf_has_long_long" >&6; }
-if test "$gdb_cv_printf_has_long_long" = yes; then
-
-$as_echo "#define PRINTF_HAS_LONG_LONG 1" >>confdefs.h
-
-fi
-
 # Check if the compiler and runtime support printing decfloats.
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for decfloat support in printf" >&5
@@ -16483,6 +16508,45 @@ fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $found" >&5
 $as_echo "$found" >&6; }
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether execinfo.h backtrace is available" >&5
+$as_echo_n "checking whether execinfo.h backtrace is available... " >&6; }
+if ${gdb_cv_execinfo_backtrace+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+         #include <execinfo.h>
+
+int
+main ()
+{
+
+         int f;
+         void *b[2];
+         f = backtrace (b, 2);
+         backtrace_symbols_fd (b, f, 2);
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  gdb_cv_execinfo_backtrace=yes
+else
+  gdb_cv_execinfo_backtrace=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gdb_cv_execinfo_backtrace" >&5
+$as_echo "$gdb_cv_execinfo_backtrace" >&6; }
+if test "$gdb_cv_execinfo_backtrace" = yes; then
+
+$as_echo "#define HAVE_EXECINFO_BACKTRACE 1" >>confdefs.h
+
+fi
 
 
 if test "${build}" = "${host}" -a "${host}" = "${target}" ; then
@@ -18607,6 +18671,33 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
 fi
+
+# Setup possible use of libbacktrace.
+# Check whether --enable-libbacktrace was given.
+if test "${enable_libbacktrace+set}" = set; then :
+  enableval=$enable_libbacktrace; case "${enableval}" in
+  yes)  enable_libbacktrace=yes ;;
+  no)   enable_libbacktrace=no  ;;
+  *)    as_fn_error $? "bad value ${enableval} for --enable-libbacktrace option" "$LINENO" 5 ;;
+esac
+else
+  enable_libbacktrace=yes
+fi
+
+
+if test "${enable_libbacktrace}" == "yes"; then
+  LIBBACKTRACE_INC="-I$srcdir/../libbacktrace/ -I../libbacktrace/"
+  LIBBACKTRACE_LIB=../libbacktrace/.libs/libbacktrace.a
+
+$as_echo "#define HAVE_LIBBACKTRACE 1" >>confdefs.h
+
+else
+  LIBBACKTRACE_INC=
+  LIBBACKTRACE_LIB=
+fi
+
+
+
 
 # Check for babeltrace and babeltrace-ctf
 

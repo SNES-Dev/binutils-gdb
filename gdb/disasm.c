@@ -39,7 +39,7 @@
 
 /* This variable is used to hold the prospective disassembler_options value
    which is set by the "set disassembler_options" command.  */
-static char *prospective_options = NULL;
+static std::string prospective_options;
 
 /* This structure is used to store line number information for the
    deprecated /m option.
@@ -148,7 +148,7 @@ gdb_disassembler::dis_asm_memory_error (int err, bfd_vma memaddr,
   gdb_disassembler *self
     = static_cast<gdb_disassembler *>(info->application_data);
 
-  self->m_err_memaddr = memaddr;
+  self->m_err_memaddr.emplace (memaddr);
 }
 
 /* Wrapper of print_address.  */
@@ -161,6 +161,20 @@ gdb_disassembler::dis_asm_print_address (bfd_vma addr,
     = static_cast<gdb_disassembler *>(info->application_data);
 
   print_address (self->arch (), addr, self->stream ());
+}
+
+/* Format disassembler output to STREAM.  */
+
+int
+gdb_disassembler::dis_asm_fprintf (void *stream, const char *format, ...)
+{
+  va_list args;
+
+  va_start (args, format);
+  vfprintf_filtered ((struct ui_file *) stream, format, args);
+  va_end (args);
+  /* Something non -ve.  */
+  return 0;
 }
 
 static bool
@@ -711,21 +725,6 @@ do_assembly_only (struct gdbarch *gdbarch, struct ui_out *uiout,
   dump_insns (gdbarch, uiout, low, high, how_many, flags, NULL);
 }
 
-/* Initialize the disassemble info struct ready for the specified
-   stream.  */
-
-static int ATTRIBUTE_PRINTF (2, 3)
-fprintf_disasm (void *stream, const char *format, ...)
-{
-  va_list args;
-
-  va_start (args, format);
-  vfprintf_filtered ((struct ui_file *) stream, format, args);
-  va_end (args);
-  /* Something non -ve.  */
-  return 0;
-}
-
 /* Combine implicit and user disassembler options and return them
    in a newly-created string.  */
 
@@ -754,10 +753,9 @@ get_all_disassembler_options (struct gdbarch *gdbarch)
 gdb_disassembler::gdb_disassembler (struct gdbarch *gdbarch,
 				    struct ui_file *file,
 				    di_read_memory_ftype read_memory_func)
-  : m_gdbarch (gdbarch),
-    m_err_memaddr (0)
+  : m_gdbarch (gdbarch)
 {
-  init_disassemble_info (&m_di, file, fprintf_disasm);
+  init_disassemble_info (&m_di, file, dis_asm_fprintf);
   m_di.flavour = bfd_target_unknown_flavour;
   m_di.memory_error_func = dis_asm_memory_error;
   m_di.print_address_func = dis_asm_print_address;
@@ -790,12 +788,17 @@ int
 gdb_disassembler::print_insn (CORE_ADDR memaddr,
 			      int *branch_delay_insns)
 {
-  m_err_memaddr = 0;
+  m_err_memaddr.reset ();
 
   int length = gdbarch_print_insn (arch (), memaddr, &m_di);
 
   if (length < 0)
-    memory_error (TARGET_XFER_E_IO, m_err_memaddr);
+    {
+      if (m_err_memaddr.has_value ())
+	memory_error (TARGET_XFER_E_IO, *m_err_memaddr);
+      else
+	error (_("unknown disassembler error (error = %d)"), length);
+    }
 
   if (branch_delay_insns != NULL)
     {
@@ -928,13 +931,16 @@ get_disassembler_options (struct gdbarch *gdbarch)
 }
 
 void
-set_disassembler_options (char *prospective_options)
+set_disassembler_options (const char *prospective_options)
 {
   struct gdbarch *gdbarch = get_current_arch ();
   char **disassembler_options = gdbarch_disassembler_options (gdbarch);
   const disasm_options_and_args_t *valid_options_and_args;
   const disasm_options_t *valid_options;
-  char *options = remove_whitespace_and_extra_commas (prospective_options);
+  gdb::unique_xmalloc_ptr<char> prospective_options_local
+    = make_unique_xstrdup (prospective_options);
+  char *options = remove_whitespace_and_extra_commas
+    (prospective_options_local.get ());
   const char *opt;
 
   /* Allow all architectures, even ones that do not support 'set disassembler',
@@ -1003,7 +1009,7 @@ static void
 set_disassembler_options_sfunc (const char *args, int from_tty,
 				struct cmd_list_element *c)
 {
-  set_disassembler_options (prospective_options);
+  set_disassembler_options (prospective_options.c_str ());
 }
 
 static void

@@ -508,6 +508,7 @@ enum elf_target_id
   I386_ELF_DATA,
   IA64_ELF_DATA,
   LM32_ELF_DATA,
+  LARCH_ELF_DATA,
   M32R_ELF_DATA,
   M68HC11_ELF_DATA,
   M68K_ELF_DATA,
@@ -539,7 +540,6 @@ struct elf_sym_strtab
 {
   Elf_Internal_Sym sym;
   unsigned long dest_index;
-  unsigned long destshndx_index;
 };
 
 struct bfd_link_needed_list
@@ -622,10 +622,6 @@ struct elf_link_hash_table
   /* The string table of dynamic symbols, which becomes the .dynstr
      section.  */
   struct elf_strtab_hash *dynstr;
-
-  /* The number of symbol strings found in the link which must be put
-     into the .strtab section.  */
-  bfd_size_type strtabcount;
 
   /* The array size of the symbol string table, which becomes the
      .strtab section.  */
@@ -1820,7 +1816,7 @@ struct bfd_elf_section_data
 #define LEAST_KNOWN_OBJ_ATTRIBUTE 2
 
 /* The maximum number of known object attributes for any target.  */
-#define NUM_KNOWN_OBJ_ATTRIBUTES 71
+#define NUM_KNOWN_OBJ_ATTRIBUTES 77
 
 /* The value of an object attribute.  The type indicates whether the attribute
    holds and integer, a string, or both.  It can also indicate that there can
@@ -2854,6 +2850,14 @@ extern char *elfcore_write_lwpstatus
 extern char *elfcore_write_register_note
   (bfd *, char *, int *, const char *, const void *, int);
 extern char *elfcore_write_file_note
+  (bfd *, char *, int *, const void*, int);
+extern char *elfcore_write_loongarch_cpucfg
+  (bfd *, char *, int *, const void*, int);
+extern char *elfcore_write_loongarch_lbt
+  (bfd *, char *, int *, const void*, int);
+extern char *elfcore_write_loongarch_lsx
+  (bfd *, char *, int *, const void*, int);
+extern char *elfcore_write_loongarch_lasx
   (bfd *, char *, int *, const void*, int);
 
 /* Internal structure which holds information to be included in the

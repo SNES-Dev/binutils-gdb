@@ -346,6 +346,20 @@ If no exception is raised, the return value is always an instance of
 @code{gdb.Value} (@pxref{Values From Inferior}).
 @end defun
 
+@defun gdb.add_history (value)
+Takes @var{value}, an instance of @code{gdb.Value} (@pxref{Values From
+Inferior}), and appends the value this object represents to
+@value{GDBN}'s value history (@pxref{Value History}), and return an
+integer, its history number.  If @var{value} is not a
+@code{gdb.Value}, it is is converted using the @code{gdb.Value}
+constructor.  If @var{value} can't be converted to a @code{gdb.Value}
+then a @code{TypeError} is raised.
+
+When a command implemented in Python prints a single @code{gdb.Value}
+as its result, then placing the value into the history will allow the
+user convenient access to those values via CLI history facilities.
+@end defun
+
 @findex gdb.convenience_variable
 @defun gdb.convenience_variable (name)
 Return the value of the convenience variable (@pxref{Convenience
@@ -541,6 +555,14 @@ the current prompt.
 Some prompts cannot be substituted in @value{GDBN}.  Secondary prompts
 such as those used by readline for command input, and annotation
 related prompts are prohibited from being changed.
+@end defun
+
+@defun gdb.architecture_names ()
+Return a list containing all of the architecture names that the
+current build of @value{GDBN} supports.  Each architecture name is a
+string.  The names returned in this list are the same names as are
+returned from @code{gdb.Architecture.name}
+(@pxref{gdbpy_architecture_name,,Architecture.name}).
 @end defun
 
 @node Exception Handling
@@ -1102,6 +1124,9 @@ Otherwise, it is searched for globally.
 Ordinarily, this function will return an instance of @code{gdb.Type}.
 If the named type cannot be found, it will throw an exception.
 @end defun
+
+Integer types can be found without looking them up by name.
+@xref{Architectures In Python}, for the @code{integer_type} method.
 
 If the type is a structure or class type, or an enum type, the fields
 of that type can be accessed using the Python @dfn{dictionary syntax}.
@@ -3188,7 +3213,10 @@ Here is an example:
 @smallexample
 def exit_handler (event):
     print ("event type: exit")
-    print ("exit code: %d" % (event.exit_code))
+    if hasattr (event, 'exit_code'):
+        print ("exit code: %d" % (event.exit_code))
+    else:
+        print ("exit code not available")
 
 gdb.events.exited.connect (exit_handler)
 @end smallexample
@@ -3399,6 +3427,16 @@ This has a single attribute:
 
 @defvar NewThreadEvent.inferior_thread
 The new thread.
+@end defvar
+
+@item events.gdb_exiting
+This is emitted when @value{GDBN} exits.  This event is not emitted if
+@value{GDBN} exits as a result of an internal error, or after an
+unexpected signal.  The event is of type @code{gdb.GdbExitingEvent},
+which has a single attribute:
+
+@defvar GdbExitingEvent.exit_code
+An integer, the value of the exit code @value{GDBN} will return.
 @end defvar
 
 @end table
@@ -5807,6 +5845,7 @@ by an instance of the @code{gdb.Architecture} class.
 
 A @code{gdb.Architecture} class has the following methods:
 
+@anchor{gdbpy_architecture_name}
 @defun Architecture.name ()
 Return the name (string value) of the architecture.
 @end defun
@@ -5845,6 +5884,21 @@ The value corresponding to this key is the length (integer value) of the
 instruction in bytes.
 
 @end table
+@end defun
+
+@findex Architecture.integer_type
+@defun Architecture.integer_type (size @r{[}, signed@r{]})
+This function looks up an integer type by its @var{size}, and
+optionally whether or not it is signed.
+
+@var{size} is the size, in bits, of the desired integer type.  Only
+certain sizes are currently supported: 0, 8, 16, 24, 32, 64, and 128.
+
+If @var{signed} is not specified, it defaults to @code{True}.  If
+@var{signed} is @code{False}, the returned type will be unsigned.
+
+If the indicated type cannot be found, this function will throw a
+@code{ValueError} exception.
 @end defun
 
 @anchor{gdbpy_architecture_registers}

@@ -25,7 +25,7 @@
 
 static char *saved_filename;
 
-static char *logging_filename;
+static std::string logging_filename = "gdb.txt";
 static void
 show_logging_filename (struct ui_file *file, int from_tty,
 		       struct cmd_list_element *c, const char *value)
@@ -102,7 +102,7 @@ handle_redirections (int from_tty)
     }
 
   stdio_file_up log (new no_terminal_escape_file ());
-  if (!log->open (logging_filename, logging_overwrite ? "w" : "a"))
+  if (!log->open (logging_filename.c_str (), logging_overwrite ? "w" : "a"))
     perror_with_name (_("set logging"));
 
   /* Redirects everything to gdb_stdout while this is running.  */
@@ -110,20 +110,20 @@ handle_redirections (int from_tty)
     {
       if (!logging_redirect)
 	fprintf_unfiltered (gdb_stdout, "Copying output to %s.\n",
-			    logging_filename);
+			    logging_filename.c_str ());
       else
 	fprintf_unfiltered (gdb_stdout, "Redirecting output to %s.\n",
-			    logging_filename);
+			    logging_filename.c_str ());
 
       if (!debug_redirect)
 	fprintf_unfiltered (gdb_stdout, "Copying debug output to %s.\n",
-			    logging_filename);
+			    logging_filename.c_str ());
       else
 	fprintf_unfiltered (gdb_stdout, "Redirecting debug output to %s.\n",
-			    logging_filename);
+			    logging_filename.c_str ());
     }
 
-  saved_filename = xstrdup (logging_filename);
+  saved_filename = xstrdup (logging_filename.c_str ());
 
   /* Let the interpreter do anything it needs.  */
   current_interp_set_logging (std::move (log), logging_redirect,
@@ -145,10 +145,8 @@ set_logging_on (const char *args, int from_tty)
   const char *rest = args;
 
   if (rest && *rest)
-    {
-      xfree (logging_filename);
-      logging_filename = xstrdup (rest);
-    }
+    logging_filename = rest;
+
   handle_redirections (from_tty);
 }
 
@@ -171,12 +169,12 @@ _initialize_cli_logging ()
 {
   static struct cmd_list_element *set_logging_cmdlist, *show_logging_cmdlist;
 
-  add_basic_prefix_cmd ("logging", class_support,
-			_("Set logging options."), &set_logging_cmdlist,
-			0, &setlist);
-  add_show_prefix_cmd ("logging", class_support,
-		       _("Show logging options."), &show_logging_cmdlist,
-		       0, &showlist);
+  add_setshow_prefix_cmd ("logging", class_support,
+			  _("Set logging options."),
+			  _("Show logging options."),
+			  &set_logging_cmdlist, &show_logging_cmdlist,
+			  &setlist, &showlist);
+
   add_setshow_boolean_cmd ("overwrite", class_support, &logging_overwrite, _("\
 Set whether logging overwrites or appends to the log file."), _("\
 Show whether logging overwrites or appends to the log file."), _("\
@@ -201,6 +199,7 @@ If debug redirect is on, debug will go only to the log file."),
 			   set_logging_redirect,
 			   show_logging_redirect,
 			   &set_logging_cmdlist, &show_logging_cmdlist);
+
   add_setshow_filename_cmd ("file", class_support, &logging_filename, _("\
 Set the current logfile."), _("\
 Show the current logfile."), _("\
@@ -212,6 +211,4 @@ The logfile is used when directing GDB's output."),
 	   _("Enable logging."), &set_logging_cmdlist);
   add_cmd ("off", class_support, set_logging_off,
 	   _("Disable logging."), &set_logging_cmdlist);
-
-  logging_filename = xstrdup ("gdb.txt");
 }

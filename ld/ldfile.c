@@ -193,7 +193,7 @@ ldfile_try_open_bfd (const char *attempt,
 
 		  ldfile_assumed_script = true;
 		  parser_input = input_selected;
-		  ldlex_both ();
+		  ldlex_script ();
 		  token = INPUT_SCRIPT;
 		  while (token != 0)
 		    {
@@ -491,11 +491,11 @@ ldfile_open_file (lang_input_statement_type *entry)
 		}
 	      else /* We ignore the return status of the script
 		      and always print the error message.  */
-		einfo (_("%P: cannot find %s\n"), entry->local_sym_name);
+		einfo (_("%P: cannot find %s: %E\n"), entry->local_sym_name);
 	    }
 #endif
 	  else
-	    einfo (_("%P: cannot find %s\n"), entry->local_sym_name);
+	    einfo (_("%P: cannot find %s: %E\n"), entry->local_sym_name);
 
 	  /* PR 25747: Be kind to users who forgot to add the
 	     "lib" prefix to their library when it was created.  */

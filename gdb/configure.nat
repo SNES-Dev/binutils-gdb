@@ -271,6 +271,10 @@ case ${gdb_host} in
 		NATDEPFILES="${NATDEPFILES} linux-nat-trad.o \
 		mips-linux-nat.o nat/mips-linux-watch.o"
 		;;
+	    or1k)
+		# Host: Linux/OpenRISC
+		NATDEPFILES="${NATDEPFILES} or1k-linux-nat.o"
+		;;
 	    pa)
 		# Host: Hewlett-Packard PA-RISC machine, running Linux
 		NATDEPFILES="${NATDEPFILES} hppa-linux-nat.o"
@@ -451,9 +455,8 @@ case ${gdb_host} in
 	case ${gdb_host_cpu} in
 	    i386)
 		# Host: OpenBSD/amd64
-		NATDEPFILES="${NATDEPFILES} obsd-nat.o amd64-nat.o x86-nat.o \
-		x86-bsd-nat.o amd64-bsd-nat.o amd64-obsd-nat.o bsd-kvm.o \
-		nat/x86-dregs.o"
+		NATDEPFILES="${NATDEPFILES} obsd-nat.o amd64-nat.o \
+		x86-bsd-nat.o amd64-bsd-nat.o amd64-obsd-nat.o bsd-kvm.o"
 		LOADLIBES='-lkvm'
 		;;
 	    mips)

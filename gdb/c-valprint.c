@@ -237,7 +237,7 @@ c_value_print_array (struct value *val,
 {
   struct type *type = check_typedef (value_type (val));
   CORE_ADDR address = value_address (val);
-  const gdb_byte *valaddr = value_contents_for_printing (val);
+  const gdb_byte *valaddr = value_contents_for_printing (val).data ();
   struct type *unresolved_elttype = TYPE_TARGET_TYPE (type);
   struct type *elttype = check_typedef (unresolved_elttype);
 
@@ -333,7 +333,7 @@ c_value_print_ptr (struct value *val, struct ui_file *stream, int recurse,
     }
 
   struct type *type = check_typedef (value_type (val));
-  const gdb_byte *valaddr = value_contents_for_printing (val);
+  const gdb_byte *valaddr = value_contents_for_printing (val).data ();
 
   if (options->vtblprint && cp_is_vtbl_ptr_type (type))
     {
@@ -372,9 +372,9 @@ c_value_print_struct (struct value *val, struct ui_file *stream, int recurse,
       /* Print vtable entry - we only get here if NOT using
 	 -fvtable_thunks.  (Otherwise, look under
 	 TYPE_CODE_PTR.)  */
-      int offset = TYPE_FIELD_BITPOS (type, VTBL_FNADDR_OFFSET) / 8;
+      int offset = type->field (VTBL_FNADDR_OFFSET).loc_bitpos () / 8;
       struct type *field_type = type->field (VTBL_FNADDR_OFFSET).type ();
-      const gdb_byte *valaddr = value_contents_for_printing (val);
+      const gdb_byte *valaddr = value_contents_for_printing (val).data ();
       CORE_ADDR addr = extract_typed_address (valaddr + offset, field_type);
 
       print_function_pointer_address (options, type->arch (), addr, stream);
@@ -405,7 +405,7 @@ c_value_print_int (struct value *val, struct ui_file *stream,
 	 intended to be used as an integer or a character, print
 	 the character equivalent as well.  */
       struct type *type = value_type (val);
-      const gdb_byte *valaddr = value_contents_for_printing (val);
+      const gdb_byte *valaddr = value_contents_for_printing (val).data ();
       if (c_textual_element_type (type, options->format))
 	{
 	  fputs_filtered (" ", stream);
@@ -486,7 +486,7 @@ c_value_print (struct value *val, struct ui_file *stream,
 
   type = check_typedef (value_type (val));
 
-  if (type->code () == TYPE_CODE_PTR || TYPE_IS_REFERENCE (type))
+  if (type->is_pointer_or_reference ())
     {
       struct type *original_type = value_type (val);
 

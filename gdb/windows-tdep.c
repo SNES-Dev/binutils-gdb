@@ -30,7 +30,6 @@
 #include "symfile.h"
 #include "coff-pe-read.h"
 #include "gdb_bfd.h"
-#include "complaints.h"
 #include "solib.h"
 #include "solib-target.h"
 #include "gdbcore.h"
@@ -409,7 +408,7 @@ tlb_value_read (struct value *val)
 
   if (!target_get_tib_address (inferior_ptid, &tlb))
     error (_("Unable to read tlb"));
-  store_typed_address (value_contents_raw (val), type, tlb);
+  store_typed_address (value_contents_raw (val).data (), type, tlb);
 }
 
 /* This function implements the lval_computed support for writing a
@@ -762,8 +761,8 @@ create_enum (struct gdbarch *gdbarch, int bit, const char *name,
 
   for (i = 0; i < count; i++)
     {
-      TYPE_FIELD_NAME (type, i) = values[i].name;
-      SET_FIELD_ENUMVAL (type->field (i), values[i].value);
+      type->field (i).set_name (values[i].name);
+      type->field (i).set_loc_enumval (values[i].value);
     }
 
   return type;

@@ -271,6 +271,7 @@ proc function_range { func src {options {debug}} } {
 	}
     }
 
+    gdb_exit
     return [list "${func}_label - $func_label_offset" $func_length]
 }
 
@@ -1216,6 +1217,10 @@ namespace eval Dwarf {
 		    _op .sleb128 $argvec(offset)
 		}
 
+		DW_OP_fbreg {
+		    _op .sleb128 [lindex $line 1]
+		}
+
 		default {
 		    if {[llength $line] > 1} {
 			error "Unimplemented: operands in location for $opcode"
@@ -1254,6 +1259,10 @@ namespace eval Dwarf {
     #                default = default
     # fission 0|1  - boolean indicating if generating Fission debug info
     #                default = 0
+    # label <label>
+    #              - string indicating label to be defined at the start
+    #                of the CU header.
+    #                default = ""
     # BODY is Tcl code that emits the DIEs which make up the body of
     # the CU.  It is evaluated in the caller's context.
     proc cu {options body} {
@@ -1274,6 +1283,7 @@ namespace eval Dwarf {
 	set _cu_is_fission 0
 	set section ".debug_info"
 	set _abbrev_section ".debug_abbrev"
+	set label ""
 
 	foreach { name value } $options {
 	    set value [uplevel 1 "subst \"$value\""]
@@ -1282,6 +1292,7 @@ namespace eval Dwarf {
 		version { set _cu_version $value }
 		addr_size { set _cu_addr_size $value }
 		fission { set _cu_is_fission $value }
+		label { set label $value }
 		default { error "unknown option $name" }
 	    }
 	}
@@ -1313,6 +1324,11 @@ namespace eval Dwarf {
 	set _cu_label [_compute_label "cu${cu_num}_begin"]
 	set start_label [_compute_label "cu${cu_num}_start"]
 	set end_label [_compute_label "cu${cu_num}_end"]
+
+	if { $label != "" } {
+	    upvar $label my_label
+	    set my_label $_cu_label
+	}
 
 	define_label $_cu_label
 	if {$is_64} {
@@ -1527,27 +1543,18 @@ namespace eval Dwarf {
     #
     # The target address size is based on the current target's address size.
     #
-    # There is one mandatory positional argument, BODY, which must be Tcl code
-    # that emits the content of the section.  It is evaluated in the caller's
-    # context.
+    # BODY must be Tcl code that emits the content of the section.  It is
+    # evaluated in the caller's context.
     #
-    # The following option can be used:
-    #
-    #  - -is-64 true|false: Whether to use 64-bit DWARF instead of 32-bit DWARF.
-    #                       The default is 32-bit.
+    # The `is-64 true|false` options tells whether to use 64-bit DWARF instead
+    # of 32-bit DWARF.  The default is 32-bit.
 
-    proc rnglists { args } {
+    proc rnglists { options body } {
 	variable _debug_rnglists_addr_size
 	variable _debug_rnglists_offset_size
 	variable _debug_rnglists_is_64_dwarf
 
-	parse_args {{"is-64" "false"}}
-
-	if { [llength $args] != 1 } {
-	    error "rnglists proc expects one positional argument (body)"
-	}
-
-	lassign $args body
+	parse_options {{"is-64" "false"}}
 
 	if [is_64_target] {
 	    set _debug_rnglists_addr_size 8
@@ -1577,164 +1584,163 @@ namespace eval Dwarf {
 	    return ".Lrnglists_table_${_debug_rnglists_table_count}_list_${list_idx}"
 	}
 
-	# Generate one table (header + offset array + range lists).
-	#
-	# Accepts one positional argument, BODY.  BODY may call the LIST_
-	# procedure to generate rnglists.
-	#
-	# The -post-header-label option can be used to define a label just after
-	# the header of the table.  This is the label that a DW_AT_rnglists_base
-	# attribute will usually refer to.
-	#
-	# The `-with-offset-array true|false` option can be used to control
-	# whether the headers of the location list tables have an array of
-	# offset.  The default is true.
+	with_override Dwarf::table Dwarf::_rnglists_table {
+	    uplevel $body
+	}
+    }
 
-	proc table { args } {
-	    variable _debug_rnglists_table_count
-	    variable _debug_rnglists_addr_size
-	    variable _debug_rnglists_offset_size
-	    variable _debug_rnglists_is_64_dwarf
+    # Generate one rnglists table (header + offset array + range lists).
+    #
+    # This proc is meant to be used within proc rnglists' body.  It is made
+    # available as `table` while inside proc rnglists' body.
+    #
+    # BODY must be Tcl code that emits the content of the table.  It may call
+    # the LIST_ procedure to generate rnglists.  It is evaluated in the
+    # caller's context.
+    #
+    # The `post-header-label` option can be used to define a label just after
+    # the header of the table.  This is the label that a DW_AT_rnglists_base
+    # attribute will usually refer to.
+    #
+    # The `with-offset-array true|false` option can be used to control whether
+    # the headers of the location list tables have an array of offset.  The
+    # default is true.
 
-	    parse_args {
-		{post-header-label ""}
-		{with-offset-array true}
-	    }
+    proc _rnglists_table { options body } {
+	variable _debug_rnglists_table_count
+	variable _debug_rnglists_addr_size
+	variable _debug_rnglists_offset_size
+	variable _debug_rnglists_is_64_dwarf
 
-	    if { [llength $args] != 1 } {
-		error "table proc expects one positional argument (body)"
-	    }
-
-	    lassign $args body
-
-	    # Generate one range list.
-	    #
-	    # BODY may call the various procs defined below to generate list entries.
-	    # They correspond to the range list entry kinds described in section 2.17.3
-	    # of the DWARF 5 spec.
-	    #
-	    # To define a label pointing to the beginning of the list, use
-	    # the conventional way of declaring and defining labels:
-	    #
-	    #   declare_labels the_list
-	    #
-	    #   the_list: list_ {
-	    #     ...
-	    #   }
-
-	    proc list_ { body } {
-		variable _debug_rnglists_list_count
-
-		# Define a label for this list.  It is used to build the offset
-		# array later.
-		set list_label [_compute_list_label $_debug_rnglists_list_count]
-		define_label $list_label
-
-		# Emit a DW_RLE_start_end entry.
-
-		proc start_end { start end } {
-		    variable _debug_rnglists_addr_size
-
-		    _op .byte 0x06 "DW_RLE_start_end"
-		    _op .${_debug_rnglists_addr_size}byte $start "start"
-		    _op .${_debug_rnglists_addr_size}byte $end "end"
-		}
-
-		uplevel $body
-
-		# Emit end of list.
-		_op .byte 0x00 "DW_RLE_end_of_list"
-
-		incr _debug_rnglists_list_count
-	    }
-
-	    # Count of lists in the table.
-	    variable _debug_rnglists_list_count 0
-
-	    # Generate the lists ops first, because we need to know how many
-	    # lists there are to generate the header and offset table.
-	    set lists_ops [_defer_to_string {
-		uplevel $body
-	    }]
-
-	    set post_unit_len_label \
-		[_compute_label "rnglists_table_${_debug_rnglists_table_count}_post_unit_len"]
-	    set post_header_label \
-		[_compute_label "rnglists_table_${_debug_rnglists_table_count}_post_header"]
-	    set table_end_label \
-		[_compute_label "rnglists_table_${_debug_rnglists_table_count}_end"]
-
-	    # Emit the table header.
-	    if { $_debug_rnglists_is_64_dwarf } {
-		_op .4byte 0xffffffff "unit length 1/2"
-		_op .8byte "$table_end_label - $post_unit_len_label" "unit length 2/2"
-	    } else {
-		_op .4byte "$table_end_label - $post_unit_len_label" "unit length"
-	    }
-
-	    define_label $post_unit_len_label
-
-	    _op .2byte 5 "dwarf version"
-	    _op .byte $_debug_rnglists_addr_size "address size"
-	    _op .byte 0 "segment selector size"
-
-	    if { ${with-offset-array} } {
-	      _op .4byte "$_debug_rnglists_list_count" "offset entry count"
-	    } else {
-	      _op .4byte 0 "offset entry count"
-	    }
-
-	    define_label $post_header_label
-
-	    # Define the user post-header label, if provided.
-	    if { ${post-header-label} != "" } {
-		define_label ${post-header-label}
-	    }
-
-	    # Emit the offset array.
-	    if { ${with-offset-array} } {
-		for {set list_idx 0} {$list_idx < $_debug_rnglists_list_count} {incr list_idx} {
-		    set list_label [_compute_list_label $list_idx]
-		    _op .${_debug_rnglists_offset_size}byte "$list_label - $post_header_label" "offset of list $list_idx"
-		}
-	    }
-
-	    # Emit the actual list data.
-	    _emit "$lists_ops"
-
-	    define_label $table_end_label
-
-	    incr _debug_rnglists_table_count
+	parse_options {
+	    {post-header-label ""}
+	    {with-offset-array true}
 	}
 
-	uplevel $body
+	# Count of lists in the table.
+	variable _debug_rnglists_list_count 0
+
+	# Generate the lists ops first, because we need to know how many
+	# lists there are to generate the header and offset table.
+	set lists_ops [_defer_to_string {
+	    with_override Dwarf::list_ Dwarf::_rnglists_list {
+		uplevel $body
+	    }
+	}]
+
+	set post_unit_len_label \
+	    [_compute_label "rnglists_table_${_debug_rnglists_table_count}_post_unit_len"]
+	set post_header_label \
+	    [_compute_label "rnglists_table_${_debug_rnglists_table_count}_post_header"]
+	set table_end_label \
+	    [_compute_label "rnglists_table_${_debug_rnglists_table_count}_end"]
+
+	# Emit the table header.
+	if { $_debug_rnglists_is_64_dwarf } {
+	    _op .4byte 0xffffffff "unit length 1/2"
+	    _op .8byte "$table_end_label - $post_unit_len_label" "unit length 2/2"
+	} else {
+	    _op .4byte "$table_end_label - $post_unit_len_label" "unit length"
+	}
+
+	define_label $post_unit_len_label
+
+	_op .2byte 5 "dwarf version"
+	_op .byte $_debug_rnglists_addr_size "address size"
+	_op .byte 0 "segment selector size"
+
+	if { ${with-offset-array} } {
+	  _op .4byte "$_debug_rnglists_list_count" "offset entry count"
+	} else {
+	  _op .4byte 0 "offset entry count"
+	}
+
+	define_label $post_header_label
+
+	# Define the user post-header label, if provided.
+	if { ${post-header-label} != "" } {
+	    define_label ${post-header-label}
+	}
+
+	# Emit the offset array.
+	if { ${with-offset-array} } {
+	    for {set list_idx 0} {$list_idx < $_debug_rnglists_list_count} {incr list_idx} {
+		set list_label [_compute_list_label $list_idx]
+		_op .${_debug_rnglists_offset_size}byte "$list_label - $post_header_label" "offset of list $list_idx"
+	    }
+	}
+
+	# Emit the actual list data.
+	_emit "$lists_ops"
+
+	define_label $table_end_label
+
+	incr _debug_rnglists_table_count
+    }
+
+    # Generate one rnglists range list.
+    #
+    # This proc is meant to be used within proc _rnglists_table's body.  It is
+    # made available as `list_` while inside proc _rnglists_table's body.
+    #
+    # BODY may call the various procs defined below to generate list entries.
+    # They correspond to the range list entry kinds described in section 2.17.3
+    # of the DWARF 5 spec.
+    #
+    # To define a label pointing to the beginning of the list, use the
+    # conventional way of declaring and defining labels:
+    #
+    #   declare_labels the_list
+    #
+    #   the_list: list_ { ...  }
+
+    proc _rnglists_list { body } {
+	variable _debug_rnglists_list_count
+
+	# Define a label for this list.  It is used to build the offset
+	# array later.
+	set list_label [_compute_list_label $_debug_rnglists_list_count]
+	define_label $list_label
+
+	with_override Dwarf::start_end Dwarf::_rnglists_start_end {
+	    uplevel $body
+	}
+
+	# Emit end of list.
+	_op .byte 0x00 "DW_RLE_end_of_list"
+
+	incr _debug_rnglists_list_count
+    }
+
+    # Emit a rnglists DW_RLE_start_end entry.
+    #
+    # This proc is meant to be used within proc _rnglists_list's body.  It is
+    # made available as `start_end` while inside proc _rnglists_list's body.
+
+    proc _rnglists_start_end { start end } {
+	variable _debug_rnglists_addr_size
+
+	_op .byte 0x06 "DW_RLE_start_end"
+	_op .${_debug_rnglists_addr_size}byte $start "start"
+	_op .${_debug_rnglists_addr_size}byte $end "end"
     }
 
     # Emit a DWARF .debug_loclists section.
     #
     # The target address size is based on the current target's address size.
     #
-    # There is one mandatory positional argument, BODY, which must be Tcl code
-    # that emits the content of the section.  It is evaluated in the caller's
-    # context.
+    # BODY must be Tcl code that emits the content of the section.  It is
+    # evaluated in the caller's context.
     #
-    # The following option can be used:
-    #
-    #  - -is-64 true|false: Whether to use 64-bit DWARF instead of 32-bit DWARF.
-    #                       The default is 32-bit.
+    # The `is-64 true|false` options tells whether to use 64-bit DWARF instead
+    # of 32-bit DWARF.  The default is 32-bit.
 
-    proc loclists { args } {
+    proc loclists { options body } {
 	variable _debug_loclists_addr_size
 	variable _debug_loclists_offset_size
 	variable _debug_loclists_is_64_dwarf
 
-	parse_args {{"is-64" "false"}}
-
-	if { [llength $args] != 1 } {
-	    error "loclists proc expects one positional argument (body)"
-	}
-
-	lassign $args body
+	parse_options {{"is-64" "false"}}
 
 	if [is_64_target] {
 	    set _debug_loclists_addr_size 8
@@ -1764,188 +1770,206 @@ namespace eval Dwarf {
 	    return ".Lloclists_table_${_debug_loclists_table_count}_list_${list_idx}"
 	}
 
-	# Generate one table (header + offset array + location lists).
-	#
-	# Accepts one position argument, BODY.  BODY may call the LIST_
-	# procedure to generate loclists.
-	#
-	# The -post-header-label option can be used to define a label just after the
-	# header of the table.  This is the label that a DW_AT_loclists_base
-	# attribute will usually refer to.
-	#
-	# The `-with-offset-array true|false` option can be used to control
-	# whether the headers of the location list tables have an array of
-	# offset.  The default is true.
+	with_override Dwarf::table Dwarf::_loclists_table {
+	    uplevel $body
+	}
+    }
 
-	proc table { args } {
-	    variable _debug_loclists_table_count
-	    variable _debug_loclists_addr_size
-	    variable _debug_loclists_offset_size
-	    variable _debug_loclists_is_64_dwarf
+    # Generate one loclists table (header + offset array + location lists).
+    #
+    # This proc is meant to be used within proc loclists' body.  It is made
+    # available as `table` while inside proc rnglists' body.
+    #
+    # BODY must be Tcl code that emits the content of the table.  It may call
+    # the LIST_ procedure to generate rnglists.  It is evaluated in the
+    # caller's context.
+    #
+    # The `post-header-label` option can be used to define a label just after
+    # the header of the table.  This is the label that a DW_AT_loclists_base
+    # attribute will usually refer to.
+    #
+    # The `with-offset-array true|false` option can be used to control
+    # whether the headers of the location list tables have an array of
+    # offset.  The default is true.
 
-	    parse_args {
-		{post-header-label ""}
-		{with-offset-array true}
-	    }
+    proc _loclists_table { options body } {
+	variable _debug_loclists_table_count
+	variable _debug_loclists_addr_size
+	variable _debug_loclists_offset_size
+	variable _debug_loclists_is_64_dwarf
 
-	    if { [llength $args] != 1 } {
-		error "table proc expects one positional argument (body)"
-	    }
-
-	    lassign $args body
-
-	    # Generate one location list.
-	    #
-	    # BODY may call the various procs defined below to generate list
-	    # entries.  They correspond to the location list entry kinds
-	    # described in section 2.6.2 of the DWARF 5 spec.
-	    #
-	    # To define a label pointing to the beginning of the list, use
-	    # the conventional way of declaring and defining labels:
-	    #
-	    #   declare_labels the_list
-	    #
-	    #   the_list: list_ {
-	    #     ...
-	    #   }
-
-	    proc list_ { body } {
-		variable _debug_loclists_list_count
-
-		# Count the location descriptions in this list.
-		variable _debug_loclists_locdesc_count 0
-
-		# Define a label for this list.  It is used to build the offset
-		# array later.
-		set list_label [_compute_list_label $_debug_loclists_list_count]
-		define_label $list_label
-
-		# Emit a DW_LLE_start_length entry.
-
-		proc start_length { start length locdesc } {
-		    variable _debug_loclists_is_64_dwarf
-		    variable _debug_loclists_addr_size
-		    variable _debug_loclists_offset_size
-		    variable _debug_loclists_table_count
-		    variable _debug_loclists_list_count
-		    variable _debug_loclists_locdesc_count
-
-		    _op .byte 0x08 "DW_LLE_start_length"
-
-		    # Start and end of the address range.
-		    _op .${_debug_loclists_addr_size}byte $start "start"
-		    _op .uleb128 $length "length"
-
-		    # Length of location description.
-		    set locdesc_start_label ".Lloclists_table_${_debug_loclists_table_count}_list_${_debug_loclists_list_count}_locdesc_${_debug_loclists_locdesc_count}_start"
-		    set locdesc_end_label ".Lloclists_table_${_debug_loclists_table_count}_list_${_debug_loclists_list_count}_locdesc_${_debug_loclists_locdesc_count}_end"
-		    _op .uleb128 "$locdesc_end_label - $locdesc_start_label" "locdesc length"
-
-		    define_label $locdesc_start_label
-		    set dwarf_version 5
-		    _location $locdesc $dwarf_version $_debug_loclists_addr_size $_debug_loclists_offset_size
-		    define_label $locdesc_end_label
-
-		    incr _debug_loclists_locdesc_count
-		}
-
-		# Emit a DW_LLE_start_end entry.
-
-		proc start_end { start end locdesc } {
-		    variable _debug_loclists_is_64_dwarf
-		    variable _debug_loclists_addr_size
-		    variable _debug_loclists_offset_size
-		    variable _debug_loclists_table_count
-		    variable _debug_loclists_list_count
-		    variable _debug_loclists_locdesc_count
-
-		    _op .byte 0x07 "DW_LLE_start_end"
-
-		    # Start and end of the address range.
-		    _op .${_debug_loclists_addr_size}byte $start "start"
-		    _op .${_debug_loclists_addr_size}byte $end "end"
-
-		    # Length of location description.
-		    set locdesc_start_label ".Lloclists_table_${_debug_loclists_table_count}_list_${_debug_loclists_list_count}_locdesc_${_debug_loclists_locdesc_count}_start"
-		    set locdesc_end_label ".Lloclists_table_${_debug_loclists_table_count}_list_${_debug_loclists_list_count}_locdesc_${_debug_loclists_locdesc_count}_end"
-		    _op .uleb128 "$locdesc_end_label - $locdesc_start_label" "locdesc length"
-
-		    define_label $locdesc_start_label
-		    set dwarf_version 5
-		    _location $locdesc $dwarf_version $_debug_loclists_addr_size $_debug_loclists_offset_size
-		    define_label $locdesc_end_label
-
-		    incr _debug_loclists_locdesc_count
-		}
-
-		uplevel $body
-
-		# Emit end of list.
-		_op .byte 0x00 "DW_LLE_end_of_list"
-
-		incr _debug_loclists_list_count
-	    }
-
-	    # Count of lists in the table.
-	    variable _debug_loclists_list_count 0
-
-	    # Generate the lists ops first, because we need to know how many
-	    # lists there are to generate the header and offset table.
-	    set lists_ops [_defer_to_string {
-		uplevel $body
-	    }]
-
-	    set post_unit_len_label \
-		[_compute_label "loclists_table_${_debug_loclists_table_count}_post_unit_len"]
-	    set post_header_label \
-		[_compute_label "loclists_table_${_debug_loclists_table_count}_post_header"]
-	    set table_end_label \
-		[_compute_label "loclists_table_${_debug_loclists_table_count}_end"]
-
-	    # Emit the table header.
-	    if { $_debug_loclists_is_64_dwarf } {
-		_op .4byte 0xffffffff "unit length 1/2"
-		_op .8byte "$table_end_label - $post_unit_len_label" "unit length 2/2"
-	    } else {
-		_op .4byte "$table_end_label - $post_unit_len_label" "unit length"
-	    }
-
-	    define_label $post_unit_len_label
-
-	    _op .2byte 5 "DWARF version"
-	    _op .byte $_debug_loclists_addr_size "address size"
-	    _op .byte 0 "segment selector size"
-
-	    if { ${with-offset-array} } {
-	      _op .4byte "$_debug_loclists_list_count" "offset entry count"
-	    } else {
-	      _op .4byte 0 "offset entry count"
-	    }
-
-	    define_label $post_header_label
-
-	    # Define the user post-header label, if provided.
-	    if { ${post-header-label} != "" } {
-		define_label ${post-header-label}
-	    }
-
-	    # Emit the offset array.
-	    if { ${with-offset-array} } {
-		for {set list_idx 0} {$list_idx < $_debug_loclists_list_count} {incr list_idx} {
-		    set list_label [_compute_list_label $list_idx]
-		    _op .${_debug_loclists_offset_size}byte "$list_label - $post_header_label" "offset of list $list_idx"
-		}
-	    }
-
-	    # Emit the actual list data.
-	    _emit "$lists_ops"
-
-	    define_label $table_end_label
-
-	    incr _debug_loclists_table_count
+	parse_options {
+	    {post-header-label ""}
+	    {with-offset-array true}
 	}
 
-	uplevel $body
+	# Count of lists in the table.
+	variable _debug_loclists_list_count 0
+
+	# Generate the lists ops first, because we need to know how many
+	# lists there are to generate the header and offset table.
+	set lists_ops [_defer_to_string {
+	    with_override Dwarf::list_ Dwarf::_loclists_list {
+		uplevel $body
+	    }
+	}]
+
+	set post_unit_len_label \
+	    [_compute_label "loclists_table_${_debug_loclists_table_count}_post_unit_len"]
+	set post_header_label \
+	    [_compute_label "loclists_table_${_debug_loclists_table_count}_post_header"]
+	set table_end_label \
+	    [_compute_label "loclists_table_${_debug_loclists_table_count}_end"]
+
+	# Emit the table header.
+	if { $_debug_loclists_is_64_dwarf } {
+	    _op .4byte 0xffffffff "unit length 1/2"
+	    _op .8byte "$table_end_label - $post_unit_len_label" "unit length 2/2"
+	} else {
+	    _op .4byte "$table_end_label - $post_unit_len_label" "unit length"
+	}
+
+	define_label $post_unit_len_label
+
+	_op .2byte 5 "DWARF version"
+	_op .byte $_debug_loclists_addr_size "address size"
+	_op .byte 0 "segment selector size"
+
+	if { ${with-offset-array} } {
+	  _op .4byte "$_debug_loclists_list_count" "offset entry count"
+	} else {
+	  _op .4byte 0 "offset entry count"
+	}
+
+	define_label $post_header_label
+
+	# Define the user post-header label, if provided.
+	if { ${post-header-label} != "" } {
+	    define_label ${post-header-label}
+	}
+
+	# Emit the offset array.
+	if { ${with-offset-array} } {
+	    for {set list_idx 0} {$list_idx < $_debug_loclists_list_count} {incr list_idx} {
+		set list_label [_compute_list_label $list_idx]
+		_op .${_debug_loclists_offset_size}byte "$list_label - $post_header_label" "offset of list $list_idx"
+	    }
+	}
+
+	# Emit the actual list data.
+	_emit "$lists_ops"
+
+	define_label $table_end_label
+
+	incr _debug_loclists_table_count
+    }
+
+    # Generate one loclists location list.
+    #
+    # This proc is meant to be used within proc _loclists_table's body.  It is
+    # made available as `list_` while inside proc _loclists_table's body.
+    #
+    # BODY may call the various procs defined below to generate list
+    # entries.  They correspond to the location list entry kinds
+    # described in section 2.6.2 of the DWARF 5 spec.
+    #
+    # To define a label pointing to the beginning of the list, use
+    # the conventional way of declaring and defining labels:
+    #
+    #   declare_labels the_list
+    #
+    #   the_list: list_ {
+    #     ...
+    #   }
+
+    proc _loclists_list { body } {
+	variable _debug_loclists_list_count
+
+	# Count the location descriptions in this list.
+	variable _debug_loclists_locdesc_count 0
+
+	# Define a label for this list.  It is used to build the offset
+	# array later.
+	set list_label [_compute_list_label $_debug_loclists_list_count]
+	define_label $list_label
+
+	with_override Dwarf::start_length Dwarf::_loclists_start_length {
+	with_override Dwarf::start_end Dwarf::_loclists_start_end {
+	    uplevel $body
+	}}
+
+	# Emit end of list.
+	_op .byte 0x00 "DW_LLE_end_of_list"
+
+	incr _debug_loclists_list_count
+    }
+
+    # Emit a DW_LLE_start_length entry.
+    #
+    # This proc is meant to be used within proc _loclists_list's body.  It is
+    # made available as `start_length` while inside proc _loclists_list's body.
+
+    proc _loclists_start_length { start length locdesc } {
+	variable _debug_loclists_is_64_dwarf
+	variable _debug_loclists_addr_size
+	variable _debug_loclists_offset_size
+	variable _debug_loclists_table_count
+	variable _debug_loclists_list_count
+	variable _debug_loclists_locdesc_count
+
+	set locdesc [uplevel [list subst $locdesc]]
+
+	_op .byte 0x08 "DW_LLE_start_length"
+
+	# Start and end of the address range.
+	_op .${_debug_loclists_addr_size}byte $start "start"
+	_op .uleb128 $length "length"
+
+	# Length of location description.
+	set locdesc_start_label ".Lloclists_table_${_debug_loclists_table_count}_list_${_debug_loclists_list_count}_locdesc_${_debug_loclists_locdesc_count}_start"
+	set locdesc_end_label ".Lloclists_table_${_debug_loclists_table_count}_list_${_debug_loclists_list_count}_locdesc_${_debug_loclists_locdesc_count}_end"
+	_op .uleb128 "$locdesc_end_label - $locdesc_start_label" "locdesc length"
+
+	define_label $locdesc_start_label
+	set dwarf_version 5
+	_location $locdesc $dwarf_version $_debug_loclists_addr_size $_debug_loclists_offset_size
+	define_label $locdesc_end_label
+
+	incr _debug_loclists_locdesc_count
+    }
+
+    # Emit a DW_LLE_start_end entry.
+    #
+    # This proc is meant to be used within proc _loclists_list's body.  It is
+    # made available as `start_end` while inside proc _loclists_list's body.
+
+    proc _loclists_start_end { start end locdesc } {
+	variable _debug_loclists_is_64_dwarf
+	variable _debug_loclists_addr_size
+	variable _debug_loclists_offset_size
+	variable _debug_loclists_table_count
+	variable _debug_loclists_list_count
+	variable _debug_loclists_locdesc_count
+
+	set locdesc [uplevel [list subst $locdesc]]
+
+	_op .byte 0x07 "DW_LLE_start_end"
+
+	# Start and end of the address range.
+	_op .${_debug_loclists_addr_size}byte $start "start"
+	_op .${_debug_loclists_addr_size}byte $end "end"
+
+	# Length of location description.
+	set locdesc_start_label ".Lloclists_table_${_debug_loclists_table_count}_list_${_debug_loclists_list_count}_locdesc_${_debug_loclists_locdesc_count}_start"
+	set locdesc_end_label ".Lloclists_table_${_debug_loclists_table_count}_list_${_debug_loclists_list_count}_locdesc_${_debug_loclists_locdesc_count}_end"
+	_op .uleb128 "$locdesc_end_label - $locdesc_start_label" "locdesc length"
+
+	define_label $locdesc_start_label
+	set dwarf_version 5
+	_location $locdesc $dwarf_version $_debug_loclists_addr_size $_debug_loclists_offset_size
+	define_label $locdesc_end_label
+
+	incr _debug_loclists_locdesc_count
     }
 
     # Emit a DWARF .debug_line unit.
@@ -2195,6 +2219,255 @@ namespace eval Dwarf {
 	define_label $unit_end_label
     }
 
+    # Emit a DWARF .debug_aranges entry.
+
+    proc arange { options arange_start arange_length } {
+	parse_options {
+	    { comment "" }
+	    { seg_sel "" }
+	}
+
+	if { $comment != "" } {
+	    # Wrap
+	    set comment " ($comment)"
+	}
+
+	if { $seg_sel != "" } {
+	    variable _seg_size
+	    if { $_seg_size == 8 } {
+		set seg_op .8byte
+	    } elseif { $_seg_size == 4 } {
+		set seg_op .4byte
+	    } else {
+		error \
+		    "Don't know how to handle segment selector size $_seg_size"
+	    }
+	    _op $seg_op $seg_sel "Address range segment selector$comment"
+	}
+
+	variable _addr_size
+	if { $_addr_size == 8 } {
+	    set addr_op .8byte
+	} elseif { $_addr_size == 4 } {
+	    set addr_op .4byte
+	}
+
+	_op $addr_op $arange_start "Address range start$comment"
+	_op $addr_op $arange_length "Address range length$comment"
+    }
+
+    # Emit a DWARF .debug_aranges unit.
+    #
+    # OPTIONS is a list with an even number of elements containing
+    # option-name and option-value pairs.
+    # Current options are:
+    # is_64 0|1    - boolean indicating if you want to emit 64-bit DWARF
+    #                default = 0 (32-bit)
+    # cu_is_64 0|1 - boolean indicating if LABEL refers to a 64-bit DWARF CU
+    #                default = 0 (32-bit)
+    # section_version n
+    #                - section version number to emit
+    #                default = 2
+    # seg_size n   - the size of the adress selector in bytes: 0, 4, or 8
+    #                default = 0
+    #
+    # LABEL is the label of the corresponding CU.
+    #
+    # BODY is Tcl code that emits the parts which make up the body of
+    # the aranges unit.  It is evaluated in the caller's context.  The
+    # following commands are available for the BODY section:
+    #
+    #   arange [-c <comment>] [<segment selector>] <start> <length>
+    #     -- adds an address range.
+
+    proc aranges { options label body } {
+	variable _addr_size
+	variable _seg_size
+
+	# Handle options.
+	parse_options {
+	    { is_64 0 }
+	    { cu_is_64 0 }
+	    { section_version 2 }
+	    { seg_size 0 }
+	}
+	set _seg_size $seg_size
+
+	if { [is_64_target] } {
+	    set _addr_size 8
+	} else {
+	    set _addr_size 4
+	}
+
+	# Switch to .debug_aranges section.
+	_section .debug_aranges
+
+	# Keep track of offset from start of section entry to determine
+	# padding amount.
+	set offset 0
+
+	# Initial length.
+	declare_labels aranges_start aranges_end
+	set length "$aranges_end - $aranges_start"
+	set comment "Length"
+	if { $is_64 } {
+	    _op .4byte 0xffffffff
+	    _op .8byte $length $comment
+	    incr offset 12
+	} else {
+	    _op .4byte $length $comment
+	    incr offset 4
+	}
+
+	# Start label.
+	aranges_start:
+
+	# Section version.
+	_op .2byte $section_version "Section version"
+	incr offset 2
+
+	# Offset into .debug_info.
+	upvar $label my_label
+	if { $cu_is_64 } {
+	    _op .8byte $my_label "Offset into .debug_info"
+	    incr offset 8
+	} else {
+	    _op .4byte $my_label "Offset into .debug_info"
+	    incr offset 4
+	}
+
+	# Address size.
+	_op .byte $_addr_size "Address size"
+	incr offset
+
+	# Segment selector size.
+	_op .byte $_seg_size "Segment selector size"
+	incr offset
+
+	# Padding.
+	set tuple_size [expr 2 * $_addr_size + $_seg_size]
+	while { 1 } {
+	    if { [expr $offset % $tuple_size] == 0 } {
+		break
+	    }
+	    _op .byte 0 "Pad to $tuple_size byte boundary"
+	    incr offset
+	}
+
+	# Range tuples.
+	uplevel $body
+
+	# Terminator tuple.
+	set comment "Terminator"
+	if { $_seg_size == 0 } {
+	    arange {comment $comment} 0 0
+	} else {
+	    arange {comment $comment seg_sel 0} 0 0
+	}
+
+	# End label.
+	aranges_end:
+    }
+
+    # Emit a .debug_loc entry.
+
+    proc _loc_entry { start end location_description } {
+	# Determine how to emit addresses.
+	variable _addr_size
+	if { $_addr_size == 8 } {
+	    set addr_op .8byte
+	} elseif { $_addr_size == 4 } {
+	    set addr_op .4byte
+	}
+
+	# Emit start and end address.
+	_op $addr_op $start "Start address"
+	_op $addr_op $end "End address"
+
+	declare_labels location_description_start
+	declare_labels location_description_end
+
+	# Emit length of location description.
+	set len "$location_description_end - $location_description_start"
+	_op .2byte $len "Location description length"
+
+	# Tag start of location description.
+	define_label $location_description_start
+
+	# Emit location description.
+	variable _cu_version
+	variable _cu_offset_size
+	_location $location_description $_cu_version $_addr_size \
+	    $_cu_offset_size
+
+	# Tag end of location description.
+	define_label $location_description_end
+    }
+
+    # Emit a DWARF .debug_loc contribution.
+    #
+    # OPTIONS is a list with an even number of elements containing
+    # option-name and option-value pairs.
+    # Current options are:
+    # cu_is_64 0|1 - boolean indicating if references from location
+    #                descriptions refer to a 64-bit DWARF CU.
+    #                default = 0 (32-bit)
+    # cu_version n - section version of DWARF CU referenced from location
+    #                descriptions.
+    #                default = 4
+    #
+    # BODY is Tcl code that emits the parts which make up the body of
+    # the debug_loc contribution.  It is evaluated in the caller's context.
+    # The following command is available for the BODY section:
+    #
+    #   entry <start> <end> <location description>
+    #     -- emit a .debug_loc entry
+
+    proc loc { options body } {
+	# Handle options.
+	parse_options {
+	    { cu_version 4 }
+	    { cu_is_64 0 }
+	}
+
+	# Export for use in BODY.
+	variable _addr_size
+	if { [is_64_target] } {
+	    set _addr_size 8
+	} else {
+	    set _addr_size 4
+	}
+	variable _cu_version
+	set _cu_version $cu_version
+	variable _cu_offset_size
+	if { $cu_is_64 == 1 } {
+	    set _cu_offset_size 8
+	} else {
+	    set _cu_offset_size 4
+	}
+
+	# Switch to .debug_loc section.
+	_section .debug_loc
+
+	# Introduce command 'entry'.
+	with_override Dwarf::entry Dwarf::_loc_entry {
+	    # Emit entries.
+	    uplevel $body
+	}
+
+	# Determine how to emit addresses.
+	if { $_addr_size == 8 } {
+	    set addr_op .8byte
+	} elseif { $_addr_size == 4 } {
+	    set addr_op .4byte
+	}
+
+	# Emit <End of list>.
+	set comment "<End of list>"
+	_op $addr_op 0 "$comment (Part 1/2)"
+	_op $addr_op 0 "$comment (Part 2/2)"
+    }
+
     proc _empty_array {name} {
 	upvar $name the_array
 
@@ -2248,6 +2521,17 @@ namespace eval Dwarf {
 	}
     }
 
+    # Emit a dummy CU.
+    proc dummy_cu {} {
+	# Generate a CU with default options and empty body.
+	cu {label dummy_cu} {
+	}
+
+	# Generate an .debug_aranges entry for the dummy CU.
+	aranges {} dummy_cu {
+	}
+    }
+
     # The top-level interface to the DWARF assembler.
     # FILENAME is the name of the file where the generated assembly
     # code is written.
@@ -2287,7 +2571,7 @@ namespace eval Dwarf {
 	}
 
 	set _output_file [open $filename w]
-	set _cu_count 0
+	set _cu_count -1
 	_empty_array _deferred_output
 	set _defer ""
 	set _label_num 0
@@ -2300,10 +2584,18 @@ namespace eval Dwarf {
 
 	set _debug_addr_index 0
 
+	# Dummy CU at the start to ensure that the first CU in $body is not
+	# the first in .debug_info.
+	dummy_cu
+
 	# Not "uplevel" here, because we want to evaluate in this
 	# namespace.  This is somewhat bad because it means we can't
 	# readily refer to outer variables.
 	eval $body
+
+	# Dummy CU at the end to ensure that the last CU in $body is not
+	# the last in .debug_info.
+	dummy_cu
 
 	_write_deferred_output
 

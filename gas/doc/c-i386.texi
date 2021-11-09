@@ -214,6 +214,7 @@ accept various extension mnemonics.  For example,
 @code{tdx},
 @code{avx512_bf16},
 @code{avx_vnni},
+@code{avx512_fp16},
 @code{noavx512f},
 @code{noavx512cd},
 @code{noavx512er},
@@ -233,6 +234,7 @@ accept various extension mnemonics.  For example,
 @code{notdx},
 @code{noavx512_bf16},
 @code{noavx_vnni},
+@code{noavx512_fp16},
 @code{noenqcmd},
 @code{noserialize},
 @code{notsxldtrk},
@@ -313,6 +315,12 @@ Valid @var{CPU} values are identical to the processor list of
 @item -msse2avx
 This option specifies that the assembler should encode SSE instructions
 with VEX prefix.
+
+@cindex @samp{-muse-unaligned-vector-move} option, i386
+@cindex @samp{-muse-unaligned-vector-move} option, x86-64
+@item -muse-unaligned-vector-move
+This option specifies that the assembler should encode aligned vector
+move as unaligned vector move.
 
 @cindex @samp{-msse-check=} option, i386
 @cindex @samp{-msse-check=} option, x86-64
@@ -1311,18 +1319,23 @@ data type.  Constructors build these data types into memory.
 @cindex @code{single} directive, i386
 @cindex @code{double} directive, i386
 @cindex @code{tfloat} directive, i386
+@cindex @code{hfloat} directive, i386
+@cindex @code{bfloat16} directive, i386
 @cindex @code{float} directive, x86-64
 @cindex @code{single} directive, x86-64
 @cindex @code{double} directive, x86-64
 @cindex @code{tfloat} directive, x86-64
+@cindex @code{hfloat} directive, x86-64
+@cindex @code{bfloat16} directive, x86-64
 @itemize @bullet
 @item
 Floating point constructors are @samp{.float} or @samp{.single},
-@samp{.double}, and @samp{.tfloat} for 32-, 64-, and 80-bit formats.
-These correspond to instruction mnemonic suffixes @samp{s}, @samp{l},
-and @samp{t}. @samp{t} stands for 80-bit (ten byte) real.  The 80387
-only supports this format via the @samp{fldt} (load 80-bit real to stack
-top) and @samp{fstpt} (store 80-bit real and pop stack) instructions.
+@samp{.double}, @samp{.tfloat}, @samp{.hfloat}, and @samp{.bfloat16} for 32-,
+64-, 80-, and 16-bit (two flavors) formats respectively.  The former three
+correspond to instruction mnemonic suffixes @samp{s}, @samp{l}, and @samp{t}.
+@samp{t} stands for 80-bit (ten byte) real.  The 80387 only supports this
+format via the @samp{fldt} (load 80-bit real to stack top) and @samp{fstpt}
+(store 80-bit real and pop stack) instructions.
 
 @cindex @code{word} directive, i386
 @cindex @code{long} directive, i386
@@ -1519,7 +1532,7 @@ supported on the CPU specified.  The choices for @var{cpu_type} are:
 @item @samp{.avx512vbmi} @tab @samp{.avx512_4fmaps} @tab @samp{.avx512_4vnniw}
 @item @samp{.avx512_vpopcntdq} @tab @samp{.avx512_vbmi2} @tab @samp{.avx512_vnni}
 @item @samp{.avx512_bitalg} @tab @samp{.avx512_bf16} @tab @samp{.avx512_vp2intersect}
-@item @samp{.tdx} @tab @samp{.avx_vnni}
+@item @samp{.tdx} @tab @samp{.avx_vnni}  @tab @samp{.avx512_fp16}
 @item @samp{.clwb} @tab @samp{.rdpid} @tab @samp{.ptwrite} @tab @item @samp{.ibt}
 @item @samp{.wbnoinvd} @tab @samp{.pconfig} @tab @samp{.waitpkg} @tab @samp{.cldemote}
 @item @samp{.shstk} @tab @samp{.gfni} @tab @samp{.vaes} @tab @samp{.vpclmulqdq}

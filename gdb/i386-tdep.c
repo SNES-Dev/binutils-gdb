@@ -2729,7 +2729,7 @@ i386_thiscall_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
 		args_space_used = align_up (args_space_used, 16);
 
 	      write_memory (sp + args_space_used,
-			    value_contents_all (args[i]), len);
+			    value_contents_all (args[i]).data (), len);
 	      /* The System V ABI says that:
 
 	      "An argument's size is increased, if necessary, to make it a
@@ -2773,7 +2773,8 @@ i386_thiscall_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
 
   /* The 'this' pointer needs to be in ECX.  */
   if (thiscall)
-    regcache->cooked_write (I386_ECX_REGNUM, value_contents_all (args[0]));
+    regcache->cooked_write (I386_ECX_REGNUM,
+			    value_contents_all (args[0]).data ());
 
   /* MarkK wrote: This "+ 8" is all over the place:
      (i386_frame_this_id, i386_sigtramp_frame_this_id,
@@ -2818,7 +2819,14 @@ i386_extract_return_value (struct gdbarch *gdbarch, struct type *type,
   int len = TYPE_LENGTH (type);
   gdb_byte buf[I386_MAX_REGISTER_SIZE];
 
-  if (type->code () == TYPE_CODE_FLT)
+  /* _Float16 and _Float16 _Complex values are returned via xmm0.  */
+  if (((type->code () == TYPE_CODE_FLT) && len == 2)
+      || ((type->code () == TYPE_CODE_COMPLEX) && len == 4))
+    {
+	regcache->raw_read (I387_XMM0_REGNUM (tdep), valbuf);
+	return;
+    }
+  else if (type->code () == TYPE_CODE_FLT)
     {
       if (tdep->st0_regnum < 0)
 	{
@@ -3117,6 +3125,7 @@ i386_zmm_type (struct gdbarch *gdbarch)
 	int8_t v64_int8[64];
 	double v8_double[8];
 	float v16_float[16];
+	float16_t v32_half[32];
 	bfloat16_t v32_bfloat16[32];
       };
 #endif
@@ -3127,6 +3136,8 @@ i386_zmm_type (struct gdbarch *gdbarch)
 			       "__gdb_builtin_type_vec512i", TYPE_CODE_UNION);
       append_composite_type_field (t, "v32_bfloat16",
 				   init_vector_type (bt->builtin_bfloat16, 32));
+      append_composite_type_field (t, "v32_half",
+				   init_vector_type (bt->builtin_half, 32));
       append_composite_type_field (t, "v16_float",
 				   init_vector_type (bt->builtin_float, 16));
       append_composite_type_field (t, "v8_double",
@@ -3173,6 +3184,7 @@ i386_ymm_type (struct gdbarch *gdbarch)
 	int8_t v32_int8[32];
 	double v4_double[4];
 	float v8_float[8];
+	float16_t v16_half[16];
 	bfloat16_t v16_bfloat16[16];
       };
 #endif
@@ -3183,6 +3195,8 @@ i386_ymm_type (struct gdbarch *gdbarch)
 			       "__gdb_builtin_type_vec256i", TYPE_CODE_UNION);
       append_composite_type_field (t, "v16_bfloat16",
 				   init_vector_type (bt->builtin_bfloat16, 16));
+      append_composite_type_field (t, "v16_half",
+				   init_vector_type (bt->builtin_half, 16));
       append_composite_type_field (t, "v8_float",
 				   init_vector_type (bt->builtin_float, 8));
       append_composite_type_field (t, "v4_double",
@@ -3311,7 +3325,7 @@ i386_pseudo_register_read_into_value (struct gdbarch *gdbarch,
 {
   gdb_byte raw_buf[I386_MAX_REGISTER_SIZE];
   enum register_status status;
-  gdb_byte *buf = value_contents_raw (result_value);
+  gdb_byte *buf = value_contents_raw (result_value).data ();
 
   if (i386_mmx_regnum_p (gdbarch, regnum))
     {
@@ -9029,19 +9043,13 @@ is \"default\"."),
 			NULL, /* FIXME: i18n: */
 			&setlist, &showlist);
 
-  /* Add "mpx" prefix for the set commands.  */
+  /* Add "mpx" prefix for the set and show commands.  */
 
-  add_basic_prefix_cmd ("mpx", class_support, _("\
-Set Intel Memory Protection Extensions specific variables."),
-			&mpx_set_cmdlist,
-			0 /* allow-unknown */, &setlist);
-
-  /* Add "mpx" prefix for the show commands.  */
-
-  add_show_prefix_cmd ("mpx", class_support, _("\
-Show Intel Memory Protection Extensions specific variables."),
-		       &mpx_show_cmdlist,
-		       0 /* allow-unknown */, &showlist);
+  add_setshow_prefix_cmd
+    ("mpx", class_support,
+     _("Set Intel Memory Protection Extensions specific variables."),
+     _("Show Intel Memory Protection Extensions specific variables."),
+     &mpx_set_cmdlist, &mpx_show_cmdlist, &setlist, &showlist);
 
   /* Add "bound" command for the show mpx commands list.  */
 

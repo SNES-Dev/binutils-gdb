@@ -1014,18 +1014,15 @@ ppc_xcoff_section_is_initialized (struct ppc_xcoff_section *section)
 
 /* Initialize a ppc_xcoff_section.
    Dummy symbols are used to ensure the position of .text over .data
-   and .tdata.  These symbols won't be output.  */
+   and .tdata.  Moreover, they allow all algorithms here to be sure that
+   csects isn't NULL.  These symbols won't be output.  */
 static void
-ppc_init_xcoff_section (struct ppc_xcoff_section *s, segT seg,
-			bool need_dummy)
+ppc_init_xcoff_section (struct ppc_xcoff_section *s, segT seg)
 {
   s->segment = seg;
   s->next_subsegment = 2;
-  if (need_dummy)
-    {
-      s->csects = symbol_make ("dummy\001");
-      symbol_get_tc (s->csects)->within = s->csects;
-    }
+  s->csects = symbol_make ("dummy\001");
+  symbol_get_tc (s->csects)->within = s->csects;
 }
 
 /* The current csect.  */
@@ -1881,9 +1878,9 @@ md_begin (void)
   /* Create XCOFF sections with .text in first, as it's creating dummy symbols
      to serve as initial csects.  This forces the text csects to precede the
      data csects.  These symbols will not be output.  */
-  ppc_init_xcoff_section (&ppc_xcoff_text_section, text_section, true);
-  ppc_init_xcoff_section (&ppc_xcoff_data_section, data_section, true);
-  ppc_init_xcoff_section (&ppc_xcoff_bss_section, bss_section, true);
+  ppc_init_xcoff_section (&ppc_xcoff_text_section, text_section);
+  ppc_init_xcoff_section (&ppc_xcoff_data_section, data_section);
+  ppc_init_xcoff_section (&ppc_xcoff_bss_section, bss_section);
 #endif
 }
 
@@ -2901,8 +2898,13 @@ ppc_frob_label (symbolS *sym)
       symbol_remove (sym, &symbol_rootP, &symbol_lastP);
       symbol_append (sym, symbol_get_tc (ppc_current_csect)->within,
 		     &symbol_rootP, &symbol_lastP);
+      /* Update last csect symbol.  */
       symbol_get_tc (ppc_current_csect)->within = sym;
-      symbol_get_tc (sym)->within = ppc_current_csect;
+
+      /* Some labels like .bs are using within differently.
+         So avoid changing it, if it's already set.  */
+      if (symbol_get_tc (sym)->within == NULL)
+	symbol_get_tc (sym)->within = ppc_current_csect;
     }
 #endif
 
@@ -4395,8 +4397,7 @@ ppc_comm (int lcomm)
       section = &ppc_xcoff_tbss_section;
       if (!ppc_xcoff_section_is_initialized (section))
 	{
-	  ppc_init_xcoff_section (section,
-				  subseg_new (".tbss", 0), false);
+	  ppc_init_xcoff_section (section, subseg_new (".tbss", 0));
 	  bfd_set_section_flags (section->segment,
 				 SEC_ALLOC | SEC_THREAD_LOCAL);
 	  seg_info (section->segment)->bss = 1;
@@ -4553,8 +4554,7 @@ ppc_change_csect (symbolS *sym, offsetT align)
 	  /* Create .tdata section if not yet done.  */
 	  if (!ppc_xcoff_section_is_initialized (section))
 	    {
-	      ppc_init_xcoff_section (section, subseg_new (".tdata", 0),
-				      true);
+	      ppc_init_xcoff_section (section, subseg_new (".tdata", 0));
 	      bfd_set_section_flags (section->segment, SEC_ALLOC
 				     | SEC_LOAD | SEC_RELOC | SEC_DATA
 				     | SEC_THREAD_LOCAL);
@@ -4565,8 +4565,7 @@ ppc_change_csect (symbolS *sym, offsetT align)
 	  /* Create .tbss section if not yet done.  */
 	  if (!ppc_xcoff_section_is_initialized (section))
 	    {
-	      ppc_init_xcoff_section (section, subseg_new (".tbss", 0),
-				      false);
+	      ppc_init_xcoff_section (section, subseg_new (".tbss", 0));
 	      bfd_set_section_flags (section->segment, SEC_ALLOC |
 				     SEC_THREAD_LOCAL);
 	      seg_info (section->segment)->bss = 1;
@@ -4718,7 +4717,7 @@ ppc_dwsect (int ignore ATTRIBUTE_UNUSED)
   else
     {
       /* Create a new dw subsection.  */
-      subseg = XNEW (struct dw_subsection);
+      subseg = XCNEW (struct dw_subsection);
 
       if (opt_label == NULL)
         {
@@ -5056,7 +5055,6 @@ ppc_stabx (int ignore ATTRIBUTE_UNUSED)
             as_bad (_(".stabx of storage class stsym must be within .bs/.es"));
 
           symbol_get_tc (sym)->within = ppc_current_block;
-          symbol_get_tc (exp.X_add_symbol)->within = ppc_current_block;
         }
     }
 
@@ -5680,7 +5678,6 @@ ppc_machine (int ignore ATTRIBUTE_UNUSED)
   if (cpu_string != NULL)
     {
       ppc_cpu_t old_cpu = ppc_cpu;
-      ppc_cpu_t new_cpu;
       char *p;
 
       for (p = cpu_string; *p != 0; p++)
@@ -5703,10 +5700,23 @@ ppc_machine (int ignore ATTRIBUTE_UNUSED)
 	  else
 	    ppc_cpu = cpu_history[--curr_hist];
 	}
-      else if ((new_cpu = ppc_parse_cpu (ppc_cpu, &sticky, cpu_string)) != 0)
-	ppc_cpu = new_cpu;
       else
-	as_bad (_("invalid machine `%s'"), cpu_string);
+	{
+	  ppc_cpu_t new_cpu;
+	  /* Not using the global "sticky" variable here results in
+	     none of the extra functional unit command line options,
+	     -many, -maltivec, -mspe, -mspe2, -mvle, -mvsx, being in
+	     force after selecting a new cpu with .machine.
+	     ".machine altivec" and other extra functional unit
+	     options do not count as a new machine, instead they add
+	     to currently selected opcodes.  */
+	  ppc_cpu_t machine_sticky = 0;
+	  new_cpu = ppc_parse_cpu (ppc_cpu, &machine_sticky, cpu_string);
+	  if (new_cpu != 0)
+	    ppc_cpu = new_cpu;
+	  else
+	    as_bad (_("invalid machine `%s'"), cpu_string);
+	}
 
       if (ppc_cpu != old_cpu)
 	ppc_setup_opcodes ();
@@ -5991,7 +6001,8 @@ ppc_frob_symbol (symbolS *sym)
 	      a->x_csect.x_scnlen.l = (S_GET_VALUE (symbol_get_tc (sym)->next)
 				       - S_GET_VALUE (sym));
 	    }
-	  if (symbol_get_tc (sym)->symbol_class == XMC_BS)
+	  if (symbol_get_tc (sym)->symbol_class == XMC_BS
+	      || symbol_get_tc (sym)->symbol_class == XMC_UL)
 	    a->x_csect.x_smtyp = (symbol_get_tc (sym)->align << 3) | XTY_CM;
 	  else
 	    a->x_csect.x_smtyp = (symbol_get_tc (sym)->align << 3) | XTY_SD;

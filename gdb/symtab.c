@@ -331,6 +331,36 @@ search_domain_name (enum search_domain e)
 
 /* See symtab.h.  */
 
+call_site *
+compunit_symtab::find_call_site (CORE_ADDR pc) const
+{
+  if (m_call_site_htab == nullptr)
+    return nullptr;
+
+  CORE_ADDR delta
+    = this->objfile->section_offsets[COMPUNIT_BLOCK_LINE_SECTION (this)];
+  CORE_ADDR unrelocated_pc = pc - delta;
+
+  struct call_site call_site_local (unrelocated_pc, nullptr, nullptr);
+  void **slot
+    = htab_find_slot (m_call_site_htab, &call_site_local, NO_INSERT);
+  if (slot == nullptr)
+    return nullptr;
+
+  return (call_site *) *slot;
+}
+
+/* See symtab.h.  */
+
+void
+compunit_symtab::set_call_site_htab (htab_t call_site_htab)
+{
+  gdb_assert (m_call_site_htab == nullptr);
+  m_call_site_htab = call_site_htab;
+}
+
+/* See symtab.h.  */
+
 struct symtab *
 compunit_primary_filetab (const struct compunit_symtab *cust)
 {
@@ -791,11 +821,11 @@ create_demangled_names_hash (struct objfile_per_bfd_storage *per_bfd)
 
 /* See symtab.h  */
 
-char *
+gdb::unique_xmalloc_ptr<char>
 symbol_find_demangled_name (struct general_symbol_info *gsymbol,
 			    const char *mangled)
 {
-  char *demangled = NULL;
+  gdb::unique_xmalloc_ptr<char> demangled;
   int i;
 
   if (gsymbol->language () == language_unknown)
@@ -901,8 +931,8 @@ general_symbol_info::compute_and_set_names (gdb::string_view linkage_name,
 	linkage_name_copy = linkage_name;
 
       if (demangled_name.get () == nullptr)
-	 demangled_name.reset
-	   (symbol_find_demangled_name (this, linkage_name_copy.data ()));
+	 demangled_name
+	   = symbol_find_demangled_name (this, linkage_name_copy.data ());
 
       /* Suppose we have demangled_name==NULL, copy_name==0, and
 	 linkage_name_copy==linkage_name.  In this case, we already have the
@@ -1828,9 +1858,10 @@ demangle_for_lookup (const char *name, enum language lang,
      lookup, so we can always binary search.  */
   if (lang == language_cplus)
     {
-      char *demangled_name = gdb_demangle (name, DMGL_ANSI | DMGL_PARAMS);
+      gdb::unique_xmalloc_ptr<char> demangled_name
+	= gdb_demangle (name, DMGL_ANSI | DMGL_PARAMS);
       if (demangled_name != NULL)
-	return storage.set_malloc_ptr (demangled_name);
+	return storage.set_malloc_ptr (std::move (demangled_name));
 
       /* If we were given a non-mangled name, canonicalize it
 	 according to the language (so far only for C++).  */
@@ -1840,16 +1871,16 @@ demangle_for_lookup (const char *name, enum language lang,
     }
   else if (lang == language_d)
     {
-      char *demangled_name = d_demangle (name, 0);
+      gdb::unique_xmalloc_ptr<char> demangled_name = d_demangle (name, 0);
       if (demangled_name != NULL)
-	return storage.set_malloc_ptr (demangled_name);
+	return storage.set_malloc_ptr (std::move (demangled_name));
     }
   else if (lang == language_go)
     {
-      char *demangled_name
+      gdb::unique_xmalloc_ptr<char> demangled_name
 	= language_def (language_go)->demangle_symbol (name, 0);
       if (demangled_name != NULL)
-	return storage.set_malloc_ptr (demangled_name);
+	return storage.set_malloc_ptr (std::move (demangled_name));
     }
 
   return name;
@@ -1973,7 +2004,7 @@ check_field (struct type *type, const char *name,
 
   for (i = type->num_fields () - 1; i >= TYPE_N_BASECLASSES (type); i--)
     {
-      const char *t_field_name = TYPE_FIELD_NAME (type, i);
+      const char *t_field_name = type->field (i).name ();
 
       if (t_field_name && (strcmp_iw (t_field_name, name) == 0))
 	{
@@ -2068,7 +2099,7 @@ lookup_symbol_aux (const char *name, symbol_name_match_type match_type,
 	  /* I'm not really sure that type of this can ever
 	     be typedefed; just be safe.  */
 	  t = check_typedef (t);
-	  if (t->code () == TYPE_CODE_PTR || TYPE_IS_REFERENCE (t))
+	  if (t->is_pointer_or_reference ())
 	    t = TYPE_TARGET_TYPE (t);
 
 	  if (t->code () != TYPE_CODE_STRUCT
@@ -5146,12 +5177,7 @@ struct info_vars_funcs_options
 {
   bool quiet = false;
   bool exclude_minsyms = false;
-  char *type_regexp = nullptr;
-
-  ~info_vars_funcs_options ()
-  {
-    xfree (type_regexp);
-  }
+  std::string type_regexp;
 };
 
 /* The options used by the 'info variables' and 'info functions'
@@ -5174,8 +5200,7 @@ static const gdb::option::option_def info_vars_funcs_options_defs[] = {
 
   gdb::option::string_option_def<info_vars_funcs_options> {
     "t",
-    [] (info_vars_funcs_options *opt) { return &opt->type_regexp;
-  },
+    [] (info_vars_funcs_options *opt) { return &opt->type_regexp; },
     nullptr, /* show_cmd_cb */
     nullptr /* set_doc */
   }
@@ -5219,8 +5244,10 @@ info_variables_command (const char *args, int from_tty)
   if (args != nullptr && *args == '\0')
     args = nullptr;
 
-  symtab_symbol_info (opts.quiet, opts.exclude_minsyms, args, VARIABLES_DOMAIN,
-		      opts.type_regexp, from_tty);
+  symtab_symbol_info
+    (opts.quiet, opts.exclude_minsyms, args, VARIABLES_DOMAIN,
+     opts.type_regexp.empty () ? nullptr : opts.type_regexp.c_str (),
+     from_tty);
 }
 
 /* Implement the 'info functions' command.  */
@@ -5236,8 +5263,10 @@ info_functions_command (const char *args, int from_tty)
   if (args != nullptr && *args == '\0')
     args = nullptr;
 
-  symtab_symbol_info (opts.quiet, opts.exclude_minsyms, args,
-		      FUNCTIONS_DOMAIN, opts.type_regexp, from_tty);
+  symtab_symbol_info
+    (opts.quiet, opts.exclude_minsyms, args, FUNCTIONS_DOMAIN,
+     opts.type_regexp.empty () ? nullptr : opts.type_regexp.c_str (),
+     from_tty);
 }
 
 /* Holds the -q option for the 'info types' command.  */
@@ -5609,9 +5638,9 @@ completion_list_add_fields (completion_tracker &tracker,
 
       if (c == TYPE_CODE_UNION || c == TYPE_CODE_STRUCT)
 	for (j = TYPE_N_BASECLASSES (t); j < t->num_fields (); j++)
-	  if (TYPE_FIELD_NAME (t, j))
+	  if (t->field (j).name ())
 	    completion_list_add_name (tracker, sym->language (),
-				      TYPE_FIELD_NAME (t, j),
+				      t->field (j).name (),
 				      lookup_name, text, word);
     }
 }
@@ -6749,14 +6778,8 @@ info_module_subcommand (bool quiet, const char *module_regexp,
 struct info_modules_var_func_options
 {
   bool quiet = false;
-  char *type_regexp = nullptr;
-  char *module_regexp = nullptr;
-
-  ~info_modules_var_func_options ()
-  {
-    xfree (type_regexp);
-    xfree (module_regexp);
-  }
+  std::string type_regexp;
+  std::string module_regexp;
 };
 
 /* The options used by 'info module variables' and 'info module functions'
@@ -6806,8 +6829,11 @@ info_module_functions_command (const char *args, int from_tty)
   if (args != nullptr && *args == '\0')
     args = nullptr;
 
-  info_module_subcommand (opts.quiet, opts.module_regexp, args,
-			  opts.type_regexp, FUNCTIONS_DOMAIN);
+  info_module_subcommand
+    (opts.quiet,
+     opts.module_regexp.empty () ? nullptr : opts.module_regexp.c_str (), args,
+     opts.type_regexp.empty () ? nullptr : opts.type_regexp.c_str (),
+     FUNCTIONS_DOMAIN);
 }
 
 /* Implements the 'info module variables' command.  */
@@ -6822,8 +6848,11 @@ info_module_variables_command (const char *args, int from_tty)
   if (args != nullptr && *args == '\0')
     args = nullptr;
 
-  info_module_subcommand (opts.quiet, opts.module_regexp, args,
-			  opts.type_regexp, VARIABLES_DOMAIN);
+  info_module_subcommand
+    (opts.quiet,
+     opts.module_regexp.empty () ? nullptr : opts.module_regexp.c_str (), args,
+     opts.type_regexp.empty () ? nullptr : opts.type_regexp.c_str (),
+     VARIABLES_DOMAIN);
 }
 
 /* Command completer for 'info module ...' sub-commands.  */

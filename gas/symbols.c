@@ -78,6 +78,10 @@ struct symbol_flags
      before.  It is cleared as soon as any direct reference to the
      symbol is present.  */
   unsigned int weakrefd : 1;
+
+  /* Whether the symbol has been marked to be removed by a .symver
+     directive.  */
+  unsigned int removed : 1;
 };
 
 /* A pointer in the symbol may point to either a complete symbol
@@ -194,7 +198,7 @@ static void *
 symbol_entry_find (htab_t table, const char *name)
 {
   hashval_t hash = htab_hash_string (name);
-  symbol_entry_t needle = { { { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  symbol_entry_t needle = { { { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 			      hash, name, 0, 0, 0 } };
   return htab_find_with_hash (table, &needle, hash);
 }
@@ -1380,7 +1384,17 @@ resolve_symbol_value (symbolS *symp)
 	      && add_symbol->flags.resolving)
 	    break;
 
-	  if (finalize_syms && final_val == 0)
+	  if (finalize_syms && final_val == 0
+#ifdef OBJ_XCOFF
+	      /* Avoid changing symp's "within" when dealing with
+		 AIX debug symbols. For some storage classes, "within"
+	         have a special meaning.
+		 C_DWARF should behave like on Linux, thus this check
+		 isn't done to be closer.  */
+	      && ((symbol_get_bfdsym (symp)->flags & BSF_DEBUGGING) == 0
+		  || (S_GET_STORAGE_CLASS (symp) == C_DWARF))
+#endif
+	      )
 	    {
 	      if (add_symbol->flags.local_symbol)
 		add_symbol = local_symbol_convert (add_symbol);
@@ -2795,6 +2809,26 @@ symbol_written_p (symbolS *s)
   if (s->flags.local_symbol)
     return 0;
   return s->flags.written;
+}
+
+/* Mark a symbol as to be removed.  */
+
+void
+symbol_mark_removed (symbolS *s)
+{
+  if (s->flags.local_symbol)
+    return;
+  s->flags.removed = 1;
+}
+
+/* Return whether a symbol has been marked to be removed.  */
+
+int
+symbol_removed_p (symbolS *s)
+{
+  if (s->flags.local_symbol)
+    return 0;
+  return s->flags.removed;
 }
 
 /* Mark a symbol has having been resolved.  */

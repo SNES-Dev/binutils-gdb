@@ -1225,8 +1225,8 @@ define_symbol (CORE_ADDR valu, const char *string, int desc, int type,
 
 	    for (j = TYPE_N_BASECLASSES (SYMBOL_TYPE (sym)) - 1; j >= 0; j--)
 	      if (TYPE_BASECLASS_NAME (SYMBOL_TYPE (sym), j) == 0)
-		TYPE_BASECLASS_NAME (SYMBOL_TYPE (sym), j) =
-		  TYPE_BASECLASS (SYMBOL_TYPE (sym), j)->name ();
+		SYMBOL_TYPE (sym)->field (j).set_name
+		  (TYPE_BASECLASS (SYMBOL_TYPE (sym), j)->name ());
 	  }
 
       if (SYMBOL_TYPE (sym)->name () == NULL)
@@ -2712,8 +2712,8 @@ read_cpp_abbrev (struct stab_field_info *fip, const char **pp,
 	    {
 	      name = "";
 	    }
-	  fip->list->field.name = obconcat (&objfile->objfile_obstack,
-					    vptr_name, name, (char *) NULL);
+	  fip->list->field.set_name (obconcat (&objfile->objfile_obstack,
+					       vptr_name, name, (char *) NULL));
 	  break;
 
 	case 'b':		/* $vb -- a virtual bsomethingorother */
@@ -2725,15 +2725,15 @@ read_cpp_abbrev (struct stab_field_info *fip, const char **pp,
 			 symnum);
 	      name = "FOO";
 	    }
-	  fip->list->field.name = obconcat (&objfile->objfile_obstack, vb_name,
-					    name, (char *) NULL);
+	  fip->list->field.set_name (obconcat (&objfile->objfile_obstack,
+					       vb_name, name, (char *) NULL));
 	  break;
 
 	default:
 	  invalid_cpp_abbrev_complaint (*pp);
-	  fip->list->field.name = obconcat (&objfile->objfile_obstack,
-					    "INVALID_CPLUSPLUS_ABBREV",
-					    (char *) NULL);
+	  fip->list->field.set_name (obconcat (&objfile->objfile_obstack,
+					       "INVALID_CPLUSPLUS_ABBREV",
+					       (char *) NULL));
 	  break;
 	}
 
@@ -2755,8 +2755,7 @@ read_cpp_abbrev (struct stab_field_info *fip, const char **pp,
       {
 	int nbits;
 
-	SET_FIELD_BITPOS (fip->list->field,
-			  read_huge_number (pp, ';', &nbits, 0));
+	fip->list->field.set_loc_bitpos (read_huge_number (pp, ';', &nbits, 0));
 	if (nbits != 0)
 	  return 0;
       }
@@ -2782,8 +2781,8 @@ read_one_struct_field (struct stab_field_info *fip, const char **pp,
 {
   struct gdbarch *gdbarch = objfile->arch ();
 
-  fip->list->field.name
-    = obstack_strndup (&objfile->objfile_obstack, *pp, p - *pp);
+  fip->list->field.set_name
+    (obstack_strndup (&objfile->objfile_obstack, *pp, p - *pp));
   *pp = p + 1;
 
   /* This means we have a visibility for a field coming.  */
@@ -2817,7 +2816,7 @@ read_one_struct_field (struct stab_field_info *fip, const char **pp,
 	  p++;
 	}
       /* Static class member.  */
-      SET_FIELD_PHYSNAME (fip->list->field, savestring (*pp, p - *pp));
+      fip->list->field.set_loc_physname (savestring (*pp, p - *pp));
       *pp = p + 1;
       return;
     }
@@ -2833,8 +2832,7 @@ read_one_struct_field (struct stab_field_info *fip, const char **pp,
   {
     int nbits;
 
-    SET_FIELD_BITPOS (fip->list->field,
-		      read_huge_number (pp, ',', &nbits, 0));
+    fip->list->field.set_loc_bitpos (read_huge_number (pp, ',', &nbits, 0));
     if (nbits != 0)
       {
 	stabs_general_complaint ("bad structure-type format");
@@ -2848,7 +2846,7 @@ read_one_struct_field (struct stab_field_info *fip, const char **pp,
       }
   }
 
-  if (FIELD_BITPOS (fip->list->field) == 0
+  if (fip->list->field.loc_bitpos () == 0
       && FIELD_BITSIZE (fip->list->field) == 0)
     {
       /* This can happen in two cases: (1) at least for gcc 2.4.5 or so,
@@ -2891,7 +2889,7 @@ read_one_struct_field (struct stab_field_info *fip, const char **pp,
 		  == gdbarch_int_bit (gdbarch))
 	  )
 	  &&
-	  FIELD_BITPOS (fip->list->field) % 8 == 0)
+	  fip->list->field.loc_bitpos () % 8 == 0)
 	{
 	  FIELD_BITSIZE (fip->list->field) = 0;
 	}
@@ -3110,7 +3108,7 @@ read_baseclasses (struct stab_field_info *fip, const char **pp,
 	   corresponding to this baseclass.  Always zero in the absence of
 	   multiple inheritance.  */
 
-	SET_FIELD_BITPOS (newobj->field, read_huge_number (pp, ',', &nbits, 0));
+	newobj->field.set_loc_bitpos (read_huge_number (pp, ',', &nbits, 0));
 	if (nbits != 0)
 	  return 0;
       }
@@ -3120,7 +3118,7 @@ read_baseclasses (struct stab_field_info *fip, const char **pp,
 	 field's name.  */
 
       newobj->field.set_type (read_type (pp, objfile));
-      newobj->field.name = newobj->field.type ()->name ();
+      newobj->field.set_name (newobj->field.type ()->name ());
 
       /* Skip trailing ';' and bump count of number of fields seen.  */
       if (**pp == ';')
@@ -3195,7 +3193,7 @@ read_tilde_fields (struct stab_field_info *fip, const char **pp,
 		   i >= TYPE_N_BASECLASSES (t);
 		   --i)
 		{
-		  const char *name = TYPE_FIELD_NAME (t, i);
+		  const char *name = t->field (i).name ();
 
 		  if (!strncmp (name, vptr_name, sizeof (vptr_name) - 2)
 		      && is_cplus_marker (name[sizeof (vptr_name) - 2]))
@@ -3638,8 +3636,8 @@ read_enum_type (const char **pp, struct type *type,
 	  struct symbol *xsym = syms->symbol[j];
 
 	  SYMBOL_TYPE (xsym) = type;
-	  TYPE_FIELD_NAME (type, n) = xsym->linkage_name ();
-	  SET_FIELD_ENUMVAL (type->field (n), SYMBOL_VALUE (xsym));
+	  type->field (n).set_name (xsym->linkage_name ());
+	  type->field (n).set_loc_enumval (SYMBOL_VALUE (xsym));
 	  TYPE_FIELD_BITSIZE (type, n) = 0;
 	}
       if (syms == osyms)

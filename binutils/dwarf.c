@@ -5297,15 +5297,17 @@ display_debug_lines_decoded (struct dwarf_section *  section,
 		state_machine_regs.file = uladv;
 
 		{
-		  unsigned file = state_machine_regs.file - 1;
+		  unsigned file = state_machine_regs.file;
 		  unsigned dir;
 
+		  if (linfo.li_version < 5)
+		    --file;
 		  if (file_table == NULL || n_files == 0)
 		    printf (_("\n [Use file table entry %d]\n"), file);
 		  /* PR 20439 */
 		  else if (file >= n_files)
 		    {
-		      warn (_("file index %u > number of files %u\n"), file + 1, n_files);
+		      warn (_("file index %u > number of files %u\n"), file, n_files);
 		      printf (_("\n <over large file table index %u>"), file);
 		    }
 		  else if ((dir = file_table[file].directory_index) == 0)
@@ -5414,7 +5416,10 @@ display_debug_lines_decoded (struct dwarf_section *  section,
 
 	      if (file_table)
 		{
-		  unsigned indx = state_machine_regs.file - 1;
+		  unsigned indx = state_machine_regs.file;
+
+		  if (linfo.li_version < 5)
+		    --indx;
 		  /* PR 20439  */
 		  if (indx >= n_files)
 		    {
@@ -7017,28 +7022,32 @@ display_debug_loc (struct dwarf_section *section, void *file)
 	  else
 	    {
 	      if (start < next)
-		warn (_("There is a hole [0x%lx - 0x%lx] in .debug_loc section.\n"),
+		warn (_("There is a hole [0x%lx - 0x%lx] in %s section.\n"),
 		      (unsigned long) (start - section_begin),
-		      (unsigned long) offset);
+		      (unsigned long) offset,
+		      section->name);
 	      else if (start > next)
-		warn (_("There is an overlap [0x%lx - 0x%lx] in .debug_loc section.\n"),
+		warn (_("There is an overlap [0x%lx - 0x%lx] in %s section.\n"),
 		      (unsigned long) (start - section_begin),
-		      (unsigned long) offset);
+		      (unsigned long) offset,
+		      section->name);
 	    }
 	  start = next;
 	  vstart = vnext;
 
 	  if (offset >= bytes)
 	    {
-	      warn (_("Offset 0x%lx is bigger than .debug_loc section size.\n"),
-		    (unsigned long) offset);
+	      warn (_("Offset 0x%lx is bigger than %s section size.\n"),
+		    (unsigned long) offset,
+		    section->name);
 	      continue;
 	    }
 
 	  if (vnext && voffset >= bytes)
 	    {
-	      warn (_("View Offset 0x%lx is bigger than .debug_loc section size.\n"),
-		    (unsigned long) voffset);
+	      warn (_("View Offset 0x%lx is bigger than %s section size.\n"),
+		    (unsigned long) voffset,
+		    section->name);
 	      continue;
 	    }
 
@@ -7187,7 +7196,6 @@ display_debug_aranges (struct dwarf_section *section,
       dwarf_vma address;
       unsigned long sec_off;
       unsigned char address_size;
-      int excess;
       unsigned int offset_size;
       unsigned char *end_ranges;
 
@@ -7272,22 +7280,22 @@ display_debug_aranges (struct dwarf_section *section,
       addr_ranges = hdrptr;
 
       /* Must pad to an alignment boundary that is twice the address size.  */
-      excess = (hdrptr - start) % (2 * address_size);
-      if (excess)
-	addr_ranges += (2 * address_size) - excess;
+      addr_ranges += (2 * address_size - 1
+		      - (hdrptr - start - 1) % (2 * address_size));
 
-      start = end_ranges;
-
-      while (2u * address_size <= (size_t) (start - addr_ranges))
+      while (2 * address_size <= end_ranges - addr_ranges)
 	{
-	  SAFE_BYTE_GET_AND_INC (address, addr_ranges, address_size, start);
-	  SAFE_BYTE_GET_AND_INC (length, addr_ranges, address_size, start);
-
+	  SAFE_BYTE_GET_AND_INC (address, addr_ranges, address_size,
+				 end_ranges);
+	  SAFE_BYTE_GET_AND_INC (length, addr_ranges, address_size,
+				 end_ranges);
 	  printf ("    ");
 	  print_dwarf_vma (address, address_size);
 	  print_dwarf_vma (length, address_size);
 	  putchar ('\n');
 	}
+
+      start = end_ranges;
     }
 
   printf ("\n");
@@ -7725,7 +7733,6 @@ display_debug_ranges (struct dwarf_section *section,
 	      return 0;
 	    }
 	}
-      finish = start + initial_length;
 
       /* Get and check the version number.  */
       SAFE_BYTE_GET_AND_INC (version, start, 2, finish);
@@ -8770,9 +8777,6 @@ display_debug_frames (struct dwarf_section *section,
 
 	  if (!cie)
 	    {
-	      warn ("Invalid CIE pointer 0x%s in FDE at %#08lx\n",
-		    dwarf_vmatoa_1 (NULL, cie_id, offset_size),
-		    (unsigned long) (saved_start - section_start));
 	      fc->ncols = 0;
 	      fc->col_type = (short int *) xmalloc (sizeof (short int));
 	      fc->col_offset = (int *) xmalloc (sizeof (int));
@@ -8855,12 +8859,20 @@ display_debug_frames (struct dwarf_section *section,
 	      start += augmentation_data_len;
 	    }
 
-	  printf ("\n%08lx %s %s FDE cie=%08lx pc=",
+	  printf ("\n%08lx %s %s FDE ",
 		  (unsigned long)(saved_start - section_start),
 		  dwarf_vmatoa_1 (NULL, length, fc->ptr_size),
-		  dwarf_vmatoa_1 (NULL, cie_id, offset_size),
-		  (unsigned long)(cie->chunk_start - section_start));
+		  dwarf_vmatoa_1 (NULL, cie_id, offset_size));
 
+	  if (cie->chunk_start)
+	    printf ("cie=%08lx",
+		    (unsigned long) (cie->chunk_start - section_start));
+	  else
+	    /* Ideally translate "invalid " to 8 chars, trailing space
+	       is optional.  */
+	    printf (_("cie=invalid "));
+
+	  printf (" pc=");
 	  if (fc->segment_size)
 	    printf ("%04lx:", segment_selector);
 

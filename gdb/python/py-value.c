@@ -400,7 +400,7 @@ valpy_get_dynamic_type (PyObject *self, void *closure)
       type = value_type (val);
       type = check_typedef (type);
 
-      if (((type->code () == TYPE_CODE_PTR) || TYPE_IS_REFERENCE (type))
+      if (type->is_pointer_or_reference ()
 	  && (TYPE_TARGET_TYPE (type)->code () == TYPE_CODE_STRUCT))
 	{
 	  struct value *target;
@@ -851,7 +851,7 @@ value_has_field (struct value *v, PyObject *field)
     {
       val_type = value_type (v);
       val_type = check_typedef (val_type);
-      if (TYPE_IS_REFERENCE (val_type) || val_type->code () == TYPE_CODE_PTR)
+      if (val_type->is_pointer_or_reference ())
 	val_type = check_typedef (TYPE_TARGET_TYPE (val_type));
 
       type_code = val_type->code ();
@@ -1500,8 +1500,8 @@ valpy_nonzero (PyObject *self)
       if (is_integral_type (type) || type->code () == TYPE_CODE_PTR)
 	nonzero = !!value_as_long (self_value->value);
       else if (is_floating_value (self_value->value))
-	nonzero = !target_float_is_zero (value_contents (self_value->value),
-					 type);
+	nonzero = !target_float_is_zero
+	  (value_contents (self_value->value).data (), type);
       else
 	/* All other values are True.  */
 	nonzero = 1;
@@ -1754,7 +1754,7 @@ valpy_float (PyObject *self)
       type = check_typedef (type);
 
       if (type->code () == TYPE_CODE_FLT && is_floating_value (value))
-	d = target_float_to_host_double (value_contents (value), type);
+	d = target_float_to_host_double (value_contents (value).data (), type);
       else if (type->code () == TYPE_CODE_INT)
 	{
 	  /* Note that valpy_long accepts TYPE_CODE_PTR and some
@@ -1958,6 +1958,33 @@ gdbpy_history (PyObject *self, PyObject *args)
     }
 
   return value_to_value_object (res_val);
+}
+
+/* Add a gdb.Value into GDB's history, and return (as an integer) the
+   position of the newly added value.  */
+PyObject *
+gdbpy_add_history (PyObject *self, PyObject *args)
+{
+  PyObject *value_obj;
+
+  if (!PyArg_ParseTuple (args, "O", &value_obj))
+    return nullptr;
+
+  struct value *value = convert_value_from_python (value_obj);
+  if (value == nullptr)
+    return nullptr;
+
+  try
+    {
+      int idx = record_latest_value (value);
+      return gdb_py_object_from_longest (idx).release ();
+    }
+  catch (const gdb_exception &except)
+    {
+      GDB_PY_HANDLE_EXCEPTION (except);
+    }
+
+  return nullptr;
 }
 
 /* Return the value of a convenience variable.  */

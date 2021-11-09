@@ -92,7 +92,6 @@
 #endif
 
 #ifdef IS_PY3K
-#define Py_TPFLAGS_HAVE_ITER 0
 #define Py_TPFLAGS_CHECKTYPES 0
 
 #define PyInt_Check PyLong_Check
@@ -296,7 +295,7 @@ struct block;
 struct value;
 struct language_defn;
 struct program_space;
-struct bpstats;
+struct bpstat;
 struct inferior;
 
 extern int gdb_python_initialized;
@@ -412,6 +411,7 @@ extern enum ext_lang_rc gdbpy_get_matching_xmethod_workers
 
 
 PyObject *gdbpy_history (PyObject *self, PyObject *args);
+PyObject *gdbpy_add_history (PyObject *self, PyObject *args);
 PyObject *gdbpy_convenience_variable (PyObject *self, PyObject *args);
 PyObject *gdbpy_set_convenience_variable (PyObject *self, PyObject *args);
 PyObject *gdbpy_breakpoints (PyObject *, PyObject *);
@@ -438,7 +438,7 @@ PyObject *gdbpy_create_ptid_object (ptid_t ptid);
 PyObject *gdbpy_selected_thread (PyObject *self, PyObject *args);
 PyObject *gdbpy_selected_inferior (PyObject *self, PyObject *args);
 PyObject *gdbpy_string_to_argv (PyObject *self, PyObject *args);
-PyObject *gdbpy_parameter_value (enum var_types type, void *var);
+PyObject *gdbpy_parameter_value (const setting &var);
 gdb::unique_xmalloc_ptr<char> gdbpy_parse_command_name
   (const char *name, struct cmd_list_element ***base_list,
    struct cmd_list_element **start_list);
@@ -469,6 +469,7 @@ PyObject *objfpy_get_xmethods (PyObject *, void *);
 PyObject *gdbpy_lookup_objfile (PyObject *self, PyObject *args, PyObject *kw);
 
 PyObject *gdbarch_to_arch_object (struct gdbarch *gdbarch);
+PyObject *gdbpy_all_architecture_names (PyObject *self, PyObject *args);
 
 PyObject *gdbpy_new_register_descriptor_iterator (struct gdbarch *gdbarch,
 						  const char *group_name);
@@ -477,6 +478,9 @@ PyObject *gdbpy_new_reggroup_iterator (struct gdbarch *gdbarch);
 gdbpy_ref<thread_object> create_thread_object (struct thread_info *tp);
 gdbpy_ref<> thread_to_thread_object (thread_info *thr);;
 gdbpy_ref<inferior_object> inferior_to_inferior_object (inferior *inf);
+
+PyObject *gdbpy_buffer_to_membuf (gdb::unique_xmalloc_ptr<gdb_byte> buffer,
+				  CORE_ADDR address, ULONGEST length);
 
 const struct block *block_object_to_block (PyObject *obj);
 struct symbol *symbol_object_to_symbol (PyObject *obj);
@@ -548,6 +552,8 @@ int gdbpy_initialize_xmethods (void)
 int gdbpy_initialize_unwind (void)
   CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 int gdbpy_initialize_tui ()
+  CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
+int gdbpy_initialize_membuf ()
   CPYCHECKER_NEGATIVE_RESULT_SETS_EXCEPTION;
 
 /* A wrapper for PyErr_Fetch that handles reference counting for the

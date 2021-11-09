@@ -75,13 +75,14 @@
 #include "gdbarch.h"
 #include "cli-out.h"
 #include "gdbsupport/gdb-safe-ctype.h"
+#include "bt-utils.h"
 
 void (*deprecated_error_begin_hook) (void);
 
 /* Prototypes for local functions */
 
 static void vfprintf_maybe_filtered (struct ui_file *, const char *,
-				     va_list, bool, bool)
+				     va_list, bool)
   ATTRIBUTE_PRINTF (2, 0);
 
 static void fputs_maybe_filtered (const char *, struct ui_file *, int);
@@ -201,6 +202,11 @@ dump_core (void)
   setrlimit (RLIMIT_CORE, &rlim);
 #endif /* HAVE_SETRLIMIT */
 
+  /* Ensure that the SIGABRT we're about to raise will immediately cause
+     GDB to exit and dump core, we don't want to trigger GDB's printing of
+     a backtrace to the console here.  */
+  signal (SIGABRT, SIG_DFL);
+
   abort ();		/* ARI: abort */
 }
 
@@ -275,17 +281,37 @@ static const char *const internal_problem_modes[] =
   NULL
 };
 
-/* Print a message reporting an internal error/warning.  Ask the user
-   if they want to continue, dump core, or just exit.  Return
-   something to indicate a quit.  */
+/* Data structure used to control how the internal_vproblem function
+   should behave.  An instance of this structure is created for each
+   problem type that GDB supports.  */
 
 struct internal_problem
 {
+  /* The name of this problem type.  This must not contain white space as
+     this string is used to build command names.  */
   const char *name;
-  int user_settable_should_quit;
+
+  /* When this is true then a user command is created (based on NAME) that
+     allows the SHOULD_QUIT field to be modified, otherwise, SHOULD_QUIT
+     can't be changed from its default value by the user.  */
+  bool user_settable_should_quit;
+
+  /* Reference a value from internal_problem_modes to indicate if GDB
+     should quit when it hits a problem of this type.  */
   const char *should_quit;
-  int user_settable_should_dump_core;
+
+  /* Like USER_SETTABLE_SHOULD_QUIT but for SHOULD_DUMP_CORE.  */
+  bool user_settable_should_dump_core;
+
+  /* Like SHOULD_QUIT, but whether GDB should dump core.  */
   const char *should_dump_core;
+
+  /* Like USER_SETTABLE_SHOULD_QUIT but for SHOULD_PRINT_BACKTRACE.  */
+  bool user_settable_should_print_backtrace;
+
+  /* When this is true GDB will print a backtrace when a problem of this
+     type is encountered.  */
+  bool should_print_backtrace;
 };
 
 /* Report a problem, internal to GDB, to the user.  Once the problem
@@ -359,8 +385,12 @@ internal_vproblem (struct internal_problem *problem,
   /* Emit the message unless query will emit it below.  */
   if (problem->should_quit != internal_problem_ask
       || !confirm
-      || !filtered_printing_initialized ())
+      || !filtered_printing_initialized ()
+      || problem->should_print_backtrace)
     fprintf_unfiltered (gdb_stderr, "%s\n", reason.c_str ());
+
+  if (problem->should_print_backtrace)
+    gdb_internal_backtrace ();
 
   if (problem->should_quit == internal_problem_ask)
     {
@@ -430,7 +460,8 @@ internal_vproblem (struct internal_problem *problem,
 }
 
 static struct internal_problem internal_error_problem = {
-  "internal-error", 1, internal_problem_ask, 1, internal_problem_ask
+  "internal-error", true, internal_problem_ask, true, internal_problem_ask,
+  true, GDB_PRINT_INTERNAL_BACKTRACE_INIT_ON
 };
 
 void
@@ -441,7 +472,8 @@ internal_verror (const char *file, int line, const char *fmt, va_list ap)
 }
 
 static struct internal_problem internal_warning_problem = {
-  "internal-warning", 1, internal_problem_ask, 1, internal_problem_ask
+  "internal-warning", true, internal_problem_ask, true, internal_problem_ask,
+  true, false
 };
 
 void
@@ -451,7 +483,8 @@ internal_vwarning (const char *file, int line, const char *fmt, va_list ap)
 }
 
 static struct internal_problem demangler_warning_problem = {
-  "demangler-warning", 1, internal_problem_ask, 0, internal_problem_no
+  "demangler-warning", true, internal_problem_ask, false, internal_problem_no,
+  false, false
 };
 
 void
@@ -490,72 +523,83 @@ add_internal_problem_command (struct internal_problem *problem)
 {
   struct cmd_list_element **set_cmd_list;
   struct cmd_list_element **show_cmd_list;
-  char *set_doc;
-  char *show_doc;
 
   set_cmd_list = XNEW (struct cmd_list_element *);
   show_cmd_list = XNEW (struct cmd_list_element *);
   *set_cmd_list = NULL;
   *show_cmd_list = NULL;
 
-  set_doc = xstrprintf (_("Configure what GDB does when %s is detected."),
-			problem->name);
+  /* The add_basic_prefix_cmd and add_show_prefix_cmd functions take
+     ownership of the string passed in, which is why we don't need to free
+     set_doc and show_doc in this function.  */
+  const char *set_doc
+    = xstrprintf (_("Configure what GDB does when %s is detected."),
+		  problem->name);
+  const char *show_doc
+    = xstrprintf (_("Show what GDB does when %s is detected."),
+		  problem->name);
 
-  show_doc = xstrprintf (_("Show what GDB does when %s is detected."),
-			 problem->name);
-
-  add_basic_prefix_cmd (problem->name, class_maintenance, set_doc,
-			set_cmd_list,
-			0/*allow-unknown*/, &maintenance_set_cmdlist);
-
-  add_show_prefix_cmd (problem->name, class_maintenance, show_doc,
-		       show_cmd_list,
-		       0/*allow-unknown*/, &maintenance_show_cmdlist);
+  add_setshow_prefix_cmd (problem->name, class_maintenance,
+			  set_doc, show_doc, set_cmd_list, show_cmd_list,
+			  &maintenance_set_cmdlist, &maintenance_show_cmdlist);
 
   if (problem->user_settable_should_quit)
     {
-      set_doc = xstrprintf (_("Set whether GDB should quit "
-			      "when an %s is detected."),
-			    problem->name);
-      show_doc = xstrprintf (_("Show whether GDB will quit "
-			       "when an %s is detected."),
-			     problem->name);
+      std::string set_quit_doc
+	= string_printf (_("Set whether GDB should quit when an %s is "
+			   "detected."), problem->name);
+      std::string show_quit_doc
+	= string_printf (_("Show whether GDB will quit when an %s is "
+			   "detected."), problem->name);
       add_setshow_enum_cmd ("quit", class_maintenance,
 			    internal_problem_modes,
 			    &problem->should_quit,
-			    set_doc,
-			    show_doc,
+			    set_quit_doc.c_str (),
+			    show_quit_doc.c_str (),
 			    NULL, /* help_doc */
 			    NULL, /* setfunc */
 			    NULL, /* showfunc */
 			    set_cmd_list,
 			    show_cmd_list);
-
-      xfree (set_doc);
-      xfree (show_doc);
     }
 
   if (problem->user_settable_should_dump_core)
     {
-      set_doc = xstrprintf (_("Set whether GDB should create a core "
-			      "file of GDB when %s is detected."),
-			    problem->name);
-      show_doc = xstrprintf (_("Show whether GDB will create a core "
-			       "file of GDB when %s is detected."),
-			     problem->name);
+      std::string set_core_doc
+	= string_printf (_("Set whether GDB should create a core file of "
+			   "GDB when %s is detected."), problem->name);
+      std::string show_core_doc
+	= string_printf (_("Show whether GDB will create a core file of "
+			   "GDB when %s is detected."), problem->name);
       add_setshow_enum_cmd ("corefile", class_maintenance,
 			    internal_problem_modes,
 			    &problem->should_dump_core,
-			    set_doc,
-			    show_doc,
+			    set_core_doc.c_str (),
+			    show_core_doc.c_str (),
 			    NULL, /* help_doc */
 			    NULL, /* setfunc */
 			    NULL, /* showfunc */
 			    set_cmd_list,
 			    show_cmd_list);
+    }
 
-      xfree (set_doc);
-      xfree (show_doc);
+  if (problem->user_settable_should_print_backtrace)
+    {
+      std::string set_bt_doc
+	= string_printf (_("Set whether GDB should print a backtrace of "
+			   "GDB when %s is detected."), problem->name);
+      std::string show_bt_doc
+	= string_printf (_("Show whether GDB will print a backtrace of "
+			   "GDB when %s is detected."), problem->name);
+      add_setshow_boolean_cmd ("backtrace", class_maintenance,
+			       &problem->should_print_backtrace,
+			       set_bt_doc.c_str (),
+			       show_bt_doc.c_str (),
+			       NULL, /* help_doc */
+			       gdb_internal_backtrace_set_cmd,
+			       NULL, /* showfunc */
+			       set_cmd_list,
+			       show_cmd_list);
     }
 }
 
@@ -2097,27 +2141,19 @@ puts_debug (char *prefix, char *string, char *suffix)
 
 static void
 vfprintf_maybe_filtered (struct ui_file *stream, const char *format,
-			 va_list args, bool filter, bool gdbfmt)
+			 va_list args, bool filter)
 {
-  if (gdbfmt)
-    {
-      ui_out_flags flags = disallow_ui_out_field;
-      if (!filter)
-	flags |= unfiltered_output;
-      cli_ui_out (stream, flags).vmessage (applied_style, format, args);
-    }
-  else
-    {
-      std::string str = string_vprintf (format, args);
-      fputs_maybe_filtered (str.c_str (), stream, filter);
-    }
+  ui_out_flags flags = disallow_ui_out_field;
+  if (!filter)
+    flags |= unfiltered_output;
+  cli_ui_out (stream, flags).vmessage (applied_style, format, args);
 }
 
 
 void
 vfprintf_filtered (struct ui_file *stream, const char *format, va_list args)
 {
-  vfprintf_maybe_filtered (stream, format, args, true, true);
+  vfprintf_maybe_filtered (stream, format, args, true);
 }
 
 void
@@ -2151,13 +2187,13 @@ vfprintf_unfiltered (struct ui_file *stream, const char *format, va_list args)
       needs_timestamp = (len > 0 && linebuffer[len - 1] == '\n');
     }
   else
-    vfprintf_maybe_filtered (stream, format, args, false, true);
+    vfprintf_maybe_filtered (stream, format, args, false);
 }
 
 void
 vprintf_filtered (const char *format, va_list args)
 {
-  vfprintf_maybe_filtered (gdb_stdout, format, args, true, false);
+  vfprintf_filtered (gdb_stdout, format, args);
 }
 
 void
@@ -2305,8 +2341,6 @@ void
 fprintf_symbol_filtered (struct ui_file *stream, const char *name,
 			 enum language lang, int arg_mode)
 {
-  char *demangled;
-
   if (name != NULL)
     {
       /* If user wants to see raw output, no problem.  */
@@ -2316,12 +2350,9 @@ fprintf_symbol_filtered (struct ui_file *stream, const char *name,
 	}
       else
 	{
-	  demangled = language_demangle (language_def (lang), name, arg_mode);
-	  fputs_filtered (demangled ? demangled : name, stream);
-	  if (demangled != NULL)
-	    {
-	      xfree (demangled);
-	    }
+	  gdb::unique_xmalloc_ptr<char> demangled
+	    = language_demangle (language_def (lang), name, arg_mode);
+	  fputs_filtered (demangled ? demangled.get () : name, stream);
 	}
     }
 }

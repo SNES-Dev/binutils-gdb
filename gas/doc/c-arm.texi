@@ -141,6 +141,7 @@ recognized:
 @code{cortex-r7},
 @code{cortex-r8},
 @code{cortex-r52},
+@code{cortex-r52plus},
 @code{cortex-m35p},
 @code{cortex-m33},
 @code{cortex-m23},
@@ -263,6 +264,7 @@ names are recognized:
 @code{armv8-m.main},
 @code{armv8.1-m.main},
 @code{armv8.6-a},
+@code{armv9-a},
 @code{iwmmxt},
 @code{iwmmxt2}
 and

@@ -80,7 +80,7 @@ pascal_language::value_print_inner (struct value *val,
   struct type *char_type;
   CORE_ADDR addr;
   int want_space = 0;
-  const gdb_byte *valaddr = value_contents_for_printing (val);
+  const gdb_byte *valaddr = value_contents_for_printing (val).data ();
 
   switch (type->code ())
     {
@@ -306,7 +306,7 @@ pascal_language::value_print_inner (struct value *val,
 	  print_address_demangle
 	    (options, gdbarch,
 	     extract_unsigned_integer
-	       (valaddr + TYPE_FIELD_BITPOS (type, VTBL_FNADDR_OFFSET) / 8,
+	       (valaddr + type->field (VTBL_FNADDR_OFFSET).loc_bitpos () / 8,
 		TYPE_LENGTH (type->field (VTBL_FNADDR_OFFSET).type ()),
 		byte_order),
 	     stream, demangle);
@@ -536,7 +536,7 @@ pascal_object_print_value_fields (struct value *val, struct ui_file *stream,
     {
       struct obstack tmp_obstack = dont_print_statmem_obstack;
       int fields_seen = 0;
-      const gdb_byte *valaddr = value_contents_for_printing (val);
+      const gdb_byte *valaddr = value_contents_for_printing (val).data ();
 
       if (dont_print_statmem == 0)
 	{
@@ -583,12 +583,12 @@ pascal_object_print_value_fields (struct value *val, struct ui_file *stream,
 	    {
 	      fputs_filtered ("static ", stream);
 	      fprintf_symbol_filtered (stream,
-				       TYPE_FIELD_NAME (type, i),
+				       type->field (i).name (),
 				       current_language->la_language,
 				       DMGL_PARAMS | DMGL_ANSI);
 	    }
 	  else
-	    fputs_styled (TYPE_FIELD_NAME (type, i),
+	    fputs_styled (type->field (i).name (),
 			  variable_name_style.style (), stream);
 	  annotate_field_name_end ();
 	  fputs_filtered (" = ", stream);
@@ -606,11 +606,9 @@ pascal_object_print_value_fields (struct value *val, struct ui_file *stream,
 		  fputs_styled ("<optimized out or zero length>",
 				metadata_style.style (), stream);
 		}
-	      else if (value_bits_synthetic_pointer (val,
-						     TYPE_FIELD_BITPOS (type,
-									i),
-						     TYPE_FIELD_BITSIZE (type,
-									 i)))
+	      else if (value_bits_synthetic_pointer
+			 (val, type->field (i).loc_bitpos (),
+			  TYPE_FIELD_BITSIZE (type, i)))
 		{
 		  fputs_styled (_("<synthetic pointer>"),
 				metadata_style.style (), stream);

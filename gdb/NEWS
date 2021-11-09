@@ -3,6 +3,63 @@
 
 *** Changes since GDB 11
 
+* New commands
+
+maint set backtrace-on-fatal-signal on|off
+maint show backtrace-on-fatal-signal
+  This setting is 'on' by default.  When 'on' GDB will print a limited
+  backtrace to stderr in the situation where GDB terminates with a
+  fatal signal.  This only supported on some platforms where the
+  backtrace and backtrace_symbols_fd functions are available.
+
+set source open on|off
+show source open
+  This setting, which is on by default, controls whether GDB will try
+  to open source code files.  Switching this off will stop GDB trying
+  to open and read source code files, which can be useful if the files
+  are located over a slow network connection.
+
+set varsize-limit
+show varsize-limit
+  These are now deprecated aliases for "set max-value-size" and
+  "show max-value-size".
+
+maint set internal-error backtrace on|off
+maint show internal-error backtrace
+maint set internal-warning backtrace on|off
+maint show internal-warning backtrace
+  GDB can now print a backtrace of itself when it encounters either an
+  internal-error, or an internal-warning.  This is on by default for
+  internal-error and off by default for internal-warning.
+
+* Python API
+
+  ** New function gdb.add_history(), which takes a gdb.Value object
+     and adds the value it represents to GDB's history list.  An
+     integer, the index of the new item in the history list, is
+     returned.
+
+  ** New gdb.events.gdb_exiting event.  This event is called with a
+     gdb.GdbExitingEvent object which has the read-only attribute
+     'exit_code', which contains the value of the GDB exit code.  This
+     event is triggered once GDB decides it is going to exit, but
+     before GDB starts to clean up its internal state.
+
+  ** New function gdb.architecture_names(), which returns a list
+     containing all of the possible Architecture.name() values.  Each
+     entry is a string.
+
+  ** New function gdb.Architecture.integer_type(), which returns an
+     integer type given a size and a signed-ness.
+
+* New features in the GDB remote stub, GDBserver
+
+  ** GDBserver is now supported on OpenRISC GNU/Linux.
+
+* New native configurations
+
+GNU/Linux/OpenRISC		or1k*-*-linux*
+
 *** Changes in GDB 11
 
 * The 'set disassembler-options' command now supports specifying options
@@ -109,6 +166,10 @@
   now understood by GDB, and can be used to describe the vector
   registers of a target.  The precise requirements of this register
   feature are documented in the GDB manual.
+
+* For ARM targets, the "org.gnu.gdb.arm.m-profile-mve" feature is now
+  supported by GDB and describes a new VPR register from the ARM MVE
+  (Helium) extension. See the GDB manual for more information.
 
 * TUI improvements
 
@@ -266,6 +327,9 @@ QMemTags
   ** New procedures for obtaining value variants:
      value-reference-value, value-rvalue-reference-value and
      value-const-value.
+
+  ** Temporary breakpoints can now be created with make-breakpoint and
+     tested for using breakpoint-temporary?.
 
 * Python API
 

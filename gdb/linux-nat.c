@@ -69,6 +69,7 @@
 #include "gdbsupport/scope-exit.h"
 #include "gdbsupport/gdb-sigmask.h"
 #include "gdbsupport/common-debug.h"
+#include <unordered_map>
 
 /* This comment documents high-level logic of this file.
 
@@ -280,7 +281,8 @@ static int lwp_status_pending_p (struct lwp_info *lp);
 
 static void save_stop_reason (struct lwp_info *lp);
 
-static void maybe_close_proc_mem_file (pid_t pid);
+static void close_proc_mem_file (pid_t pid);
+static void open_proc_mem_file (ptid_t ptid);
 
 
 /* LWP accessors.  */
@@ -421,9 +423,8 @@ static int
 num_lwps (int pid)
 {
   int count = 0;
-  struct lwp_info *lp;
 
-  for (lp = lwp_list; lp; lp = lp->next)
+  for (const lwp_info *lp ATTRIBUTE_UNUSED : all_lwps ())
     if (lp->ptid.pid () == pid)
       count++;
 
@@ -444,19 +445,20 @@ struct lwp_deleter
 
 typedef std::unique_ptr<struct lwp_info, lwp_deleter> lwp_info_up;
 
-/* Target hook for follow_fork.  On entry inferior_ptid must be the
-   ptid of the followed inferior.  At return, inferior_ptid will be
-   unchanged.  */
+/* Target hook for follow_fork.  */
 
 void
-linux_nat_target::follow_fork (ptid_t child_ptid, target_waitkind fork_kind,
-			       bool follow_child, bool detach_fork)
+linux_nat_target::follow_fork (inferior *child_inf, ptid_t child_ptid,
+			       target_waitkind fork_kind, bool follow_child,
+			       bool detach_fork)
 {
+  inf_ptrace_target::follow_fork (child_inf, child_ptid, fork_kind,
+				  follow_child, detach_fork);
+
   if (!follow_child)
     {
       bool has_vforked = fork_kind == TARGET_WAITKIND_VFORKED;
       ptid_t parent_ptid = inferior_ptid;
-      child_ptid = inferior_thread ()->pending_follow.value.related_pid;
       int parent_pid = parent_ptid.lwp ();
       int child_pid = child_ptid.lwp ();
 
@@ -514,6 +516,8 @@ linux_nat_target::follow_fork (ptid_t child_ptid, target_waitkind fork_kind,
 		  && !signal_pass_state (gdb_signal_from_host (signo)))
 		signo = 0;
 	      ptrace (PTRACE_DETACH, child_pid, 0, signo);
+
+	      close_proc_mem_file (child_pid);
 	    }
 	}
 
@@ -575,7 +579,7 @@ linux_nat_target::follow_fork (ptid_t child_ptid, target_waitkind fork_kind,
 		 will notice a pending event, and bypasses actually
 		 resuming the inferior.  */
 	      parent_lp->status = 0;
-	      parent_lp->waitstatus.kind = TARGET_WAITKIND_VFORK_DONE;
+	      parent_lp->waitstatus.set_vfork_done ();
 	      parent_lp->stopped = 1;
 
 	      /* If we're in async mode, need to tell the event loop
@@ -589,7 +593,7 @@ linux_nat_target::follow_fork (ptid_t child_ptid, target_waitkind fork_kind,
     {
       struct lwp_info *child_lp;
 
-      child_lp = add_lwp (inferior_ptid);
+      child_lp = add_lwp (child_ptid);
       child_lp->stopped = 1;
       child_lp->last_resume_kind = resume_stop;
     }
@@ -699,17 +703,31 @@ lwp_lwpid_htab_add_lwp (struct lwp_info *lp)
    creation order.  This order is assumed in some cases.  E.g.,
    reaping status after killing alls lwps of a process: the leader LWP
    must be reaped last.  */
-struct lwp_info *lwp_list;
+
+static intrusive_list<lwp_info> lwp_list;
+
+/* See linux-nat.h.  */
+
+lwp_info_range
+all_lwps ()
+{
+  return lwp_info_range (lwp_list.begin ());
+}
+
+/* See linux-nat.h.  */
+
+lwp_info_safe_range
+all_lwps_safe ()
+{
+  return lwp_info_safe_range (lwp_list.begin ());
+}
 
 /* Add LP to sorted-by-reverse-creation-order doubly-linked list.  */
 
 static void
 lwp_list_add (struct lwp_info *lp)
 {
-  lp->next = lwp_list;
-  if (lwp_list != NULL)
-    lwp_list->prev = lp;
-  lwp_list = lp;
+  lwp_list.push_front (*lp);
 }
 
 /* Remove LP from sorted-by-reverse-creation-order doubly-linked
@@ -719,12 +737,7 @@ static void
 lwp_list_remove (struct lwp_info *lp)
 {
   /* Remove from sorted-by-creation-order list.  */
-  if (lp->next != NULL)
-    lp->next->prev = lp->prev;
-  if (lp->prev != NULL)
-    lp->prev->next = lp->next;
-  if (lp == lwp_list)
-    lwp_list = lp->next;
+  lwp_list.erase (lwp_list.iterator_to (*lp));
 }
 
 
@@ -792,13 +805,10 @@ static int check_ptrace_stopped_lwp_gone (struct lwp_info *lp);
 
 /* Destroy and free LP.  */
 
-static void
-lwp_free (struct lwp_info *lp)
+lwp_info::~lwp_info ()
 {
   /* Let the arch specific bits release arch_lwp_info.  */
-  linux_target->low_delete_thread (lp->arch_private);
-
-  xfree (lp);
+  linux_target->low_delete_thread (this->arch_private);
 }
 
 /* Traversal function for purge_lwp_list.  */
@@ -813,7 +823,7 @@ lwp_lwpid_htab_remove_pid (void **slot, void *info)
     {
       htab_clear_slot (lwp_lwpid_htab, slot);
       lwp_list_remove (lp);
-      lwp_free (lp);
+      delete lp;
     }
 
   return 1;
@@ -844,19 +854,10 @@ purge_lwp_list (int pid)
 static struct lwp_info *
 add_initial_lwp (ptid_t ptid)
 {
-  struct lwp_info *lp;
-
   gdb_assert (ptid.lwp_p ());
 
-  lp = XNEW (struct lwp_info);
+  lwp_info *lp = new lwp_info (ptid);
 
-  memset (lp, 0, sizeof (struct lwp_info));
-
-  lp->last_resume_kind = resume_continue;
-  lp->waitstatus.kind = TARGET_WAITKIND_IGNORE;
-
-  lp->ptid = ptid;
-  lp->core = -1;
 
   /* Add to sorted-by-reverse-creation-order list.  */
   lwp_list_add (lp);
@@ -892,16 +893,13 @@ add_lwp (ptid_t ptid)
 static void
 delete_lwp (ptid_t ptid)
 {
-  struct lwp_info *lp;
-  void **slot;
-  struct lwp_info dummy;
+  lwp_info dummy (ptid);
 
-  dummy.ptid = ptid;
-  slot = htab_find_slot (lwp_lwpid_htab, &dummy, NO_INSERT);
+  void **slot = htab_find_slot (lwp_lwpid_htab, &dummy, NO_INSERT);
   if (slot == NULL)
     return;
 
-  lp = *(struct lwp_info **) slot;
+  lwp_info *lp = *(struct lwp_info **) slot;
   gdb_assert (lp != NULL);
 
   htab_clear_slot (lwp_lwpid_htab, slot);
@@ -910,7 +908,7 @@ delete_lwp (ptid_t ptid)
   lwp_list_remove (lp);
 
   /* Release.  */
-  lwp_free (lp);
+  delete lp;
 }
 
 /* Return a pointer to the structure describing the LWP corresponding
@@ -919,18 +917,15 @@ delete_lwp (ptid_t ptid)
 static struct lwp_info *
 find_lwp_pid (ptid_t ptid)
 {
-  struct lwp_info *lp;
   int lwp;
-  struct lwp_info dummy;
 
   if (ptid.lwp_p ())
     lwp = ptid.lwp ();
   else
     lwp = ptid.pid ();
 
-  dummy.ptid = ptid_t (0, lwp, 0);
-  lp = (struct lwp_info *) htab_find (lwp_lwpid_htab, &dummy);
-  return lp;
+  lwp_info dummy (ptid_t (0, lwp));
+  return (struct lwp_info *) htab_find (lwp_lwpid_htab, &dummy);
 }
 
 /* See nat/linux-nat.h.  */
@@ -939,12 +934,8 @@ struct lwp_info *
 iterate_over_lwps (ptid_t filter,
 		   gdb::function_view<iterate_over_lwps_ftype> callback)
 {
-  struct lwp_info *lp, *lpnext;
-
-  for (lp = lwp_list; lp; lp = lpnext)
+  for (lwp_info *lp : all_lwps_safe ())
     {
-      lpnext = lp->next;
-
       if (lp->ptid.matches (filter))
 	{
 	  if (callback (lp) != 0)
@@ -1072,6 +1063,8 @@ linux_nat_target::create_inferior (const char *exec_file,
   pass_signals ({});
 
   inf_ptrace_target::create_inferior (exec_file, allargs, env, from_tty);
+
+  open_proc_mem_file (inferior_ptid);
 }
 
 /* Callback for linux_proc_attach_tgid_threads.  Attach to PTID if not
@@ -1175,8 +1168,7 @@ linux_nat_target::attach (const char *args, int from_tty)
   /* The ptrace base target adds the main thread with (pid,0,0)
      format.  Decorate it with lwp info.  */
   ptid = ptid_t (inferior_ptid.pid (),
-		 inferior_ptid.pid (),
-		 0);
+		 inferior_ptid.pid ());
   thread_change_ptid (linux_target, inferior_ptid, ptid);
 
   /* Add the initial process as the first LWP to the list.  */
@@ -1217,6 +1209,8 @@ linux_nat_target::attach (const char *args, int from_tty)
     }
 
   lp->stopped = 1;
+
+  open_proc_mem_file (lp->ptid);
 
   /* Save the wait status to report later.  */
   lp->resumed = 1;
@@ -1271,7 +1265,7 @@ get_detach_signal (struct lwp_info *lp)
      signal pass state).  Normally SIGTRAP isn't set to pass state, so
      this is really a corner case.  */
 
-  if (lp->waitstatus.kind != TARGET_WAITKIND_IGNORE)
+  if (lp->waitstatus.kind () != TARGET_WAITKIND_IGNORE)
     signo = GDB_SIGNAL_0; /* a pending ptrace event, not a real signal.  */
   else if (lp->status)
     signo = gdb_signal_from_host (WSTOPSIG (lp->status));
@@ -1279,10 +1273,10 @@ get_detach_signal (struct lwp_info *lp)
     {
       struct thread_info *tp = find_thread_ptid (linux_target, lp->ptid);
 
-      if (target_is_non_stop_p () && !tp->executing)
+      if (target_is_non_stop_p () && !tp->executing ())
 	{
 	  if (tp->has_pending_waitstatus ())
-	    signo = tp->pending_waitstatus ().value.sig;
+	    signo = tp->pending_waitstatus ().sig ();
 	  else
 	    signo = tp->stop_signal ();
 	}
@@ -1469,7 +1463,7 @@ linux_nat_target::detach (inferior *inf, int from_tty)
       detach_success (inf);
     }
 
-  maybe_close_proc_mem_file (pid);
+  close_proc_mem_file (pid);
 }
 
 /* Resume execution of the inferior process.  If STEP is nonzero,
@@ -1534,7 +1528,7 @@ check_ptrace_stopped_lwp_gone (struct lwp_info *lp)
     {
       lp->stop_reason = TARGET_STOPPED_BY_NO_REASON;
       lp->status = 0;
-      lp->waitstatus.kind = TARGET_WAITKIND_IGNORE;
+      lp->waitstatus.set_ignore ();
       return 1;
     }
   return 0;
@@ -1807,8 +1801,12 @@ linux_handle_syscall_trap (struct lwp_info *lp, int stopping)
       if (catching_syscall_number (syscall_number))
 	{
 	  /* Alright, an event to report.  */
-	  ourstatus->kind = lp->syscall_state;
-	  ourstatus->value.syscall_number = syscall_number;
+	  if (lp->syscall_state == TARGET_WAITKIND_SYSCALL_ENTRY)
+	    ourstatus->set_syscall_entry (syscall_number);
+	  else if (lp->syscall_state == TARGET_WAITKIND_SYSCALL_RETURN)
+	    ourstatus->set_syscall_return (syscall_number);
+	  else
+	    gdb_assert_not_reached ("unexpected syscall state");
 
 	  linux_nat_debug_printf
 	    ("stopping for %s of syscall %d for LWP %ld",
@@ -1900,10 +1898,12 @@ linux_handle_extended_wait (struct lwp_info *lp, int status)
 			    _("wait returned unexpected status 0x%x"), status);
 	}
 
-      ourstatus->value.related_pid = ptid_t (new_pid, new_pid, 0);
+      ptid_t child_ptid (new_pid, new_pid);
 
       if (event == PTRACE_EVENT_FORK || event == PTRACE_EVENT_VFORK)
 	{
+	  open_proc_mem_file (child_ptid);
+
 	  /* The arch-specific native code may need to know about new
 	     forks even if those end up never mapped to an
 	     inferior.  */
@@ -1923,7 +1923,7 @@ linux_handle_extended_wait (struct lwp_info *lp, int status)
 
 	  /* This won't actually modify the breakpoint list, but will
 	     physically remove the breakpoints from the child.  */
-	  detach_breakpoints (ptid_t (new_pid, new_pid, 0));
+	  detach_breakpoints (ptid_t (new_pid, new_pid));
 
 	  /* Retain child fork in ptrace (stopped) state.  */
 	  if (!find_fork_pid (new_pid))
@@ -1932,26 +1932,26 @@ linux_handle_extended_wait (struct lwp_info *lp, int status)
 	  /* Report as spurious, so that infrun doesn't want to follow
 	     this fork.  We're actually doing an infcall in
 	     linux-fork.c.  */
-	  ourstatus->kind = TARGET_WAITKIND_SPURIOUS;
+	  ourstatus->set_spurious ();
 
 	  /* Report the stop to the core.  */
 	  return 0;
 	}
 
       if (event == PTRACE_EVENT_FORK)
-	ourstatus->kind = TARGET_WAITKIND_FORKED;
+	ourstatus->set_forked (child_ptid);
       else if (event == PTRACE_EVENT_VFORK)
-	ourstatus->kind = TARGET_WAITKIND_VFORKED;
+	ourstatus->set_vforked (child_ptid);
       else if (event == PTRACE_EVENT_CLONE)
 	{
 	  struct lwp_info *new_lp;
 
-	  ourstatus->kind = TARGET_WAITKIND_IGNORE;
+	  ourstatus->set_ignore ();
 
 	  linux_nat_debug_printf
 	    ("Got clone event from LWP %d, new child is LWP %ld", pid, new_pid);
 
-	  new_lp = add_lwp (ptid_t (lp->ptid.pid (), new_pid, 0));
+	  new_lp = add_lwp (ptid_t (lp->ptid.pid (), new_pid));
 	  new_lp->stopped = 1;
 	  new_lp->resumed = 1;
 
@@ -1995,7 +1995,7 @@ linux_handle_extended_wait (struct lwp_info *lp, int status)
 	    }
 	  else if (report_thread_events)
 	    {
-	      new_lp->waitstatus.kind = TARGET_WAITKIND_THREAD_CREATED;
+	      new_lp->waitstatus.set_thread_created ();
 	      new_lp->status = status;
 	    }
 
@@ -2009,13 +2009,16 @@ linux_handle_extended_wait (struct lwp_info *lp, int status)
     {
       linux_nat_debug_printf ("Got exec event from LWP %ld", lp->ptid.lwp ());
 
-      /* Close the /proc/<pid>/mem file if it was open for this
-	 inferior.  */
-      maybe_close_proc_mem_file (lp->ptid.pid ());
+      /* Close the previous /proc/PID/mem file for this inferior,
+	 which was using the address space which is now gone.
+	 Reading/writing from this file would return 0/EOF.  */
+      close_proc_mem_file (lp->ptid.pid ());
 
-      ourstatus->kind = TARGET_WAITKIND_EXECD;
-      ourstatus->value.execd_pathname
-	= xstrdup (linux_proc_pid_to_exec_file (pid));
+      /* Open a new file for the new address space.  */
+      open_proc_mem_file (lp->ptid);
+
+      ourstatus->set_execd
+	(make_unique_xstrdup (linux_proc_pid_to_exec_file (pid)));
 
       /* The thread that execed must have been resumed, but, when a
 	 thread execs, it changes its tid to the tgid, and the old
@@ -2032,7 +2035,7 @@ linux_handle_extended_wait (struct lwp_info *lp, int status)
 	    ("Got expected PTRACE_EVENT_VFORK_DONE from LWP %ld: stopping",
 	     lp->ptid.lwp ());
 
-	  ourstatus->kind = TARGET_WAITKIND_VFORK_DONE;
+	  ourstatus->set_vfork_done ();
 	  return 0;
 	}
 
@@ -2552,7 +2555,7 @@ lwp_status_pending_p (struct lwp_info *lp)
   /* We check for lp->waitstatus in addition to lp->status, because we
      can have pending process exits recorded in lp->status and
      W_EXITCODE(0,0) happens to be 0.  */
-  return lp->status != 0 || lp->waitstatus.kind != TARGET_WAITKIND_IGNORE;
+  return lp->status != 0 || lp->waitstatus.kind () != TARGET_WAITKIND_IGNORE;
 }
 
 /* Select the Nth LWP that has had an event.  */
@@ -2839,7 +2842,7 @@ linux_nat_filter_event (int lwpid, int status)
       /* A multi-thread exec after we had seen the leader exiting.  */
       linux_nat_debug_printf ("Re-adding thread group leader LWP %d.", lwpid);
 
-      lp = add_lwp (ptid_t (lwpid, lwpid, 0));
+      lp = add_lwp (ptid_t (lwpid, lwpid));
       lp->stopped = 1;
       lp->resumed = 1;
       add_thread (linux_target, lp->ptid);
@@ -3099,9 +3102,9 @@ filter_exit_event (struct lwp_info *event_child,
   if (num_lwps (ptid.pid ()) > 1)
     {
       if (report_thread_events)
-	ourstatus->kind = TARGET_WAITKIND_THREAD_EXITED;
+	ourstatus->set_thread_exited (0);
       else
-	ourstatus->kind = TARGET_WAITKIND_IGNORE;
+	ourstatus->set_ignore ();
 
       exit_lwp (event_child);
     }
@@ -3209,7 +3212,7 @@ linux_nat_wait_1 (ptid_t ptid, struct target_waitstatus *ourstatus,
 	{
 	  linux_nat_debug_printf ("exit (no resumed LWP)");
 
-	  ourstatus->kind = TARGET_WAITKIND_NO_RESUMED;
+	  ourstatus->set_no_resumed ();
 
 	  restore_child_signals_mask (&prev_mask);
 	  return minus_one_ptid;
@@ -3221,7 +3224,7 @@ linux_nat_wait_1 (ptid_t ptid, struct target_waitstatus *ourstatus,
 	{
 	  linux_nat_debug_printf ("exit (ignore)");
 
-	  ourstatus->kind = TARGET_WAITKIND_IGNORE;
+	  ourstatus->set_ignore ();
 	  restore_child_signals_mask (&prev_mask);
 	  return minus_one_ptid;
 	}
@@ -3297,10 +3300,10 @@ linux_nat_wait_1 (ptid_t ptid, struct target_waitstatus *ourstatus,
 			      target_pid_to_str (lp->ptid).c_str ());
     }
 
-  if (lp->waitstatus.kind != TARGET_WAITKIND_IGNORE)
+  if (lp->waitstatus.kind () != TARGET_WAITKIND_IGNORE)
     {
       *ourstatus = lp->waitstatus;
-      lp->waitstatus.kind = TARGET_WAITKIND_IGNORE;
+      lp->waitstatus.set_ignore ();
     }
   else
     store_waitstatus (ourstatus, status);
@@ -3310,22 +3313,22 @@ linux_nat_wait_1 (ptid_t ptid, struct target_waitstatus *ourstatus,
   restore_child_signals_mask (&prev_mask);
 
   if (last_resume_kind == resume_stop
-      && ourstatus->kind == TARGET_WAITKIND_STOPPED
+      && ourstatus->kind () == TARGET_WAITKIND_STOPPED
       && WSTOPSIG (status) == SIGSTOP)
     {
       /* A thread that has been requested to stop by GDB with
 	 target_stop, and it stopped cleanly, so report as SIG0.  The
 	 use of SIGSTOP is an implementation detail.  */
-      ourstatus->value.sig = GDB_SIGNAL_0;
+      ourstatus->set_stopped (GDB_SIGNAL_0);
     }
 
-  if (ourstatus->kind == TARGET_WAITKIND_EXITED
-      || ourstatus->kind == TARGET_WAITKIND_SIGNALLED)
+  if (ourstatus->kind () == TARGET_WAITKIND_EXITED
+      || ourstatus->kind () == TARGET_WAITKIND_SIGNALLED)
     lp->core = -1;
   else
     lp->core = linux_common_core_of_thread (lp->ptid);
 
-  if (ourstatus->kind == TARGET_WAITKIND_EXITED)
+  if (ourstatus->kind () == TARGET_WAITKIND_EXITED)
     return filter_exit_event (lp, ourstatus);
 
   return lp->ptid;
@@ -3423,8 +3426,8 @@ linux_nat_target::wait (ptid_t ptid, struct target_waitstatus *ourstatus,
      may be more.  If we requested a specific lwp or process, also
      assume there may be more.  */
   if (target_is_async_p ()
-      && ((ourstatus->kind != TARGET_WAITKIND_IGNORE
-	   && ourstatus->kind != TARGET_WAITKIND_NO_RESUMED)
+      && ((ourstatus->kind () != TARGET_WAITKIND_IGNORE
+	   && ourstatus->kind () != TARGET_WAITKIND_NO_RESUMED)
 	  || ptid != minus_one_ptid))
     async_file_mark ();
 
@@ -3522,10 +3525,10 @@ kill_unfollowed_fork_children (struct inferior *inf)
     {
       struct target_waitstatus *ws = &thread->pending_follow;
 
-      if (ws->kind == TARGET_WAITKIND_FORKED
-	  || ws->kind == TARGET_WAITKIND_VFORKED)
+      if (ws->kind () == TARGET_WAITKIND_FORKED
+	  || ws->kind () == TARGET_WAITKIND_VFORKED)
 	{
-	  ptid_t child_ptid = ws->value.related_pid;
+	  ptid_t child_ptid = ws->child_ptid ();
 	  int child_pid = child_ptid.pid ();
 	  int child_lwp = child_ptid.lwp ();
 
@@ -3577,9 +3580,7 @@ linux_nat_target::mourn_inferior ()
 
   purge_lwp_list (pid);
 
-  /* Close the /proc/<pid>/mem file if it was open for this
-     inferior.  */
-  maybe_close_proc_mem_file (pid);
+  close_proc_mem_file (pid);
 
   if (! forks_exist_p ())
     /* Normal case, no other forks available.  */
@@ -3733,8 +3734,6 @@ linux_nat_target::thread_alive (ptid_t ptid)
 void
 linux_nat_target::update_thread_list ()
 {
-  struct lwp_info *lwp;
-
   /* We add/delete threads from the list as clone/exit events are
      processed, so just try deleting exited threads still in the
      thread list.  */
@@ -3742,7 +3741,7 @@ linux_nat_target::update_thread_list ()
 
   /* Update the processor core that each lwp/thread was last seen
      running on.  */
-  ALL_LWPS (lwp)
+  for (lwp_info *lwp : all_lwps ())
     {
       /* Avoid accessing /proc if the thread hasn't run since we last
 	 time we fetched the thread's core.  Accessing /proc becomes
@@ -3778,91 +3777,134 @@ linux_nat_target::pid_to_exec_file (int pid)
   return linux_proc_pid_to_exec_file (pid);
 }
 
-/* Keep the /proc/<pid>/mem file open between memory accesses, as a
-   cache to avoid constantly closing/opening the file in the common
-   case of multiple memory reads/writes from/to the same inferior.
-   Note we don't keep a file open per inferior to avoid keeping too
-   many file descriptors open, which can run into resource limits.  */
-static struct
+/* Object representing an /proc/PID/mem open file.  We keep one such
+   file open per inferior.
+
+   It might be tempting to think about only ever opening one file at
+   most for all inferiors, closing/reopening the file as we access
+   memory of different inferiors, to minimize number of file
+   descriptors open, which can otherwise run into resource limits.
+   However, that does not work correctly -- if the inferior execs and
+   we haven't processed the exec event yet, and, we opened a
+   /proc/PID/mem file, we will get a mem file accessing the post-exec
+   address space, thinking we're opening it for the pre-exec address
+   space.  That is dangerous as we can poke memory (e.g. clearing
+   breakpoints) in the post-exec memory by mistake, corrupting the
+   inferior.  For that reason, we open the mem file as early as
+   possible, right after spawning, forking or attaching to the
+   inferior, when the inferior is stopped and thus before it has a
+   chance of execing.
+
+   Note that after opening the file, even if the thread we opened it
+   for subsequently exits, the open file is still usable for accessing
+   memory.  It's only when the whole process exits or execs that the
+   file becomes invalid, at which point reads/writes return EOF.  */
+
+class proc_mem_file
 {
-  /* The LWP this open file is for.  Note that after opening the file,
-     even if the thread subsequently exits, the open file is still
-     usable for accessing memory.  It's only when the whole process
-     exits or execs that the file becomes invalid (at which point
-     reads/writes return EOF).  */
-  ptid_t ptid;
-
-  /* The file descriptor.  -1 if file is not open.  */
-  int fd = -1;
-
-  /* Close FD and clear it to -1.  */
-  void close ()
+public:
+  proc_mem_file (ptid_t ptid, int fd)
+    : m_ptid (ptid), m_fd (fd)
   {
-    linux_nat_debug_printf ("closing fd %d for /proc/%d/task/%ld/mem\n",
-			    fd, ptid.pid (), ptid.lwp ());
-    ::close (fd);
-    fd = -1;
+    gdb_assert (m_fd != -1);
   }
-} last_proc_mem_file;
 
-/* Close the /proc/<pid>/mem file if its LWP matches PTID.  */
+  ~proc_mem_file ()
+  {
+    linux_nat_debug_printf ("closing fd %d for /proc/%d/task/%ld/mem",
+			    m_fd, m_ptid.pid (), m_ptid.lwp ());
+    close (m_fd);
+  }
+
+  DISABLE_COPY_AND_ASSIGN (proc_mem_file);
+
+  int fd ()
+  {
+    return m_fd;
+  }
+
+private:
+  /* The LWP this file was opened for.  Just for debugging
+     purposes.  */
+  ptid_t m_ptid;
+
+  /* The file descriptor.  */
+  int m_fd = -1;
+};
+
+/* The map between an inferior process id, and the open /proc/PID/mem
+   file.  This is stored in a map instead of in a per-inferior
+   structure because we need to be able to access memory of processes
+   which don't have a corresponding struct inferior object.  E.g.,
+   with "detach-on-fork on" (the default), and "follow-fork parent"
+   (also default), we don't create an inferior for the fork child, but
+   we still need to remove breakpoints from the fork child's
+   memory.  */
+static std::unordered_map<int, proc_mem_file> proc_mem_file_map;
+
+/* Close the /proc/PID/mem file for PID.  */
 
 static void
-maybe_close_proc_mem_file (pid_t pid)
+close_proc_mem_file (pid_t pid)
 {
-  if (last_proc_mem_file.ptid.pid () == pid)
-    last_proc_mem_file.close ();
+  proc_mem_file_map.erase (pid);
 }
 
-/* Helper for linux_proc_xfer_memory_partial.  Accesses /proc via
-   PTID.  Returns -1 on error, with errno set.  Returns number of
-   read/written bytes otherwise.  Returns 0 on EOF, which indicates
-   the address space is gone (because the process exited or
-   execed).  */
+/* Open the /proc/PID/mem file for the process (thread group) of PTID.
+   We actually open /proc/PID/task/LWP/mem, as that's the LWP we know
+   exists and is stopped right now.  We prefer the
+   /proc/PID/task/LWP/mem form over /proc/LWP/mem to avoid tid-reuse
+   races, just in case this is ever called on an already-waited
+   LWP.  */
 
-static ssize_t
-linux_proc_xfer_memory_partial_pid (ptid_t ptid,
-				    gdb_byte *readbuf, const gdb_byte *writebuf,
-				    ULONGEST offset, LONGEST len)
+static void
+open_proc_mem_file (ptid_t ptid)
+{
+  auto iter = proc_mem_file_map.find (ptid.pid ());
+  gdb_assert (iter == proc_mem_file_map.end ());
+
+  char filename[64];
+  xsnprintf (filename, sizeof filename,
+	     "/proc/%d/task/%ld/mem", ptid.pid (), ptid.lwp ());
+
+  int fd = gdb_open_cloexec (filename, O_RDWR | O_LARGEFILE, 0).release ();
+
+  if (fd == -1)
+    {
+      warning (_("opening /proc/PID/mem file for lwp %d.%ld failed: %s (%d)"),
+	       ptid.pid (), ptid.lwp (),
+	       safe_strerror (errno), errno);
+      return;
+    }
+
+  proc_mem_file_map.emplace (std::piecewise_construct,
+			     std::forward_as_tuple (ptid.pid ()),
+			     std::forward_as_tuple (ptid, fd));
+
+  linux_nat_debug_printf ("opened fd %d for lwp %d.%ld\n",
+			  fd, ptid.pid (), ptid.lwp ());
+}
+
+/* Implement the to_xfer_partial target method using /proc/PID/mem.
+   Because we can use a single read/write call, this can be much more
+   efficient than banging away at PTRACE_PEEKTEXT.  Also, unlike
+   PTRACE_PEEKTEXT/PTRACE_POKETEXT, this works with running
+   threads.  */
+
+static enum target_xfer_status
+linux_proc_xfer_memory_partial (gdb_byte *readbuf, const gdb_byte *writebuf,
+				ULONGEST offset, LONGEST len,
+				ULONGEST *xfered_len)
 {
   ssize_t ret;
 
-  /* As long as we're hitting the same inferior, the previously open
-     file is good, even if the thread it was open for exits.  */
-  if (last_proc_mem_file.fd != -1
-      && last_proc_mem_file.ptid.pid () != ptid.pid ())
-    last_proc_mem_file.close ();
+  auto iter = proc_mem_file_map.find (inferior_ptid.pid ());
+  if (iter == proc_mem_file_map.end ())
+    return TARGET_XFER_EOF;
 
-  if (last_proc_mem_file.fd == -1)
-    {
-      /* Actually use /proc/<pid>/task/<lwp>/mem instead of
-	 /proc/<lwp>/mem to avoid PID-reuse races, as we may be trying
-	 to read memory via a thread which we've already reaped.
-	 /proc/<lwp>/mem could open a file for the wrong process.  If
-	 the LWPID is reused for the same process it's OK, we can read
-	 memory through it just fine.  If the LWPID is reused for a
-	 different process, then the open will fail because the path
-	 won't exist.  */
-      char filename[64];
-      xsnprintf (filename, sizeof filename,
-		 "/proc/%d/task/%ld/mem", ptid.pid (), ptid.lwp ());
+  int fd = iter->second.fd ();
 
-      last_proc_mem_file.fd
-	= gdb_open_cloexec (filename, O_RDWR | O_LARGEFILE, 0);
-
-      if (last_proc_mem_file.fd == -1)
-	{
-	  linux_nat_debug_printf ("opening %s failed: %s (%d)\n",
-				  filename, safe_strerror (errno), errno);
-	  return -1;
-	}
-      last_proc_mem_file.ptid = ptid;
-
-      linux_nat_debug_printf ("opened fd %d for %s\n",
-			      last_proc_mem_file.fd, filename);
-    }
-
-  int fd = last_proc_mem_file.fd;
+  gdb_assert (fd != -1);
 
   /* Use pread64/pwrite64 if available, since they save a syscall and can
      handle 64-bit offsets even on 32-bit platforms (for instance, SPARC
@@ -3879,125 +3921,24 @@ linux_proc_xfer_memory_partial_pid (ptid_t ptid,
 
   if (ret == -1)
     {
-      linux_nat_debug_printf ("accessing fd %d for pid %ld failed: %s (%d)\n",
-			      fd, ptid.lwp (),
+      linux_nat_debug_printf ("accessing fd %d for pid %d failed: %s (%d)\n",
+			      fd, inferior_ptid.pid (),
 			      safe_strerror (errno), errno);
+      return TARGET_XFER_EOF;
     }
   else if (ret == 0)
     {
-      linux_nat_debug_printf ("accessing fd %d for pid %ld got EOF\n",
-			      fd, ptid.lwp ());
-    }
-
-  return ret;
-}
-
-/* Implement the to_xfer_partial target method using /proc/<pid>/mem.
-   Because we can use a single read/write call, this can be much more
-   efficient than banging away at PTRACE_PEEKTEXT.  Also, unlike
-   PTRACE_PEEKTEXT/PTRACE_POKETEXT, this works with running
-   threads.  */
-
-static enum target_xfer_status
-linux_proc_xfer_memory_partial (gdb_byte *readbuf, const gdb_byte *writebuf,
-				ULONGEST offset, LONGEST len,
-				ULONGEST *xfered_len)
-{
-  /* Unlike PTRACE_PEEKTEXT/PTRACE_POKETEXT, reading/writing from/to
-     /proc/<pid>/mem works with running threads, and even exited
-     threads if the file was already open.  If we need to open or
-     reopen the /proc file though, we may get an EACCES error
-     ("Permission denied"), meaning the thread is gone but its exit
-     status isn't reaped yet, or ENOENT if the thread is gone and
-     already reaped.  In that case, just try opening the file for
-     another thread in the process.  If all threads fail, then it must
-     mean the whole process exited, in which case there's nothing else
-     to do and we just fail the memory access.
-
-     Note we don't simply always access via the leader thread because
-     the leader may exit without exiting the whole process.  See
-     gdb.threads/leader-exit.exp, for example.  */
-
-  /* It's frequently the case that the selected thread is stopped, and
-     is thus not likely to exit (unless something kills the process
-     outside our control, with e.g., SIGKILL).  Give that one a try
-     first.
-
-     Also, inferior_ptid may actually point at an LWP not in lwp_list.
-     This happens when we're detaching from a fork child that we don't
-     want to debug ("set detach-on-fork on"), and the breakpoints
-     module uninstalls breakpoints from the fork child.  Which process
-     to access is given by inferior_ptid.  */
-  int res = linux_proc_xfer_memory_partial_pid (inferior_ptid,
-						readbuf, writebuf,
-						offset, len);
-  if (res == 0)
-    {
-      /* EOF means the address space is gone, the whole
-	 process exited or execed.  */
+      /* EOF means the address space is gone, the whole process exited
+	 or execed.  */
+      linux_nat_debug_printf ("accessing fd %d for pid %d got EOF\n",
+			      fd, inferior_ptid.pid ());
       return TARGET_XFER_EOF;
-    }
-  else if (res != -1)
-    {
-      *xfered_len = res;
-      return TARGET_XFER_OK;
     }
   else
     {
-      /* If we simply raced with the thread exiting (EACCES), or the
-	 current thread is THREAD_EXITED (ENOENT), try some other
-	 thread.  It's easier to handle an ENOENT failure than check
-	 for THREAD_EXIT upfront because this function is called
-	 before a thread for inferior_ptid is added to the thread
-	 list.  */
-      if (errno != EACCES && errno != ENOENT)
-	return TARGET_XFER_EOF;
-    }
-
-  int cur_pid = current_inferior ()->pid;
-
-  if (inferior_ptid.pid () != cur_pid)
-    {
-      /* We're accessing a fork child, and the access above failed.
-	 Don't bother iterating the LWP list, since there's no other
-	 LWP for this process.  */
-      return TARGET_XFER_EOF;
-    }
-
-  /* Iterate over LWPs of the current inferior, trying to access
-     memory through one of them.  */
-  for (lwp_info *lp = lwp_list; lp != nullptr; lp = lp->next)
-    {
-      if (lp->ptid.pid () != cur_pid)
-	continue;
-
-      res = linux_proc_xfer_memory_partial_pid (lp->ptid,
-						readbuf, writebuf,
-						offset, len);
-
-      if (res == 0)
-	{
-	  /* EOF means the address space is gone, the whole process
-	     exited or execed.  */
-	  return TARGET_XFER_EOF;
-	}
-      else if (res == -1)
-	{
-	  if (errno == EACCES)
-	    {
-	      /* This LWP is gone, try another one.  */
-	      continue;
-	    }
-
-	  return TARGET_XFER_EOF;
-	}
-
-      *xfered_len = res;
+      *xfered_len = ret;
       return TARGET_XFER_OK;
     }
-
-  /* No luck.  */
-  return TARGET_XFER_EOF;
 }
 
 /* Parse LINE as a signal set and add its set bits to SIGS.  */
@@ -4100,7 +4041,7 @@ linux_nat_target::static_tracepoint_markers_by_strid (const char *strid)
   int pid = inferior_ptid.pid ();
   std::vector<static_tracepoint_marker> markers;
   const char *p = s;
-  ptid_t ptid = ptid_t (pid, 0, 0);
+  ptid_t ptid = ptid_t (pid, 0);
   static_tracepoint_marker marker;
 
   /* Pause all */

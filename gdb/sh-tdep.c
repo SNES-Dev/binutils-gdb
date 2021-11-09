@@ -923,12 +923,12 @@ sh_justify_value_in_reg (struct gdbarch *gdbarch, struct value *val, int len)
     {
       /* value gets right-justified in the register or stack word.  */
       if (gdbarch_byte_order (gdbarch) == BFD_ENDIAN_BIG)
-	memcpy (valbuf + (4 - len), value_contents (val), len);
+	memcpy (valbuf + (4 - len), value_contents (val).data (), len);
       else
-	memcpy (valbuf, value_contents (val), len);
+	memcpy (valbuf, value_contents (val).data (), len);
       return valbuf;
     }
-  return value_contents (val);
+  return value_contents (val).data ();
 }
 
 /* Helper function to eval number of bytes to allocate on stack.  */
@@ -2416,10 +2416,11 @@ _initialize_sh_tdep ()
 {
   gdbarch_register (bfd_arch_sh, sh_gdbarch_init, NULL);
 
-  add_basic_prefix_cmd ("sh", no_class, "SH specific commands.",
-			&setshcmdlist, 0, &setlist);
-  add_show_prefix_cmd ("sh", no_class, "SH specific commands.",
-		       &showshcmdlist, 0, &showlist);
+  add_setshow_prefix_cmd ("sh", no_class,
+			  _("SH specific commands."),
+			  _("SH specific commands."),
+			  &setshcmdlist, &showshcmdlist,
+			  &setlist, &showlist);
   
   add_setshow_enum_cmd ("calling-convention", class_vars, sh_cc_enum,
 			&sh_active_calling_convention,

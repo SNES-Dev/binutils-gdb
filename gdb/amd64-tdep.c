@@ -358,7 +358,7 @@ amd64_pseudo_register_read_value (struct gdbarch *gdbarch,
   value *result_value = allocate_value (register_type (gdbarch, regnum));
   VALUE_LVAL (result_value) = lval_register;
   VALUE_REGNUM (result_value) = regnum;
-  gdb_byte *buf = value_contents_raw (result_value);
+  gdb_byte *buf = value_contents_raw (result_value).data ();
 
   if (i386_byte_regnum_p (gdbarch, regnum))
     {
@@ -553,7 +553,6 @@ amd64_has_unaligned_fields (struct type *type)
       for (int i = 0; i < type->num_fields (); i++)
 	{
 	  struct type *subtype = check_typedef (type->field (i).type ());
-	  int bitpos = TYPE_FIELD_BITPOS (type, i);
 
 	  /* Ignore static fields, empty fields (for example nested
 	     empty structures), and bitfields (these are handled by
@@ -563,6 +562,8 @@ amd64_has_unaligned_fields (struct type *type)
 		  && TYPE_LENGTH (subtype) == 0)
 	      || TYPE_FIELD_PACKED (type, i))
 	    continue;
+
+	  int bitpos = type->field (i).loc_bitpos ();
 
 	  if (bitpos % 8 != 0)
 	    return true;
@@ -592,20 +593,20 @@ amd64_classify_aggregate_field (struct type *type, int i,
 				unsigned int bitoffset)
 {
   struct type *subtype = check_typedef (type->field (i).type ());
-  int bitpos = bitoffset + TYPE_FIELD_BITPOS (type, i);
-  int pos = bitpos / 64;
   enum amd64_reg_class subclass[2];
   int bitsize = TYPE_FIELD_BITSIZE (type, i);
-  int endpos;
 
   if (bitsize == 0)
     bitsize = TYPE_LENGTH (subtype) * 8;
-  endpos = (bitpos + bitsize - 1) / 64;
 
   /* Ignore static fields, or empty fields, for example nested
      empty structures.*/
   if (field_is_static (&type->field (i)) || bitsize == 0)
     return;
+
+  int bitpos = bitoffset + type->field (i).loc_bitpos ();
+  int pos = bitpos / 64;
+  int endpos = (bitpos + bitsize - 1) / 64;
 
   if (subtype->code () == TYPE_CODE_STRUCT
       || subtype->code () == TYPE_CODE_UNION)
@@ -728,10 +729,10 @@ amd64_classify (struct type *type, enum amd64_reg_class theclass[2])
       && (len == 1 || len == 2 || len == 4 || len == 8))
     theclass[0] = AMD64_INTEGER;
 
-  /* Arguments of types float, double, _Decimal32, _Decimal64 and __m64
-     are in class SSE.  */
+  /* Arguments of types _Float16, float, double, _Decimal32, _Decimal64 and
+     __m64 are in class SSE.  */
   else if ((code == TYPE_CODE_FLT || code == TYPE_CODE_DECFLOAT)
-	   && (len == 4 || len == 8))
+	   && (len == 2 || len == 4 || len == 8))
     /* FIXME: __m64 .  */
     theclass[0] = AMD64_SSE;
 
@@ -749,8 +750,8 @@ amd64_classify (struct type *type, enum amd64_reg_class theclass[2])
     /* Class X87 and X87UP.  */
     theclass[0] = AMD64_X87, theclass[1] = AMD64_X87UP;
 
-  /* Arguments of complex T where T is one of the types float or
-     double get treated as if they are implemented as:
+  /* Arguments of complex T - where T is one of the types _Float16, float or
+     double - get treated as if they are implemented as:
 
      struct complexT {
        T real;
@@ -758,7 +759,7 @@ amd64_classify (struct type *type, enum amd64_reg_class theclass[2])
      };
 
   */
-  else if (code == TYPE_CODE_COMPLEX && len == 8)
+  else if (code == TYPE_CODE_COMPLEX && (len == 8 || len == 4))
     theclass[0] = AMD64_SSE;
   else if (code == TYPE_CODE_COMPLEX && len == 16)
     theclass[0] = theclass[1] = AMD64_SSE;
@@ -976,7 +977,7 @@ if (return_method == return_method_struct)
       else
 	{
 	  /* The argument will be passed in registers.  */
-	  const gdb_byte *valbuf = value_contents (args[i]);
+	  const gdb_byte *valbuf = value_contents (args[i]).data ();
 	  gdb_byte buf[8];
 
 	  gdb_assert (len <= 16);
@@ -1028,7 +1029,7 @@ if (return_method == return_method_struct)
   for (i = 0; i < num_stack_args; i++)
     {
       struct type *type = value_type (stack_args[i]);
-      const gdb_byte *valbuf = value_contents (stack_args[i]);
+      const gdb_byte *valbuf = value_contents (stack_args[i]).data ();
       int len = TYPE_LENGTH (type);
 
       write_memory (sp + element * 8, valbuf, len);

@@ -1267,7 +1267,7 @@ sparc64_store_floating_fields (struct regcache *regcache, struct type *type,
       for (i = 0; i < type->num_fields (); i++)
 	{
 	  struct type *subtype = check_typedef (type->field (i).type ());
-	  int subpos = bitpos + TYPE_FIELD_BITPOS (type, i);
+	  int subpos = bitpos + type->field (i).loc_bitpos ();
 
 	  sparc64_store_floating_fields (regcache, subtype, valbuf,
 					 element, subpos);
@@ -1355,7 +1355,7 @@ sparc64_extract_floating_fields (struct regcache *regcache, struct type *type,
       for (i = 0; i < type->num_fields (); i++)
 	{
 	  struct type *subtype = check_typedef (type->field (i).type ());
-	  int subpos = bitpos + TYPE_FIELD_BITPOS (type, i);
+	  int subpos = bitpos + type->field (i).loc_bitpos ();
 
 	  sparc64_extract_floating_fields (regcache, subtype, valbuf, subpos);
 	}
@@ -1418,7 +1418,7 @@ sparc64_store_arguments (struct regcache *regcache, int nargs,
 		 a problem.  */
 	      sp &= ~0xf;
 
-	      write_memory (sp, value_contents (args[i]), len);
+	      write_memory (sp, value_contents (args[i]).data (), len);
 	      args[i] = value_from_pointer (lookup_pointer_type (type), sp);
 	      num_elements++;
 	    }
@@ -1487,7 +1487,7 @@ sparc64_store_arguments (struct regcache *regcache, int nargs,
 
   for (i = 0; i < nargs; i++)
     {
-      const gdb_byte *valbuf = value_contents (args[i]);
+      const gdb_byte *valbuf = value_contents (args[i]).data ();
       struct type *type = value_type (args[i]);
       int len = TYPE_LENGTH (type);
       int regnum = -1;

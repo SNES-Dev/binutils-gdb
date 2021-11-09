@@ -38,7 +38,7 @@ static struct serial *scb_base;
 /* Non-NULL gives filename which contains a recording of the remote session,
    suitable for playback by gdbserver.  */
 
-static char *serial_logfile = NULL;
+static std::string serial_logfile;
 static struct ui_file *serial_logfp = NULL;
 
 static const struct serial_ops *serial_interface_lookup (const char *);
@@ -251,12 +251,12 @@ serial_open_ops_1 (const struct serial_ops *ops, const char *open_name)
   scb->next = scb_base;
   scb_base = scb;
 
-  if (serial_logfile != NULL)
+  if (!serial_logfile.empty ())
     {
       stdio_file_up file (new stdio_file ());
 
-      if (!file->open (serial_logfile, "w"))
-	perror_with_name (serial_logfile);
+      if (!file->open (serial_logfile.c_str (), "w"))
+	perror_with_name (serial_logfile.c_str ());
 
       serial_logfp = file.release ();
     }
@@ -669,17 +669,11 @@ Connect the terminal directly up to the command monitor.\n\
 Use <CR>~. or <CR>~^D to break out."));
 #endif /* 0 */
 
-  add_basic_prefix_cmd ("serial", class_maintenance, _("\
-Set default serial/parallel port configuration."),
-			&serial_set_cmdlist,
-			0/*allow-unknown*/,
-			&setlist);
-
-  add_show_prefix_cmd ("serial", class_maintenance, _("\
-Show default serial/parallel port configuration."),
-		       &serial_show_cmdlist,
-		       0/*allow-unknown*/,
-		       &showlist);
+  add_setshow_prefix_cmd ("serial", class_maintenance,
+			  _("Set default serial/parallel port configuration."),
+			  _("Show default serial/parallel port configuration."),
+			  &serial_set_cmdlist, &serial_show_cmdlist,
+			  &setlist, &showlist);
 
   /* If target is open when baud changes, it doesn't take effect until
      the next open (I think, not sure).  */

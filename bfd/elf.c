@@ -1773,6 +1773,9 @@ _bfd_elf_print_private_bfd_data (bfd *abfd, void *farg)
 	    case DT_REL: name = "REL"; break;
 	    case DT_RELSZ: name = "RELSZ"; break;
 	    case DT_RELENT: name = "RELENT"; break;
+	    case DT_RELR: name = "RELR"; break;
+	    case DT_RELRSZ: name = "RELRSZ"; break;
+	    case DT_RELRENT: name = "RELRENT"; break;
 	    case DT_PLTREL: name = "PLTREL"; break;
 	    case DT_DEBUG: name = "DEBUG"; break;
 	    case DT_TEXTREL: name = "TEXTREL"; break;
@@ -1944,6 +1947,7 @@ _bfd_elf_get_symbol_version_string (bfd *abfd, asymbol *symbol,
 		{
 		  if (a->vna_other == vernum)
 		    {
+		      *hidden = true;
 		      version_string = a->vna_nodename;
 		      break;
 		    }
@@ -6952,9 +6956,14 @@ rewrite_elf_program_header (bfd *ibfd, bfd *obfd, bfd_vma maxpagesize)
    && !(SEGMENT_AFTER_SEGMENT (seg1, seg2, p_paddr)			\
 	|| SEGMENT_AFTER_SEGMENT (seg2, seg1, p_paddr)))
 
-  /* Initialise the segment mark field.  */
+  /* Initialise the segment mark field, and discard stupid alignment.  */
   for (section = ibfd->sections; section != NULL; section = section->next)
-    section->segment_mark = false;
+    {
+      asection *o = section->output_section;
+      if (o != NULL && o->alignment_power >= (sizeof (bfd_vma) * 8) - 1)
+	o->alignment_power = 0;
+      section->segment_mark = false;
+    }
 
   /* The Solaris linker creates program headers in which all the
      p_paddr fields are zero.  When we try to objcopy or strip such a
@@ -7984,7 +7993,7 @@ _bfd_elf_fixup_group_sections (bfd *ibfd, asection *discarded)
 		    isec->flags |= SEC_EXCLUDE;
 		  }
 	      }
-	    else
+	    else if (isec->output_section != NULL)
 	      {
 		/* Adjust the output section size when called from
 		   objcopy. */
@@ -8094,7 +8103,6 @@ swap_out_syms (bfd *abfd,
   bfd_byte *outbound_syms;
   bfd_byte *outbound_shndx;
   unsigned long outbound_syms_index;
-  unsigned long outbound_shndx_index;
   unsigned int idx;
   unsigned int num_locals;
   size_t amt;
@@ -8143,7 +8151,6 @@ swap_out_syms (bfd *abfd,
   outbound_syms_index = 0;
 
   outbound_shndx = NULL;
-  outbound_shndx_index = 0;
 
   if (elf_symtab_shndx_list (abfd))
     {
@@ -8179,10 +8186,7 @@ swap_out_syms (bfd *abfd,
     sym.st_target_internal = 0;
     symstrtab[0].sym = sym;
     symstrtab[0].dest_index = outbound_syms_index;
-    symstrtab[0].destshndx_index = outbound_shndx_index;
     outbound_syms_index++;
-    if (outbound_shndx != NULL)
-      outbound_shndx_index++;
   }
 
   name_local_sections
@@ -8414,11 +8418,8 @@ Unable to handle section index %x in ELF symbol.  Using ABS instead."),
       idx++;
       symstrtab[idx].sym = sym;
       symstrtab[idx].dest_index = outbound_syms_index;
-      symstrtab[idx].destshndx_index = outbound_shndx_index;
 
       outbound_syms_index++;
-      if (outbound_shndx != NULL)
-	outbound_shndx_index++;
     }
 
   /* Finalize the .strtab section.  */
@@ -8443,9 +8444,9 @@ Unable to handle section index %x in ELF symbol.  Using ABS instead."),
 			       (outbound_syms
 				+ (elfsym->dest_index
 				   * bed->s->sizeof_sym)),
-			       (outbound_shndx
-				+ (elfsym->destshndx_index
-				   * sizeof (Elf_External_Sym_Shndx))));
+			       NPTR_ADD (outbound_shndx,
+					 (elfsym->dest_index
+					  * sizeof (Elf_External_Sym_Shndx))));
     }
   free (symstrtab);
 
@@ -8559,7 +8560,7 @@ _bfd_elf_get_reloc_upper_bound (bfd *abfd, sec_ptr asect)
       return -1;
     }
 #endif
-  return (asect->reloc_count + 1) * sizeof (arelent *);
+  return (asect->reloc_count + 1L) * sizeof (arelent *);
 }
 
 /* Canonicalize the relocs.  */
@@ -9599,23 +9600,6 @@ elfcore_make_auxv_note_section (bfd *abfd, Elf_Internal_Note *note,
   return true;
 }
 
-static bool
-elfcore_make_memtag_note_section (bfd *abfd, Elf_Internal_Note *note,
-				  size_t offs)
-{
-  asection *sect = bfd_make_section_anyway_with_flags (abfd, ".memtag",
-						       SEC_HAS_CONTENTS);
-
-  if (sect == NULL)
-    return false;
-
-  sect->size = note->descsz - offs;
-  sect->filepos = note->descpos + offs;
-  sect->alignment_power = 1 + bfd_get_arch_size (abfd) / 32;
-
-  return true;
-}
-
 /* prstatus_t exists on:
      solaris 2.5+
      linux 2.[01] + glibc
@@ -9973,6 +9957,30 @@ static bool
 elfcore_grok_gdb_tdesc (bfd *abfd, Elf_Internal_Note *note)
 {
   return elfcore_make_note_pseudosection (abfd, ".gdb-tdesc", note);
+}
+
+static bool
+elfcore_grok_loongarch_cpucfg (bfd *abfd, Elf_Internal_Note *note)
+{
+  return elfcore_make_note_pseudosection (abfd, ".reg-loongarch-cpucfg", note);
+}
+
+static bool
+elfcore_grok_loongarch_lbt (bfd *abfd, Elf_Internal_Note *note)
+{
+  return elfcore_make_note_pseudosection (abfd, ".reg-loongarch-lbt", note);
+}
+
+static bool
+elfcore_grok_loongarch_lsx (bfd *abfd, Elf_Internal_Note *note)
+{
+  return elfcore_make_note_pseudosection (abfd, ".reg-loongarch-lsx", note);
+}
+
+static bool
+elfcore_grok_loongarch_lasx (bfd *abfd, Elf_Internal_Note *note)
+{
+  return elfcore_make_note_pseudosection (abfd, ".reg-loongarch-lasx", note);
 }
 
 #if defined (HAVE_PRPSINFO_T)
@@ -10654,6 +10662,34 @@ elfcore_grok_note (bfd *abfd, Elf_Internal_Note *note)
       else
 	return true;
 
+    case NT_LARCH_CPUCFG:
+      if (note->namesz == 6
+	  && strcmp (note->namedata, "LINUX") == 0)
+	return elfcore_grok_loongarch_cpucfg (abfd, note);
+      else
+	return true;
+
+    case NT_LARCH_LBT:
+      if (note->namesz == 6
+	  && strcmp (note->namedata, "LINUX") == 0)
+	return elfcore_grok_loongarch_lbt (abfd, note);
+      else
+	return true;
+
+    case NT_LARCH_LSX:
+      if (note->namesz == 6
+	  && strcmp (note->namedata, "LINUX") == 0)
+	return elfcore_grok_loongarch_lsx (abfd, note);
+      else
+	return true;
+
+    case NT_LARCH_LASX:
+      if (note->namesz == 6
+	  && strcmp (note->namedata, "LINUX") == 0)
+	return elfcore_grok_loongarch_lasx (abfd, note);
+      else
+	return true;
+
     case NT_PRPSINFO:
     case NT_PSINFO:
       if (bed->elf_backend_grok_psinfo)
@@ -10676,8 +10712,6 @@ elfcore_grok_note (bfd *abfd, Elf_Internal_Note *note)
       return elfcore_make_note_pseudosection (abfd, ".note.linuxcore.siginfo",
 					      note);
 
-    case NT_MEMTAG:
-      return elfcore_make_memtag_note_section (abfd, note, 0);
     }
 }
 
@@ -11081,6 +11115,195 @@ elfcore_grok_openbsd_procinfo (bfd *abfd, Elf_Internal_Note *note)
     = _bfd_elfcore_strndup (abfd, note->descdata + 0x48, 31);
 
   return true;
+}
+
+/* Processes Solaris's process status note.
+   sig_off ~ offsetof(prstatus_t, pr_cursig)
+   pid_off ~ offsetof(prstatus_t, pr_pid)
+   lwpid_off ~ offsetof(prstatus_t, pr_who)
+   gregset_size ~ sizeof(gregset_t)
+   gregset_offset ~ offsetof(prstatus_t, pr_reg)  */
+
+static bool
+elfcore_grok_solaris_prstatus (bfd *abfd, Elf_Internal_Note* note, int sig_off,
+			       int pid_off, int lwpid_off, size_t gregset_size,
+			       size_t gregset_offset)
+{
+  asection *sect = NULL;
+  elf_tdata (abfd)->core->signal
+    = bfd_get_16 (abfd, note->descdata + sig_off);
+  elf_tdata (abfd)->core->pid
+    = bfd_get_32 (abfd, note->descdata + pid_off);
+  elf_tdata (abfd)->core->lwpid
+    = bfd_get_32 (abfd, note->descdata + lwpid_off);
+
+  sect = bfd_get_section_by_name (abfd, ".reg");
+  if (sect != NULL)
+    sect->size = gregset_size;
+
+  return _bfd_elfcore_make_pseudosection (abfd, ".reg", gregset_size,
+					  note->descpos + gregset_offset);
+}
+
+/* Gets program and arguments from a core.
+   prog_off ~ offsetof(prpsinfo | psinfo_t, pr_fname)
+   comm_off ~ offsetof(prpsinfo | psinfo_t, pr_psargs)  */
+
+static bool
+elfcore_grok_solaris_info(bfd *abfd, Elf_Internal_Note* note,
+			  int prog_off, int comm_off)
+{
+  elf_tdata (abfd)->core->program
+    = _bfd_elfcore_strndup (abfd, note->descdata + prog_off, 16);
+  elf_tdata (abfd)->core->command
+    = _bfd_elfcore_strndup (abfd, note->descdata + comm_off, 80);
+
+  return true;
+}
+
+/* Processes Solaris's LWP status note.
+   gregset_size ~ sizeof(gregset_t)
+   gregset_off ~ offsetof(lwpstatus_t, pr_reg)
+   fpregset_size ~ sizeof(fpregset_t)
+   fpregset_off ~ offsetof(lwpstatus_t, pr_fpreg)  */
+
+static bool
+elfcore_grok_solaris_lwpstatus (bfd *abfd, Elf_Internal_Note* note,
+				size_t gregset_size, int gregset_off,
+				size_t fpregset_size, int fpregset_off)
+{
+  asection *sect = NULL;
+  char reg2_section_name[16] = { 0 };
+
+  (void) snprintf (reg2_section_name, 16, "%s/%i", ".reg2",
+		   elf_tdata (abfd)->core->lwpid);
+
+  /* offsetof(lwpstatus_t, pr_lwpid) */
+  elf_tdata (abfd)->core->lwpid
+    = bfd_get_32 (abfd, note->descdata + 4);
+  /* offsetof(lwpstatus_t, pr_cursig) */
+  elf_tdata (abfd)->core->signal
+    = bfd_get_16 (abfd, note->descdata + 12);
+
+  sect = bfd_get_section_by_name (abfd, ".reg");
+  if (sect != NULL)
+    sect->size = gregset_size;
+  else if (!_bfd_elfcore_make_pseudosection (abfd, ".reg", gregset_size,
+					     note->descpos + gregset_off))
+    return false;
+
+  sect = bfd_get_section_by_name (abfd, reg2_section_name);
+  if (sect != NULL)
+    {
+      sect->size = fpregset_size;
+      sect->filepos = note->descpos + fpregset_off;
+      sect->alignment_power = 2;
+    }
+  else if (!_bfd_elfcore_make_pseudosection (abfd, ".reg2", fpregset_size,
+					     note->descpos + fpregset_off))
+    return false;
+
+  return true;
+}
+
+static bool
+elfcore_grok_solaris_note_impl (bfd *abfd, Elf_Internal_Note *note)
+{
+  if (note == NULL)
+    return false;
+
+  /* core files are identified as 32- or 64-bit, SPARC or x86,
+     by the size of the descsz which matches the sizeof()
+     the type appropriate for that note type (e.g., prstatus_t for
+     SOLARIS_NT_PRSTATUS) for the corresponding architecture
+     on Solaris. The core file bitness may differ from the bitness of
+     gdb itself, so fixed values are used instead of sizeof().
+     Appropriate fixed offsets are also used to obtain data from
+     the note.  */
+
+  switch ((int) note->type)
+    {
+    case SOLARIS_NT_PRSTATUS:
+      switch (note->descsz)
+	{
+	case 508: /* sizeof(prstatus_t) SPARC 32-bit */
+	  return elfcore_grok_solaris_prstatus(abfd, note,
+					       136, 216, 308, 152, 356);
+	case 904: /* sizeof(prstatus_t) SPARC 64-bit */
+	  return elfcore_grok_solaris_prstatus(abfd, note,
+					       264, 360, 520, 304, 600);
+	case 432: /* sizeof(prstatus_t) Intel 32-bit */
+	  return elfcore_grok_solaris_prstatus(abfd, note,
+					       136, 216, 308, 76, 356);
+	case 824: /* sizeof(prstatus_t) Intel 64-bit */
+	  return elfcore_grok_solaris_prstatus(abfd, note,
+					       264, 360, 520, 224, 600);
+	default:
+	  return true;
+	}
+
+    case SOLARIS_NT_PSINFO:
+    case SOLARIS_NT_PRPSINFO:
+      switch (note->descsz)
+	{
+	case 260: /* sizeof(prpsinfo_t) SPARC and Intel 32-bit */
+	  return elfcore_grok_solaris_info(abfd, note, 84, 100);
+	case 328: /* sizeof(prpsinfo_t) SPARC and Intel 64-bit */
+	  return elfcore_grok_solaris_info(abfd, note, 120, 136);
+	case 360: /* sizeof(psinfo_t) SPARC and Intel 32-bit */
+	  return elfcore_grok_solaris_info(abfd, note, 88, 104);
+	case 440: /* sizeof(psinfo_t) SPARC and Intel 64-bit */
+	  return elfcore_grok_solaris_info(abfd, note, 136, 152);
+	default:
+	  return true;
+	}
+
+    case SOLARIS_NT_LWPSTATUS:
+      switch (note->descsz)
+	{
+	case 896: /* sizeof(lwpstatus_t) SPARC 32-bit */
+	  return elfcore_grok_solaris_lwpstatus(abfd, note,
+						152, 344, 400, 496);
+	case 1392: /* sizeof(lwpstatus_t) SPARC 64-bit */
+	  return elfcore_grok_solaris_lwpstatus(abfd, note,
+						304, 544, 544, 848);
+	case 800: /* sizeof(lwpstatus_t) Intel 32-bit */
+	  return elfcore_grok_solaris_lwpstatus(abfd, note,
+						76, 344, 380, 420);
+	case 1296: /* sizeof(lwpstatus_t) Intel 64-bit */
+	  return elfcore_grok_solaris_lwpstatus(abfd, note,
+						224, 544, 528, 768);
+	default:
+	  return true;
+	}
+
+    case SOLARIS_NT_LWPSINFO:
+      /* sizeof(lwpsinfo_t) on 32- and 64-bit, respectively */
+      if (note->descsz == 128 || note->descsz == 152)
+	elf_tdata (abfd)->core->lwpid =
+	  bfd_get_32 (abfd, note->descdata + 4);
+      break;
+
+    default:
+      break;
+    }
+
+  return true;
+}
+
+/* For name starting with "CORE" this may be either a Solaris
+   core file or a gdb-generated core file.  Do Solaris-specific
+   processing on selected note types first with
+   elfcore_grok_solaris_note(), then process the note
+   in elfcore_grok_note().  */
+
+static bool
+elfcore_grok_solaris_note (bfd *abfd, Elf_Internal_Note *note)
+{
+  if (!elfcore_grok_solaris_note_impl (abfd, note))
+    return false;
+
+  return elfcore_grok_note (abfd, note);
 }
 
 static bool
@@ -12047,6 +12270,55 @@ elfcore_write_arc_v2 (bfd *abfd,
 			     note_name, NT_ARC_V2, arc_v2, size);
 }
 
+char *
+elfcore_write_loongarch_cpucfg (bfd *abfd,
+				char *buf,
+				int *bufsiz,
+				const void *loongarch_cpucfg,
+				int size)
+{
+  char *note_name = "LINUX";
+  return elfcore_write_note (abfd, buf, bufsiz,
+			     note_name, NT_LARCH_CPUCFG,
+			     loongarch_cpucfg, size);
+}
+
+char *
+elfcore_write_loongarch_lbt (bfd *abfd,
+			     char *buf,
+			     int *bufsiz,
+			     const void *loongarch_lbt,
+			     int size)
+{
+  char *note_name = "LINUX";
+  return elfcore_write_note (abfd, buf, bufsiz,
+			     note_name, NT_LARCH_LBT, loongarch_lbt, size);
+}
+
+char *
+elfcore_write_loongarch_lsx (bfd *abfd,
+			     char *buf,
+			     int *bufsiz,
+			     const void *loongarch_lsx,
+			     int size)
+{
+  char *note_name = "LINUX";
+  return elfcore_write_note (abfd, buf, bufsiz,
+			     note_name, NT_LARCH_LSX, loongarch_lsx, size);
+}
+
+char *
+elfcore_write_loongarch_lasx (bfd *abfd,
+			      char *buf,
+			      int *bufsiz,
+			      const void *loongarch_lasx,
+			      int size)
+{
+  char *note_name = "LINUX";
+  return elfcore_write_note (abfd, buf, bufsiz,
+			     note_name, NT_LARCH_LASX, loongarch_lasx, size);
+}
+
 /* Write the buffer of csr values in CSRS (length SIZE) into the note
    buffer BUF and update *BUFSIZ.  ABFD is the bfd the note is being
    written into.  Return a pointer to the new start of the note buffer, to
@@ -12171,6 +12443,14 @@ elfcore_write_register_note (bfd *abfd,
     return elfcore_write_gdb_tdesc (abfd, buf, bufsiz, data, size);
   if (strcmp (section, ".reg-riscv-csr") == 0)
     return elfcore_write_riscv_csr (abfd, buf, bufsiz, data, size);
+  if (strcmp (section, ".reg-loongarch-cpucfg") == 0)
+    return elfcore_write_loongarch_cpucfg (abfd, buf, bufsiz, data, size);
+  if (strcmp (section, ".reg-loongarch-lbt") == 0)
+    return elfcore_write_loongarch_lbt (abfd, buf, bufsiz, data, size);
+  if (strcmp (section, ".reg-loongarch-lsx") == 0)
+    return elfcore_write_loongarch_lsx (abfd, buf, bufsiz, data, size);
+  if (strcmp (section, ".reg-loongarch-lasx") == 0)
+    return elfcore_write_loongarch_lasx (abfd, buf, bufsiz, data, size);
   return NULL;
 }
 
@@ -12240,10 +12520,11 @@ elf_parse_notes (bfd *abfd, char *buf, size_t size, file_ptr offset,
 	      GROKER_ELEMENT ("", elfcore_grok_note),
 	      GROKER_ELEMENT ("FreeBSD", elfcore_grok_freebsd_note),
 	      GROKER_ELEMENT ("NetBSD-CORE", elfcore_grok_netbsd_note),
-	      GROKER_ELEMENT ( "OpenBSD", elfcore_grok_openbsd_note),
+	      GROKER_ELEMENT ("OpenBSD", elfcore_grok_openbsd_note),
 	      GROKER_ELEMENT ("QNX", elfcore_grok_nto_note),
 	      GROKER_ELEMENT ("SPU/", elfcore_grok_spu_note),
-	      GROKER_ELEMENT ("GNU", elfobj_grok_gnu_note)
+	      GROKER_ELEMENT ("GNU", elfobj_grok_gnu_note),
+	      GROKER_ELEMENT ("CORE", elfcore_grok_solaris_note)
 	    };
 #undef GROKER_ELEMENT
 	    int i;

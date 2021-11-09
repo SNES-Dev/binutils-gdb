@@ -401,7 +401,7 @@ iterate_over_live_ada_tasks (ada_task_list_iterator_ftype iterator)
 static void
 value_as_string (char *dest, struct value *val, int length)
 {
-  memcpy (dest, value_contents (val), length);
+  memcpy (dest, value_contents (val).data (), length);
   dest[length] = '\0';
 }
 
@@ -600,7 +600,7 @@ ada_get_tcb_types_info (void)
 static ptid_t
 ptid_from_atcb_common (struct value *common_value)
 {
-  long thread = 0;
+  ULONGEST thread;
   CORE_ADDR lwp = 0;
   struct value *ll_value;
   ptid_t ptid;
@@ -1233,7 +1233,8 @@ info_task (struct ui_out *uiout, const char *taskno_str, struct inferior *inf)
     fprintf_styled (gdb_stdout, metadata_style.style (), _("<no name>\n"));
 
   /* Print the TID and LWP.  */
-  printf_filtered (_("Thread: %#lx\n"), task_info->ptid.tid ());
+  printf_filtered (_("Thread: 0x%s\n"), phex_nz (task_info->ptid.tid (),
+						 sizeof (ULONGEST)));
   printf_filtered (_("LWP: %#lx\n"), task_info->ptid.lwp ());
 
   /* If set, print the base CPU.  */
@@ -1432,7 +1433,7 @@ ada_tasks_invalidate_inferior_data (struct inferior *inf)
 /* The 'normal_stop' observer notification callback.  */
 
 static void
-ada_tasks_normal_stop_observer (struct bpstats *unused_args, int unused_args2)
+ada_tasks_normal_stop_observer (struct bpstat *unused_args, int unused_args2)
 {
   /* The inferior has been resumed, and just stopped. This means that
      our task_list needs to be recomputed before it can be used again.  */

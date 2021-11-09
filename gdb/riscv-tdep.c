@@ -1059,7 +1059,7 @@ riscv_print_one_register_info (struct gdbarch *gdbarch,
 	  && regtype->field (2).type ()->code () == TYPE_CODE_FLT))
     {
       struct value_print_options opts;
-      const gdb_byte *valaddr = value_contents_for_printing (val);
+      const gdb_byte *valaddr = value_contents_for_printing (val).data ();
       enum bfd_endian byte_order = type_byte_order (regtype);
 
       get_user_print_options (&opts);
@@ -1409,6 +1409,9 @@ public:
       LUI,
       SD,
       SW,
+      LD,
+      LW,
+      MV,
       /* These are needed for software breakpoint support.  */
       JAL,
       JALR,
@@ -1517,6 +1520,15 @@ private:
     m_opcode = opcode;
     m_rd = m_rs1 = decode_register_index (ival, OP_SH_CRS1S);
     m_imm.s = EXTRACT_CITYPE_IMM (ival);
+  }
+
+  /* Helper for DECODE, decode 16-bit compressed CL-type instruction.  */
+  void decode_cl_type_insn (enum opcode opcode, ULONGEST ival)
+  {
+    m_opcode = opcode;
+    m_rd = decode_register_index_short (ival, OP_SH_CRS2S);
+    m_rs1 = decode_register_index_short (ival, OP_SH_CRS1S);
+    m_imm.s = EXTRACT_CLTYPE_IMM (ival);
   }
 
   /* Helper for DECODE, decode 32-bit S-type instruction.  */
@@ -1715,6 +1727,10 @@ riscv_insn::decode (struct gdbarch *gdbarch, CORE_ADDR pc)
 	decode_r_type_insn (SC, ival);
       else if (is_ecall_insn (ival))
 	decode_i_type_insn (ECALL, ival);
+      else if (is_ld_insn (ival))
+	decode_i_type_insn (LD, ival);
+      else if (is_lw_insn (ival))
+	decode_i_type_insn (LW, ival);
       else
 	/* None of the other fields are valid in this case.  */
 	m_opcode = OTHER;
@@ -1774,15 +1790,21 @@ riscv_insn::decode (struct gdbarch *gdbarch, CORE_ADDR pc)
       else if (xlen != 4 && is_c_sdsp_insn (ival))
 	decode_css_type_insn (SD, ival, EXTRACT_CSSTYPE_SDSP_IMM (ival));
       /* C_JR and C_MV have the same opcode.  If RS2 is 0, then this is a C_JR.
-	 So must try to match C_JR first as it ahs more bits in mask.  */
+	 So must try to match C_JR first as it has more bits in mask.  */
       else if (is_c_jr_insn (ival))
 	decode_cr_type_insn (JALR, ival);
+      else if (is_c_mv_insn (ival))
+	decode_cr_type_insn (MV, ival);
       else if (is_c_j_insn (ival))
 	decode_cj_type_insn (JAL, ival);
       else if (is_c_beqz_insn (ival))
 	decode_cb_type_insn (BEQ, ival);
       else if (is_c_bnez_insn (ival))
 	decode_cb_type_insn (BNE, ival);
+      else if (is_c_ld_insn (ival))
+	decode_cl_type_insn (LD, ival);
+      else if (is_c_lw_insn (ival))
+	decode_cl_type_insn (LW, ival);
       else
 	/* None of the other fields of INSN are valid in this case.  */
 	m_opcode = OTHER;
@@ -1925,11 +1947,33 @@ riscv_scan_prologue (struct gdbarch *gdbarch,
 	}
       else if (insn.opcode () == riscv_insn::ADD)
 	{
-	  /* Handle: addi REG1, REG2, IMM  */
+	  /* Handle: add REG1, REG2, REG3  */
 	  gdb_assert (insn.rd () < RISCV_NUM_INTEGER_REGS);
 	  gdb_assert (insn.rs1 () < RISCV_NUM_INTEGER_REGS);
 	  gdb_assert (insn.rs2 () < RISCV_NUM_INTEGER_REGS);
 	  regs[insn.rd ()] = pv_add (regs[insn.rs1 ()], regs[insn.rs2 ()]);
+	}
+      else if (insn.opcode () == riscv_insn::LD
+	       || insn.opcode () == riscv_insn::LW)
+	{
+	  /* Handle: ld reg, offset(rs1)
+	     or:     c.ld reg, offset(rs1)
+	     or:     lw reg, offset(rs1)
+	     or:     c.lw reg, offset(rs1)  */
+	  gdb_assert (insn.rd () < RISCV_NUM_INTEGER_REGS);
+	  gdb_assert (insn.rs1 () < RISCV_NUM_INTEGER_REGS);
+	  regs[insn.rd ()]
+	    = stack.fetch (pv_add_constant (regs[insn.rs1 ()],
+					    insn.imm_signed ()),
+			   (insn.opcode () == riscv_insn::LW ? 4 : 8));
+	}
+      else if (insn.opcode () == riscv_insn::MV)
+	{
+	  /* Handle: c.mv RD, RS2  */
+	  gdb_assert (insn.rd () < RISCV_NUM_INTEGER_REGS);
+	  gdb_assert (insn.rs2 () < RISCV_NUM_INTEGER_REGS);
+	  gdb_assert (insn.rs2 () > 0);
+	  regs[insn.rd ()] = regs[insn.rs2 ()];
 	}
       else
 	{
@@ -2498,13 +2542,13 @@ riscv_struct_info::analyse_inner (struct type *type, int offset)
 
   for (i = 0; i < count; ++i)
     {
-      if (TYPE_FIELD_LOC_KIND (type, i) != FIELD_LOC_KIND_BITPOS)
+      if (type->field (i).loc_kind () != FIELD_LOC_KIND_BITPOS)
 	continue;
 
       struct type *field_type = type->field (i).type ();
       field_type = check_typedef (field_type);
       int field_offset
-	= offset + TYPE_FIELD_BITPOS (type, i) / TARGET_CHAR_BIT;
+	= offset + type->field (i).loc_bitpos () / TARGET_CHAR_BIT;
 
       switch (field_type->code ())
 	{
@@ -2898,7 +2942,7 @@ riscv_push_dummy_call (struct gdbarch *gdbarch,
 
       if (info->type != arg_type)
 	arg_value = value_cast (info->type, arg_value);
-      info->contents = value_contents (arg_value);
+      info->contents = value_contents (arg_value).data ();
     }
 
   /* Adjust the stack pointer and align it.  */
@@ -3093,13 +3137,13 @@ riscv_return_value (struct gdbarch  *gdbarch,
 	  {
 	    struct value *arg_val = value_from_contents (arg_type, writebuf);
 	    abi_val = value_cast (info.type, arg_val);
-	    writebuf = value_contents_raw (abi_val);
+	    writebuf = value_contents_raw (abi_val).data ();
 	  }
 	else
 	  {
 	    abi_val = allocate_value (info.type);
 	    old_readbuf = readbuf;
-	    readbuf = value_contents_raw (abi_val);
+	    readbuf = value_contents_raw (abi_val).data ();
 	  }
 	arg_len = TYPE_LENGTH (info.type);
 
@@ -3197,7 +3241,7 @@ riscv_return_value (struct gdbarch  *gdbarch,
 	if (readbuf != nullptr)
 	  {
 	    struct value *arg_val = value_cast (arg_type, abi_val);
-	    memcpy (old_readbuf, value_contents_raw (arg_val),
+	    memcpy (old_readbuf, value_contents_raw (arg_val).data (),
 		    TYPE_LENGTH (arg_type));
 	  }
     }
@@ -3974,15 +4018,11 @@ _initialize_riscv_tdep ()
 
   /* Add root prefix command for all "set debug riscv" and "show debug
      riscv" commands.  */
-  add_basic_prefix_cmd ("riscv", no_class,
-			_("RISC-V specific debug commands."),
-			&setdebugriscvcmdlist, 0,
-			&setdebuglist);
-
-  add_show_prefix_cmd ("riscv", no_class,
-		       _("RISC-V specific debug commands."),
-		       &showdebugriscvcmdlist, 0,
-		       &showdebuglist);
+  add_setshow_prefix_cmd ("riscv", no_class,
+			  _("RISC-V specific debug commands."),
+			  _("RISC-V specific debug commands."),
+			  &setdebugriscvcmdlist, &showdebugriscvcmdlist,
+			  &setdebuglist, &showdebuglist);
 
   add_setshow_zuinteger_cmd ("breakpoints", class_maintenance,
 			     &riscv_debug_breakpoints,  _("\
@@ -4025,13 +4065,11 @@ initialisation process."),
 			     &setdebugriscvcmdlist, &showdebugriscvcmdlist);
 
   /* Add root prefix command for all "set riscv" and "show riscv" commands.  */
-  add_basic_prefix_cmd ("riscv", no_class,
-			_("RISC-V specific commands."),
-			&setriscvcmdlist, 0, &setlist);
-
-  add_show_prefix_cmd ("riscv", no_class,
-		       _("RISC-V specific commands."),
-		       &showriscvcmdlist, 0, &showlist);
+  add_setshow_prefix_cmd ("riscv", no_class,
+			  _("RISC-V specific commands."),
+			  _("RISC-V specific commands."),
+			  &setriscvcmdlist, &showriscvcmdlist,
+			  &setlist, &showlist);
 
 
   use_compressed_breakpoints = AUTO_BOOLEAN_AUTO;

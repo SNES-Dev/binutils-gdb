@@ -201,7 +201,7 @@ try_open_exec_file (const char *exec_file_host, struct inferior *inf,
 	}
       catch (const gdb_exception_error &err)
 	{
-	  if (!exception_print_same (prev_err, err))
+	  if (prev_err != err)
 	    warning ("%s", err.what ());
 	}
     }
@@ -453,9 +453,8 @@ exec_file_attach (const char *filename, int from_tty)
 
       if (!current_program_space->exec_bfd ())
 	{
-	  error (_("\"%ps\": could not open as an executable file: %s."),
-		 styled_string (file_name_style.style (), scratch_pathname),
-		 bfd_errmsg (bfd_get_error ()));
+	  error (_("\"%s\": could not open as an executable file: %s."),
+		 scratch_pathname, bfd_errmsg (bfd_get_error ()));
 	}
 
       /* gdb_realpath_keepfile resolves symlinks on the local
@@ -475,8 +474,7 @@ exec_file_attach (const char *filename, int from_tty)
 	  /* Make sure to close exec_bfd, or else "run" might try to use
 	     it.  */
 	  current_program_space->exec_close ();
-	  error (_("\"%ps\": not in executable format: %s"),
-		 styled_string (file_name_style.style (), scratch_pathname),
+	  error (_("\"%s\": not in executable format: %s"), scratch_pathname,
 		 gdb_bfd_errmsg (bfd_get_error (), matching).c_str ());
 	}
 
@@ -678,10 +676,10 @@ program_space::remove_target_sections (void *owner)
 /* See exec.h.  */
 
 void
-exec_on_vfork ()
+exec_on_vfork (inferior *vfork_child)
 {
-  if (!current_program_space->target_sections ().empty ())
-    current_inferior ()->push_target (&exec_ops);
+  if (!vfork_child->pspace->target_sections ().empty ())
+    vfork_child->push_target (&exec_ops);
 }
 
 

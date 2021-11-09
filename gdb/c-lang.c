@@ -302,7 +302,7 @@ c_get_string (struct value *value, gdb::unique_xmalloc_ptr<gdb_byte> *buffer,
       && (*length < 0 || *length <= fetchlimit))
     {
       int i;
-      const gdb_byte *contents = value_contents (value);
+      const gdb_byte *contents = value_contents (value).data ();
 
       /* If a length is specified, use that.  */
       if (*length >= 0)
@@ -675,7 +675,7 @@ c_string_operation::evaluate (struct type *expect_type,
 	    error (_("Too many array elements"));
 
 	  result = allocate_value (expect_type);
-	  memcpy (value_contents_raw (result), obstack_base (&output),
+	  memcpy (value_contents_raw (result).data (), obstack_base (&output),
 		  obstack_object_size (&output));
 	}
       else
@@ -944,8 +944,9 @@ public:
   }
 
   /* See language.h.  */
-  bool sniff_from_mangled_name (const char *mangled,
-				char **demangled) const override
+  bool sniff_from_mangled_name
+       (const char *mangled,
+	gdb::unique_xmalloc_ptr<char> *demangled) const override
   {
     *demangled = gdb_demangle (mangled, DMGL_PARAMS | DMGL_ANSI);
     return *demangled != NULL;
@@ -953,7 +954,8 @@ public:
 
   /* See language.h.  */
 
-  char *demangle_symbol (const char *mangled, int options) const override
+  gdb::unique_xmalloc_ptr<char> demangle_symbol (const char *mangled,
+						 int options) const override
   {
     return gdb_demangle (mangled, options);
   }

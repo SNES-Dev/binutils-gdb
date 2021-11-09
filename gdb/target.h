@@ -636,7 +636,7 @@ struct target_ops
       TARGET_DEFAULT_RETURN (1);
     virtual int remove_vfork_catchpoint (int)
       TARGET_DEFAULT_RETURN (1);
-    virtual void follow_fork (ptid_t, target_waitkind, bool, bool)
+    virtual void follow_fork (inferior *, ptid_t, target_waitkind, bool, bool)
       TARGET_DEFAULT_FUNC (default_follow_fork);
     virtual int insert_exec_catchpoint (int)
       TARGET_DEFAULT_RETURN (1);
@@ -856,7 +856,7 @@ struct target_ops
        based on LWP and THREAD.  These values are extracted from the
        task Private_Data section of the Ada Task Control Block, and
        their interpretation depends on the target.  */
-    virtual ptid_t get_ada_task_ptid (long lwp, long thread)
+    virtual ptid_t get_ada_task_ptid (long lwp, ULONGEST thread)
       TARGET_DEFAULT_FUNC (default_get_ada_task_ptid);
 
     /* Read one auxv entry from *READPTR, not reading locations >= ENDPTR.
@@ -1719,8 +1719,9 @@ extern int target_remove_vfork_catchpoint (int pid);
    bookkeeping and fiddling necessary to continue debugging either the parent,
    the child or both.  */
 
-void target_follow_fork (ptid_t child_ptid, target_waitkind fork_kind,
-			 bool follow_child, bool detach_fork);
+void target_follow_fork (inferior *inf, ptid_t child_ptid,
+			 target_waitkind fork_kind, bool follow_child,
+			 bool detach_fork);
 
 /* Handle the target-specific bookkeeping required when the inferior makes an
    exec call.
@@ -1923,7 +1924,10 @@ extern std::string normal_pid_to_str (ptid_t ptid);
 extern const char *target_extra_thread_info (thread_info *tp);
 
 /* Return the thread's name, or NULL if the target is unable to determine it.
-   The returned value must not be freed by the caller.  */
+   The returned value must not be freed by the caller.
+
+   You likely don't want to call this function, but use the thread_name
+   function instead, which prefers the user-given thread name, if set.  */
 
 extern const char *target_thread_name (struct thread_info *);
 
@@ -2140,7 +2144,7 @@ extern bool target_can_execute_reverse ();
 
 extern const struct target_desc *target_read_description (struct target_ops *);
 
-extern ptid_t target_get_ada_task_ptid (long lwp, long tid);
+extern ptid_t target_get_ada_task_ptid (long lwp, ULONGEST tid);
 
 /* Main entry point for searching memory.  */
 extern int target_search_memory (CORE_ADDR start_addr,

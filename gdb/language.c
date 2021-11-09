@@ -387,31 +387,6 @@ language_info ()
   show_language_command (NULL, 1, NULL, NULL);
 }
 
-
-/* Returns non-zero if the value is a pointer type.  */
-int
-pointer_type (struct type *type)
-{
-  return type->code () == TYPE_CODE_PTR || TYPE_IS_REFERENCE (type);
-}
-
-
-/* This page contains functions that return info about
-   (struct value) values used in GDB.  */
-
-/* Returns non-zero if the value VAL represents a true value.  */
-int
-value_true (struct value *val)
-{
-  /* It is possible that we should have some sort of error if a non-boolean
-     value is used in this context.  Possibly dependent on some kind of
-     "boolean-checking" option like range checking.  But it should probably
-     not depend on the language except insofar as is necessary to identify
-     a "boolean" value (i.e. in C using a float, pointer, etc., as a boolean
-     should be an error, probably).  */
-  return !value_logical_not (val);
-}
-
 /* This page contains functions for the printing out of
    error messages that occur during type- and range-
    checking.  */
@@ -576,7 +551,7 @@ skip_language_trampoline (struct frame_info *frame, CORE_ADDR pc)
    more flexible demangler for the languages that need it.
    FIXME: Sometimes the demangler is invoked when we don't know the
    language, so we can't use this everywhere.  */
-char *
+gdb::unique_xmalloc_ptr<char>
 language_demangle (const struct language_defn *current_language, 
 				const char *mangled, int options)
 {
@@ -796,7 +771,8 @@ public:
 
   /* See language.h.  */
 
-  char *demangle_symbol (const char *mangled, int options) const override
+  gdb::unique_xmalloc_ptr<char> demangle_symbol (const char *mangled,
+						 int options) const override
   {
     /* The auto language just uses the C++ demangler.  */
     return gdb_demangle (mangled, options);
@@ -1164,19 +1140,16 @@ _initialize_language ()
 
   /* GDB commands for language specific stuff.  */
 
-  cmd_list_element *set_check_cmd
-    = add_basic_prefix_cmd ("check", no_class,
-			    _("Set the status of the type/range checker."),
-			    &setchecklist, 0, &setlist);
-  add_alias_cmd ("c", set_check_cmd, no_class, 1, &setlist);
-  add_alias_cmd ("ch", set_check_cmd, no_class, 1, &setlist);
-
-  cmd_list_element *show_check_cmd
-    = add_show_prefix_cmd ("check", no_class,
-			 _("Show the status of the type/range checker."),
-			 &showchecklist, 0, &showlist);
-  add_alias_cmd ("c", show_check_cmd, no_class, 1, &showlist);
-  add_alias_cmd ("ch", show_check_cmd, no_class, 1, &showlist);
+  set_show_commands setshow_check_cmds
+    = add_setshow_prefix_cmd ("check", no_class,
+			      _("Set the status of the type/range checker."),
+			      _("Show the status of the type/range checker."),
+			      &setchecklist, &showchecklist,
+			      &setlist, &showlist);
+  add_alias_cmd ("c", setshow_check_cmds.set, no_class, 1, &setlist);
+  add_alias_cmd ("ch", setshow_check_cmds.set, no_class, 1, &setlist);
+  add_alias_cmd ("c", setshow_check_cmds.show, no_class, 1, &showlist);
+  add_alias_cmd ("ch", setshow_check_cmds.show, no_class, 1, &showlist);
 
   add_setshow_enum_cmd ("range", class_support, type_or_range_names,
 			&range,
