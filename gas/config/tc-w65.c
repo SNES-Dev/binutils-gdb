@@ -130,10 +130,7 @@ md_undefined_symbol (char *name ATTRIBUTE_UNUSED){
   return NULL;
 }
 
-void
-md_operand (expressionS * exp ATTRIBUTE_UNUSED){
-  // TODO: Do I need to do anything here
-}
+
 
 valueT
 md_section_align (segT seg ATTRIBUTE_UNUSED, valueT val){
@@ -159,13 +156,19 @@ reset_vars (char *op)
 
 
 
+
+
 struct w65_operand{
   w65_addr_mode md;
   expressionS expr;
   bfd_boolean bank;
 };
 
-static void parse_tail(struct w65_operand* op, char* tail, int x_flag, int y_flag){
+
+static void parse_tail(struct w65_operand* op,char* tail, int x_flag, int y_flag){
+  if(!tail||*tail)
+    return;
+  while(*tail&&ISSPACE(*tail))tail++;
   if(*tail==',')
     tail++;
   while(*tail&&ISSPACE(*tail))tail++;
@@ -185,9 +188,29 @@ static void parse_tail(struct w65_operand* op, char* tail, int x_flag, int y_fla
   }
 }
 
+void
+md_operand (expressionS * exp ATTRIBUTE_UNUSED){
+  
+}
+
+
+static char* expr_w65(expressionS* ex) {
+  char* save = input_line_pointer;
+  char* tail;
+    while(*input_line_pointer&&*input_line_pointer!=',')input_line_pointer++;
+    if(*input_line_pointer){
+      *input_line_pointer = 0;
+    }
+    tail = ++input_line_pointer;
+    input_line_pointer = save;
+    expression(ex);
+    input_line_pointer = tail;
+    return tail;
+}
+
 static struct w65_operand
 w65_op_from_param(char *param){
-   struct w65_operand op = {.md = 0};
+  struct w65_operand op = {.md = 0};
   input_line_pointer = param;
   SKIP_ALL_WHITESPACE();
   switch(*input_line_pointer){
@@ -201,14 +224,8 @@ w65_op_from_param(char *param){
           as_bad(_("Invalid Operand: %s"),param);
         *look = '\0';
         look++;
-        expression(&op.expr);
-        if(*input_line_pointer){
-          SKIP_ALL_WHITESPACE();
-          parse_tail(&op,input_line_pointer,INDIRECT_X,INDIRECT_Y);
-        }
-        if(*look){
-          parse_tail(&op,look, INDEXED_X,INDEXED_Y);
-        }
+        parse_tail(&op,expr_w65(&op.expr),0,0);
+        parse_tail(&op,look,INDEXED_X,INDEXED_Y);
       }
     break;
     case '(':
@@ -222,13 +239,8 @@ w65_op_from_param(char *param){
         *look = '\0';
         look++;
         expression(&op.expr);
-        if(*input_line_pointer){
-          SKIP_ALL_WHITESPACE();
-          parse_tail(&op,input_line_pointer,INDIRECT_X,INDIRECT_Y);
-        }
-        if(*look){
-          parse_tail(&op,look, INDEXED_X,INDEXED_Y);
-        }
+        parse_tail(&op,expr_w65(&op.expr),0,0);
+        parse_tail(&op,look,INDEXED_X,INDEXED_Y);
       }
     break;
     case '^':
@@ -241,10 +253,7 @@ w65_op_from_param(char *param){
       input_line_pointer++;
       __attribute__((fallthrough));
     default:
-      expression(&op.expr);
-      SKIP_ALL_WHITESPACE();
-      if(*input_line_pointer)
-        parse_tail(&op,input_line_pointer, INDEXED_X,INDEXED_Y);
+      parse_tail(&op,expr_w65(&op.expr),0,0);
     break;
   }
 
