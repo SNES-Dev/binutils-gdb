@@ -57,6 +57,7 @@
 #include "bfd.h"
 #include "bucomm.h"
 #include "elfcomm.h"
+#include "demanguse.h"
 #include "dwarf.h"
 #include "ctf-api.h"
 #include "demangle.h"
@@ -328,6 +329,26 @@ typedef enum print_mode
   OCTAL_5
 }
 print_mode;
+
+typedef enum unicode_display_type
+{
+  unicode_default = 0,
+  unicode_locale,
+  unicode_escape,
+  unicode_hex,
+  unicode_highlight,
+  unicode_invalid
+} unicode_display_type;
+
+static unicode_display_type unicode_display = unicode_default;
+
+typedef enum
+{
+  reltype_unknown,
+  reltype_rel,
+  reltype_rela,
+  reltype_relr
+} relocation_type;
 
 /* Versioned symbol info.  */
 enum versioned_symbol_info
@@ -656,11 +677,18 @@ print_symbol (signed int width, const char * symbol)
       if (c == 0)
 	break;
 
-      /* Do not print control characters directly as they can affect terminal
-	 settings.  Such characters usually appear in the names generated
-	 by the assembler for local labels.  */
-      if (ISCNTRL (c))
+      if (ISPRINT (c))
 	{
+	  putchar (c);
+	  width_remaining --;
+	  num_printed ++;
+	}
+      else if (ISCNTRL (c))
+	{
+	  /* Do not print control characters directly as they can affect terminal
+	     settings.  Such characters usually appear in the names generated
+	     by the assembler for local labels.  */
+
 	  if (width_remaining < 2)
 	    break;
 
@@ -668,11 +696,137 @@ print_symbol (signed int width, const char * symbol)
 	  width_remaining -= 2;
 	  num_printed += 2;
 	}
-      else if (ISPRINT (c))
+      else if (c == 0x7f)
 	{
-	  putchar (c);
-	  width_remaining --;
-	  num_printed ++;
+	  if (width_remaining < 5)
+	    break;
+	  printf ("<DEL>");
+	  width_remaining -= 5;
+	  num_printed += 5;
+	}
+      else if (unicode_display != unicode_locale
+	       && unicode_display != unicode_default)
+	{
+	  /* Display unicode characters as something else.  */
+	  unsigned char bytes[4];
+	  bool          is_utf8;
+	  unsigned int  nbytes;
+
+	  bytes[0] = c;
+
+	  if (bytes[0] < 0xc0)
+	    {
+	      nbytes = 1;
+	      is_utf8 = false;
+	    }
+	  else
+	    {
+	      bytes[1] = *symbol++;
+
+	      if ((bytes[1] & 0xc0) != 0x80)
+		{
+		  is_utf8 = false;
+		  /* Do not consume this character.  It may only
+		     be the first byte in the sequence that was
+		     corrupt.  */
+		  --symbol;
+		  nbytes = 1;
+		}
+	      else if ((bytes[0] & 0x20) == 0)
+		{
+		  is_utf8 = true;
+		  nbytes = 2;
+		}
+	      else
+		{
+		  bytes[2] = *symbol++;
+
+		  if ((bytes[2] & 0xc0) != 0x80)
+		    {
+		      is_utf8 = false;
+		      symbol -= 2;
+		      nbytes = 1;
+		    }
+		  else if ((bytes[0] & 0x10) == 0)
+		    {
+		      is_utf8 = true;
+		      nbytes = 3;
+		    }
+		  else
+		    {
+		      bytes[3] = *symbol++;
+
+		      nbytes = 4;
+
+		      if ((bytes[3] & 0xc0) != 0x80)
+			{
+			  is_utf8 = false;
+			  symbol -= 3;
+			  nbytes = 1;
+			}
+		      else
+			is_utf8 = true;
+		    }
+		}
+	    }
+
+	  if (unicode_display == unicode_invalid)
+	    is_utf8 = false;
+
+	  if (unicode_display == unicode_hex || ! is_utf8)
+	    {
+	      unsigned int i;
+
+	      if (width_remaining < (nbytes * 2) + 2)
+		break;
+	  
+	      putchar (is_utf8 ? '<' : '{');
+	      printf ("0x");
+	      for (i = 0; i < nbytes; i++)
+		printf ("%02x", bytes[i]);
+	      putchar (is_utf8 ? '>' : '}');
+	    }
+	  else
+	    {
+	      if (unicode_display == unicode_highlight && isatty (1))
+		printf ("\x1B[31;47m"); /* Red.  */
+	      
+	      switch (nbytes)
+		{
+		case 2:
+		  if (width_remaining < 6)
+		    break;
+		  printf ("\\u%02x%02x",
+			  (bytes[0] & 0x1c) >> 2, 
+			  ((bytes[0] & 0x03) << 6) | (bytes[1] & 0x3f));
+		  break;
+		case 3:
+		  if (width_remaining < 6)
+		    break;
+		  printf ("\\u%02x%02x",
+			  ((bytes[0] & 0x0f) << 4) | ((bytes[1] & 0x3c) >> 2),
+			  ((bytes[1] & 0x03) << 6) | (bytes[2] & 0x3f));
+		  break;
+		case 4:
+		  if (width_remaining < 8)
+		    break;
+		  printf ("\\u%02x%02x%02x",
+			  ((bytes[0] & 0x07) << 6) | ((bytes[1] & 0x3c) >> 2),
+			  ((bytes[1] & 0x03) << 6) | ((bytes[2] & 0x3c) >> 2),
+			  ((bytes[2] & 0x03) << 6) | (bytes[3] & 0x3f));
+		  
+		  break;
+		default:
+		  /* URG.  */
+		  break;
+		}
+
+	      if (unicode_display == unicode_highlight && isatty (1))
+		printf ("\033[0m"); /* Default colour.  */
+	    }
+	  
+	  if (bytes[nbytes - 1] == 0)
+	    break;
 	}
       else
 	{
@@ -1207,6 +1361,76 @@ slurp_rel_relocs (Filedata *            filedata,
   return true;
 }
 
+static bool
+slurp_relr_relocs (Filedata * filedata,
+		   unsigned long relr_offset,
+		   unsigned long relr_size,
+		   bfd_vma ** relrsp,
+		   unsigned long * nrelrsp)
+{
+  void *relrs;
+  size_t size = 0, nentries, i;
+  bfd_vma base = 0, addr, entry;
+
+  relrs = get_data (NULL, filedata, relr_offset, 1, relr_size,
+		    _("RELR relocation data"));
+  if (!relrs)
+    return false;
+
+  if (is_32bit_elf)
+    nentries = relr_size / sizeof (Elf32_External_Relr);
+  else
+    nentries = relr_size / sizeof (Elf64_External_Relr);
+  for (i = 0; i < nentries; i++)
+    {
+      if (is_32bit_elf)
+	entry = BYTE_GET (((Elf32_External_Relr *)relrs)[i].r_data);
+      else
+	entry = BYTE_GET (((Elf64_External_Relr *)relrs)[i].r_data);
+      if ((entry & 1) == 0)
+	size++;
+      else
+	while ((entry >>= 1) != 0)
+	  if ((entry & 1) == 1)
+	    size++;
+    }
+
+  *relrsp = (bfd_vma *) xmalloc (size * sizeof (bfd_vma));
+  if (*relrsp == NULL)
+    {
+      free (relrs);
+      error (_("out of memory parsing relocs\n"));
+      return false;
+    }
+
+  size = 0;
+  for (i = 0; i < nentries; i++)
+    {
+      const bfd_vma entry_bytes = is_32bit_elf ? 4 : 8;
+
+      if (is_32bit_elf)
+	entry = BYTE_GET (((Elf32_External_Relr *)relrs)[i].r_data);
+      else
+	entry = BYTE_GET (((Elf64_External_Relr *)relrs)[i].r_data);
+      if ((entry & 1) == 0)
+	{
+	  (*relrsp)[size++] = entry;
+	  base = entry + entry_bytes;
+	}
+      else
+	{
+	  for (addr = base; (entry >>= 1) != 0; addr += entry_bytes)
+	    if ((entry & 1) != 0)
+	      (*relrsp)[size++] = addr;
+	  base += entry_bytes * (entry_bytes * CHAR_BIT - 1);
+	}
+    }
+
+  *nrelrsp = size;
+  free (relrs);
+  return true;
+}
+
 /* Returns the reloc type extracted from the reloc info field.  */
 
 static unsigned int
@@ -1259,30 +1483,46 @@ dump_relocations (Filedata *          filedata,
 		  unsigned long       nsyms,
 		  char *              strtab,
 		  unsigned long       strtablen,
-		  int                 is_rela,
+		  relocation_type     rel_type,
 		  bool                is_dynsym)
 {
   unsigned long i;
   Elf_Internal_Rela * rels;
   bool res = true;
 
-  if (is_rela == UNKNOWN)
-    is_rela = guess_is_rela (filedata->file_header.e_machine);
+  if (rel_type == reltype_unknown)
+    rel_type = guess_is_rela (filedata->file_header.e_machine) ? reltype_rela : reltype_rel;
 
-  if (is_rela)
+  if (rel_type == reltype_rela)
     {
       if (!slurp_rela_relocs (filedata, rel_offset, rel_size, &rels, &rel_size))
 	return false;
     }
-  else
+  else if (rel_type == reltype_rel)
     {
       if (!slurp_rel_relocs (filedata, rel_offset, rel_size, &rels, &rel_size))
 	return false;
     }
+  else if (rel_type == reltype_relr)
+    {
+      bfd_vma * relrs;
+      const char *format
+	  = is_32bit_elf ? "%08" BFD_VMA_FMT "x\n" : "%016" BFD_VMA_FMT "x\n";
+
+      if (!slurp_relr_relocs (filedata, rel_offset, rel_size, &relrs,
+			      &rel_size))
+	return false;
+
+      printf (ngettext ("  %lu offset\n", "  %lu offsets\n", rel_size), rel_size);
+      for (i = 0; i < rel_size; i++)
+	printf (format, relrs[i]);
+      free (relrs);
+      return true;
+    }
 
   if (is_32bit_elf)
     {
-      if (is_rela)
+      if (rel_type == reltype_rela)
 	{
 	  if (do_wide)
 	    printf (_(" Offset     Info    Type                Sym. Value  Symbol's Name + Addend\n"));
@@ -1299,7 +1539,7 @@ dump_relocations (Filedata *          filedata,
     }
   else
     {
-      if (is_rela)
+      if (rel_type == reltype_rela)
 	{
 	  if (do_wide)
 	    printf (_("    Offset             Info             Type               Symbol's Value  Symbol's Name + Addend\n"));
@@ -1694,7 +1934,7 @@ dump_relocations (Filedata *          filedata,
       if (filedata->file_header.e_machine == EM_ALPHA
 	  && rtype != NULL
 	  && streq (rtype, "R_ALPHA_LITUSE")
-	  && is_rela)
+	  && rel_type == reltype_rela)
 	{
 	  switch (rels[i].r_addend)
 	    {
@@ -1788,7 +2028,8 @@ dump_relocations (Filedata *          filedata,
 
 		  if (ELF_ST_TYPE (psym->st_info) == STT_SECTION)
 		    {
-		      if (psym->st_shndx < filedata->file_header.e_shnum)
+		      if (psym->st_shndx < filedata->file_header.e_shnum
+			  && filedata->section_headers != NULL)
 			sec_name = section_name_print (filedata,
 						       filedata->section_headers
 						       + psym->st_shndx);
@@ -1841,7 +2082,7 @@ dump_relocations (Filedata *          filedata,
 			    version_string);
 		}
 
-	      if (is_rela)
+	      if (rel_type == reltype_rela)
 		{
 		  bfd_vma off = rels[i].r_addend;
 
@@ -1852,7 +2093,7 @@ dump_relocations (Filedata *          filedata,
 		}
 	    }
 	}
-      else if (is_rela)
+      else if (rel_type == reltype_rela)
 	{
 	  bfd_vma off = rels[i].r_addend;
 
@@ -2202,6 +2443,17 @@ get_solaris_dynamic_type (unsigned long type)
 }
 
 static const char *
+get_riscv_dynamic_type (unsigned long type)
+{
+  switch (type)
+    {
+    case DT_RISCV_VARIANT_CC:	return "RISCV_VARIANT_CC";
+    default:
+      return NULL;
+    }
+}
+
+static const char *
 get_dynamic_type (Filedata * filedata, unsigned long type)
 {
   static char buff[64];
@@ -2325,6 +2577,9 @@ get_dynamic_type (Filedata * filedata, unsigned long type)
 	      break;
 	    case EM_ALTERA_NIOS2:
 	      result = get_nios2_dynamic_type (type);
+	      break;
+	    case EM_RISCV:
+	      result = get_riscv_dynamic_type (type);
 	      break;
 	    default:
 	      if (filedata->file_header.e_ident[EI_OSABI] == ELFOSABI_SOLARIS)
@@ -4731,6 +4986,7 @@ static struct option options[] =
   {"syms",	       no_argument, 0, 's'},
   {"silent-truncation",no_argument, 0, 'T'},
   {"section-details",  no_argument, 0, 't'},
+  {"unicode",          required_argument, NULL, 'U'},
   {"unwind",	       no_argument, 0, 'u'},
   {"version-info",     no_argument, 0, 'V'},
   {"version",	       no_argument, 0, 'v'},
@@ -4796,16 +5052,21 @@ usage (FILE * stream)
                          Force base for symbol sizes.  The options are \n\
                          mixed (the default), octal, decimal, hexadecimal.\n"));
   fprintf (stream, _("\
-  -C --demangle[=STYLE]  Decode low-level symbol names into user-level names\n\
-                          The STYLE, if specified, can be `auto' (the default),\n\
-                          `gnu', `lucid', `arm', `hp', `edg', `gnu-v3', `java'\n\
-                          or `gnat'\n"));
+  -C --demangle[=STYLE]  Decode mangled/processed symbol names\n"));
+  display_demangler_styles (stream, _("\
+                           STYLE can be "));
   fprintf (stream, _("\
      --no-demangle       Do not demangle low-level symbol names.  (default)\n"));
   fprintf (stream, _("\
      --recurse-limit     Enable a demangling recursion limit.  (default)\n"));
   fprintf (stream, _("\
      --no-recurse-limit  Disable a demangling recursion limit\n"));
+  fprintf (stream, _("\
+     -U[dlexhi] --unicode=[default|locale|escape|hex|highlight|invalid]\n\
+                         Display unicode characters as determined by the current locale\n\
+                          (default), escape sequences, \"<hex sequences>\", highlighted\n\
+                          escape sequences, or treat them as invalid and display as\n\
+                          \"{hex sequences}\"\n"));
   fprintf (stream, _("\
   -n --notes             Display the core notes (if present)\n"));
   fprintf (stream, _("\
@@ -4990,7 +5251,7 @@ parse_args (struct dump_data *dumpdata, int argc, char ** argv)
     usage (stderr);
 
   while ((c = getopt_long
-	  (argc, argv, "ACDHILNPR:STVWacdeghi:lnp:rstuvw::x:z", options, NULL)) != EOF)
+	  (argc, argv, "ACDHILNPR:STU:VWacdeghi:lnp:rstuvw::x:z", options, NULL)) != EOF)
     {
       switch (c)
 	{
@@ -5190,6 +5451,25 @@ parse_args (struct dump_data *dumpdata, int argc, char ** argv)
 	  break;
 	case OPTION_WITH_SYMBOL_VERSIONS:
 	  /* Ignored for backward compatibility.  */
+	  break;
+
+	case 'U':
+	  if (optarg == NULL)
+	    error (_("Missing arg to -U/--unicode")); /* Can this happen ?  */
+	  else if (streq (optarg, "default") || streq (optarg, "d"))
+	    unicode_display = unicode_default;
+	  else if (streq (optarg, "locale") || streq (optarg, "l"))
+	    unicode_display = unicode_locale;
+	  else if (streq (optarg, "escape") || streq (optarg, "e"))
+	    unicode_display = unicode_escape;
+	  else if (streq (optarg, "invalid") || streq (optarg, "i"))
+	    unicode_display = unicode_invalid;
+	  else if (streq (optarg, "hex") || streq (optarg, "x"))
+	    unicode_display = unicode_hex;
+	  else if (streq (optarg, "highlight") || streq (optarg, "h"))
+	    unicode_display = unicode_highlight;
+	  else
+	    error (_("invalid argument to -U/--unicode: %s"), optarg);
 	  break;
 
 	case OPTION_SYM_BASE:
@@ -7848,13 +8128,14 @@ static struct
   const char * name;
   int reloc;
   int size;
-  int rela;
+  relocation_type rel_type;
 }
   dynamic_relocations [] =
 {
-  { "REL", DT_REL, DT_RELSZ, false },
-  { "RELA", DT_RELA, DT_RELASZ, true },
-  { "PLT", DT_JMPREL, DT_PLTRELSZ, UNKNOWN }
+  { "REL", DT_REL, DT_RELSZ, reltype_rel },
+  { "RELA", DT_RELA, DT_RELASZ, reltype_rela },
+  { "RELR", DT_RELR, DT_RELRSZ, reltype_relr },
+  { "PLT", DT_JMPREL, DT_PLTRELSZ, reltype_unknown }
 };
 
 /* Process the reloc section.  */
@@ -7870,7 +8151,7 @@ process_relocs (Filedata * filedata)
 
   if (do_using_dynamic)
     {
-      int          is_rela;
+      relocation_type rel_type;
       const char * name;
       bool  has_dynamic_reloc;
       unsigned int i;
@@ -7879,7 +8160,7 @@ process_relocs (Filedata * filedata)
 
       for (i = 0; i < ARRAY_SIZE (dynamic_relocations); i++)
 	{
-	  is_rela = dynamic_relocations [i].rela;
+	  rel_type = dynamic_relocations [i].rel_type;
 	  name = dynamic_relocations [i].name;
 	  rel_size = filedata->dynamic_info[dynamic_relocations [i].size];
 	  rel_offset = filedata->dynamic_info[dynamic_relocations [i].reloc];
@@ -7887,16 +8168,16 @@ process_relocs (Filedata * filedata)
 	  if (rel_size)
 	    has_dynamic_reloc = true;
 
-	  if (is_rela == UNKNOWN)
+	  if (rel_type == reltype_unknown)
 	    {
 	      if (dynamic_relocations [i].reloc == DT_JMPREL)
 		switch (filedata->dynamic_info[DT_PLTREL])
 		  {
 		  case DT_REL:
-		    is_rela = false;
+		    rel_type = reltype_rel;
 		    break;
 		  case DT_RELA:
-		    is_rela = true;
+		    rel_type = reltype_rela;
 		    break;
 		  }
 	    }
@@ -7919,7 +8200,7 @@ process_relocs (Filedata * filedata)
 				filedata->num_dynamic_syms,
 				filedata->dynamic_strings,
 				filedata->dynamic_strings_length,
-				is_rela, true /* is_dynamic */);
+				rel_type, true /* is_dynamic */);
 	    }
 	}
 
@@ -7947,7 +8228,8 @@ process_relocs (Filedata * filedata)
 	   i++, section++)
 	{
 	  if (   section->sh_type != SHT_RELA
-	      && section->sh_type != SHT_REL)
+	      && section->sh_type != SHT_REL
+	      && section->sh_type != SHT_RELR)
 	    continue;
 
 	  rel_offset = section->sh_offset;
@@ -7955,7 +8237,7 @@ process_relocs (Filedata * filedata)
 
 	  if (rel_size)
 	    {
-	      int is_rela;
+	      relocation_type rel_type;
 	      unsigned long num_rela;
 
 	      if (filedata->is_separate)
@@ -7975,7 +8257,8 @@ process_relocs (Filedata * filedata)
 				num_rela),
 		      rel_offset, num_rela);
 
-	      is_rela = section->sh_type == SHT_RELA;
+	      rel_type = section->sh_type == SHT_RELA ? reltype_rela :
+		section->sh_type == SHT_REL ? reltype_rel : reltype_relr;
 
 	      if (section->sh_link != 0
 		  && section->sh_link < filedata->file_header.e_shnum)
@@ -7997,15 +8280,14 @@ process_relocs (Filedata * filedata)
 
 		  dump_relocations (filedata, rel_offset, rel_size,
 				    symtab, nsyms, strtab, strtablen,
-				    is_rela,
+				    rel_type,
 				    symsec->sh_type == SHT_DYNSYM);
 		  free (strtab);
 		  free (symtab);
 		}
 	      else
 		dump_relocations (filedata, rel_offset, rel_size,
-				  NULL, 0, NULL, 0, is_rela,
-				  false /* is_dynamic */);
+				  NULL, 0, NULL, 0, rel_type, false /* is_dynamic */);
 
 	      found = true;
 	    }
@@ -11326,6 +11608,7 @@ the .dynstr section doesn't match the DT_STRTAB and DT_STRSZ tags\n"));
 	case DT_RPATH	:
 	case DT_SYMBOLIC:
 	case DT_REL	:
+	case DT_RELR    :
 	case DT_DEBUG	:
 	case DT_TEXTREL	:
 	case DT_JMPREL	:
@@ -11382,6 +11665,8 @@ the .dynstr section doesn't match the DT_STRTAB and DT_STRSZ tags\n"));
 	case DT_STRSZ	:
 	case DT_RELSZ	:
 	case DT_RELAENT	:
+	case DT_RELRENT	:
+	case DT_RELRSZ	:
 	case DT_SYMENT	:
 	case DT_RELENT	:
 	  filedata->dynamic_info[entry->d_tag] = entry->d_un.d_val;
@@ -11389,8 +11674,6 @@ the .dynstr section doesn't match the DT_STRTAB and DT_STRSZ tags\n"));
 	case DT_PLTPADSZ:
 	case DT_MOVEENT	:
 	case DT_MOVESZ	:
-	case DT_RELRENT	:
-	case DT_RELRSZ	:
 	case DT_PREINIT_ARRAYSZ:
 	case DT_INIT_ARRAYSZ:
 	case DT_FINI_ARRAYSZ:
@@ -12375,6 +12658,28 @@ get_ppc64_symbol_other (unsigned int other)
 }
 
 static const char *
+get_riscv_symbol_other (unsigned int other)
+{
+  static char buf[32];
+  buf[0] = 0;
+
+  if (other & STO_RISCV_VARIANT_CC)
+    {
+      strcat (buf, _(" VARIANT_CC"));
+      other &= ~STO_RISCV_VARIANT_CC;
+    }
+
+  if (other != 0)
+    snprintf (buf, sizeof buf, " %x", other);
+
+
+  if (buf[0] != 0)
+    return buf + 1;
+  else
+    return buf;
+}
+
+static const char *
 get_symbol_other (Filedata * filedata, unsigned int other)
 {
   const char * result = NULL;
@@ -12399,6 +12704,9 @@ get_symbol_other (Filedata * filedata, unsigned int other)
       break;
     case EM_PPC64:
       result = get_ppc64_symbol_other (other);
+      break;
+    case EM_RISCV:
+      result = get_riscv_symbol_other (other);
       break;
     default:
       result = NULL;
@@ -12689,6 +12997,7 @@ print_dynamic_symbol (Filedata *filedata, unsigned long si,
 
   if (ELF_ST_TYPE (psym->st_info) == STT_SECTION
       && psym->st_shndx < filedata->file_header.e_shnum
+      && filedata->section_headers != NULL
       && psym->st_name == 0)
     {
       is_valid
@@ -18090,7 +18399,6 @@ process_mips_specific (Filedata * filedata)
       Elf_External_Options * eopt;
       size_t offset;
       int cnt;
-      sect = filedata->section_headers;
 
       /* Find the section header so that we get the size.  */
       sect = find_section_by_type (filedata, SHT_MIPS_OPTIONS);

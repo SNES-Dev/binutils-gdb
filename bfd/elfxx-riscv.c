@@ -1073,8 +1073,49 @@ static struct riscv_implicit_subset riscv_implicit_subsets[] =
   {"g", "zicsr",	check_implicit_always},
   {"g", "zifencei",	check_implicit_always},
   {"q", "d",		check_implicit_always},
+  {"v", "d",		check_implicit_always},
+  {"v", "zve64d",	check_implicit_always},
+  {"v", "zvl128b",	check_implicit_always},
+  {"zve64d", "d",	check_implicit_always},
+  {"zve64d", "zve64f",	check_implicit_always},
+  {"zve64f", "zve32f",	check_implicit_always},
+  {"zve64f", "zve64x",	check_implicit_always},
+  {"zve64f", "zvl64b",	check_implicit_always},
+  {"zve32f", "f",	check_implicit_always},
+  {"zve32f", "zvl32b",	check_implicit_always},
+  {"zve32f", "zve32x",	check_implicit_always},
+  {"zve64x", "zve32x",	check_implicit_always},
+  {"zve64x", "zvl64b",	check_implicit_always},
+  {"zve32x", "zvl32b",	check_implicit_always},
+  {"zvl65536b", "zvl32768b",	check_implicit_always},
+  {"zvl32768b", "zvl16384b",	check_implicit_always},
+  {"zvl16384b", "zvl8192b",	check_implicit_always},
+  {"zvl8192b", "zvl4096b",	check_implicit_always},
+  {"zvl4096b", "zvl2048b",	check_implicit_always},
+  {"zvl2048b", "zvl1024b",	check_implicit_always},
+  {"zvl1024b", "zvl512b",	check_implicit_always},
+  {"zvl512b", "zvl256b",	check_implicit_always},
+  {"zvl256b", "zvl128b",	check_implicit_always},
+  {"zvl128b", "zvl64b",		check_implicit_always},
+  {"zvl64b", "zvl32b",		check_implicit_always},
   {"d", "f",		check_implicit_always},
   {"f", "zicsr",	check_implicit_always},
+  {"zqinx", "zdinx",	check_implicit_always},
+  {"zdinx", "zfinx",	check_implicit_always},
+  {"zk", "zkn",		check_implicit_always},
+  {"zk", "zkr",		check_implicit_always},
+  {"zk", "zkt",		check_implicit_always},
+  {"zkn", "zbkb",	check_implicit_always},
+  {"zkn", "zbkc",	check_implicit_always},
+  {"zkn", "zbkx",	check_implicit_always},
+  {"zkn", "zkne",	check_implicit_always},
+  {"zkn", "zknd",	check_implicit_always},
+  {"zkn", "zknh",	check_implicit_always},
+  {"zks", "zbkb",	check_implicit_always},
+  {"zks", "zbkc",	check_implicit_always},
+  {"zks", "zbkx",	check_implicit_always},
+  {"zks", "zksed",	check_implicit_always},
+  {"zks", "zksh",	check_implicit_always},
   {NULL, NULL, NULL}
 };
 
@@ -1127,10 +1168,11 @@ static struct riscv_supported_ext riscv_supported_std_ext[] =
   {"c",		ISA_SPEC_CLASS_20190608,	2, 0, 0 },
   {"c",		ISA_SPEC_CLASS_2P2,		2, 0, 0 },
   {"b",		ISA_SPEC_CLASS_NONE, RISCV_UNKNOWN_VERSION, RISCV_UNKNOWN_VERSION, 0 },
+  {"k",		ISA_SPEC_CLASS_NONE, RISCV_UNKNOWN_VERSION, RISCV_UNKNOWN_VERSION, 0 },
   {"j",		ISA_SPEC_CLASS_NONE, RISCV_UNKNOWN_VERSION, RISCV_UNKNOWN_VERSION, 0 },
   {"t",		ISA_SPEC_CLASS_NONE, RISCV_UNKNOWN_VERSION, RISCV_UNKNOWN_VERSION, 0 },
   {"p",		ISA_SPEC_CLASS_NONE, RISCV_UNKNOWN_VERSION, RISCV_UNKNOWN_VERSION, 0 },
-  {"v",		ISA_SPEC_CLASS_NONE, RISCV_UNKNOWN_VERSION, RISCV_UNKNOWN_VERSION, 0 },
+  {"v",		ISA_SPEC_CLASS_DRAFT,		1, 0, 0 },
   {"n",		ISA_SPEC_CLASS_NONE, RISCV_UNKNOWN_VERSION, RISCV_UNKNOWN_VERSION, 0 },
   {NULL, 0, 0, 0, 0}
 };
@@ -1142,10 +1184,44 @@ static struct riscv_supported_ext riscv_supported_std_z_ext[] =
   {"zifencei",		ISA_SPEC_CLASS_20191213,	2, 0,  0 },
   {"zifencei",		ISA_SPEC_CLASS_20190608,	2, 0,  0 },
   {"zihintpause",	ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zfinx",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zdinx",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zqinx",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
   {"zbb",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
   {"zba",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
   {"zbc",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
-  {"zbs",               ISA_SPEC_CLASS_DRAFT,           1, 0,  0 },
+  {"zbs",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zbkb",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zbkc",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zbkx",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zk",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zkn",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zknd",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zkne",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zknh",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zkr",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zks",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zksed",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zksh",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zkt",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zve32x",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zve32f",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zve32d",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zve64x",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zve64f",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zve64d",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl32b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl64b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl128b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl256b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl512b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl1024b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl2048b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl4096b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl8192b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl16384b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl32768b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zvl65536b",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
   {NULL, 0, 0, 0, 0}
 };
 
@@ -1392,7 +1468,15 @@ riscv_add_subset (riscv_subset_list_t *subset_list,
   riscv_subset_t *current, *new;
 
   if (riscv_lookup_subset (subset_list, subset, &current))
-    return;
+    {
+      if (major != RISCV_UNKNOWN_VERSION
+	  && minor != RISCV_UNKNOWN_VERSION)
+	{
+	  current->major_version = major;
+	  current->minor_version = minor;
+	}
+      return;
+    }
 
   new = xmalloc (sizeof *new);
   new->name = xstrdup (subset);
@@ -1418,12 +1502,14 @@ riscv_add_subset (riscv_subset_list_t *subset_list,
 /* Get the default versions from the riscv_supported_*ext tables.  */
 
 static void
-riscv_get_default_ext_version (enum riscv_spec_class default_isa_spec,
+riscv_get_default_ext_version (enum riscv_spec_class *default_isa_spec,
 			       const char *name,
 			       int *major_version,
 			       int *minor_version)
 {
-  if (name == NULL || default_isa_spec == ISA_SPEC_CLASS_NONE)
+  if (name == NULL
+      || default_isa_spec == NULL
+      || *default_isa_spec == ISA_SPEC_CLASS_NONE)
     return;
 
   struct riscv_supported_ext *table = NULL;
@@ -1445,7 +1531,7 @@ riscv_get_default_ext_version (enum riscv_spec_class default_isa_spec,
     {
       if (strcmp (table[i].name, name) == 0
 	  && (table[i].isa_spec_class == ISA_SPEC_CLASS_DRAFT
-	      || table[i].isa_spec_class == default_isa_spec))
+	      || table[i].isa_spec_class == *default_isa_spec))
 	{
 	  *major_version = table[i].major_version;
 	  *minor_version = table[i].minor_version;
@@ -1824,6 +1910,35 @@ riscv_parse_check_conflicts (riscv_parse_subset_t *rps)
         (_("rv32e does not support the `f' extension"));
       no_conflict = false;
     }
+  if (riscv_lookup_subset (rps->subset_list, "zfinx", &subset)
+      && riscv_lookup_subset (rps->subset_list, "f", &subset))
+    {
+      rps->error_handler
+	(_("`zfinx' is conflict with the `f/d/q' extension"));
+      no_conflict = false;
+    }
+
+  bool support_zve = false;
+  bool support_zvl = false;
+  riscv_subset_t *s = rps->subset_list->head;
+  for (; s != NULL; s = s->next)
+    {
+      if (!support_zve
+	  && strncmp (s->name, "zve", 3) == 0)
+	support_zve = true;
+      if (!support_zvl
+	  && strncmp (s->name, "zvl", 3) == 0)
+	support_zvl = true;
+      if (support_zve && support_zvl)
+	break;
+    }
+  if (support_zvl && !support_zve)
+    {
+      rps->error_handler
+	(_("zvl*b extensions need to enable either `v' or `zve' extension"));
+      no_conflict = false;
+    }
+
   return no_conflict;
 }
 
@@ -2031,6 +2146,37 @@ riscv_arch_str (unsigned xlen, const riscv_subset_list_t *subset)
   return attr_str;
 }
 
+/* Copy the subset in the subset list.  */
+
+static struct riscv_subset_t *
+riscv_copy_subset (riscv_subset_list_t *subset_list,
+		   riscv_subset_t *subset)
+{
+  if (subset == NULL)
+    return NULL;
+
+  riscv_subset_t *new = xmalloc (sizeof *new);
+  new->name = xstrdup (subset->name);
+  new->major_version = subset->major_version;
+  new->minor_version = subset->minor_version;
+  new->next = riscv_copy_subset (subset_list, subset->next);
+
+  if (subset->next == NULL)
+    subset_list->tail = new;
+
+  return new;
+}
+
+/* Copy the subset list.  */
+
+riscv_subset_list_t *
+riscv_copy_subset_list (riscv_subset_list_t *subset_list)
+{
+  riscv_subset_list_t *new = xmalloc (sizeof *new);
+  new->head = riscv_copy_subset (new, subset_list->head);
+  return new;
+}
+
 /* Remove the SUBSET from the subset list.  */
 
 static void
@@ -2057,41 +2203,218 @@ riscv_remove_subset (riscv_subset_list_t *subset_list,
 }
 
 /* Add/Remove an extension to/from the subset list.  This is used for
-   the .option rvc or norvc.  */
+   the .option rvc or norvc, and .option arch directives.  */
 
 bool
 riscv_update_subset (riscv_parse_subset_t *rps,
-		     const char *subset,
-		     bool removed)
+		     const char *str)
 {
-  if (strlen (subset) == 0
-      || (strlen (subset) == 1
-	  && riscv_ext_order[(*subset - 'a')] == 0)
-      || (strlen (subset) > 1
-	  && rps->check_unknown_prefixed_ext
-	  && !riscv_recognized_prefixed_ext (subset)))
-    {
-      rps->error_handler
-	(_("riscv_update_subset: unknown ISA extension `%s'"), subset);
-      return false;
-    }
+  const char *p = str;
 
-  if (removed)
+  do
     {
-      if (strcmp (subset, "i") == 0)
+      int major_version = RISCV_UNKNOWN_VERSION;
+      int minor_version = RISCV_UNKNOWN_VERSION;
+
+      bool removed = false;
+      switch (*p++)
 	{
+	case '+': removed = false; break;
+	case '-': removed = true; break;
+	case '=':
+	  riscv_release_subset_list (rps->subset_list);
+	  return riscv_parse_subset (rps, p);
+	default:
 	  rps->error_handler
-	    (_("riscv_update_subset: cannot remove extension i from "
-	       "the subset list"));
+	    (_("extensions must begin with +/-/= in .option arch `%s'"), str);
 	  return false;
 	}
-      riscv_remove_subset (rps->subset_list, subset);
+
+      char *subset = xstrdup (p);
+      char *q = subset;
+      const char *end_of_version;
+      /* Extract the whole prefixed extension by ','.  */
+      while (*q != '\0' && *q != ',')
+        q++;
+
+      /* Look forward to the first letter which is not <major>p<minor>.  */
+      bool find_any_version = false;
+      bool find_minor_version = false;
+      size_t len = q - subset;
+      size_t i;
+      for (i = len; i > 0; i--)
+        {
+	  q--;
+	  if (ISDIGIT (*q))
+	    find_any_version = true;
+	  else if (find_any_version
+		   && !find_minor_version
+		   && *q == 'p'
+		   && ISDIGIT (*(q - 1)))
+	    find_minor_version = true;
+	  else
+	    break;
+	}
+      if (len > 0)
+	q++;
+
+      /* Check if the end of extension is 'p' or not.  If yes, then
+	 the second letter from the end cannot be number.  */
+      if (len > 1 && *(q - 1) == 'p' && ISDIGIT (*(q - 2)))
+	{
+	  *q = '\0';
+	  rps->error_handler
+	    (_("invalid ISA extension ends with <number>p "
+	       "in .option arch `%s'"), str);
+	  free (subset);
+	  return false;
+	}
+
+      end_of_version =
+	riscv_parsing_subset_version (q, &major_version, &minor_version);
+      *q = '\0';
+      if (end_of_version == NULL)
+	{
+	  free (subset);
+	  return false;
+	}
+
+      if (strlen (subset) == 0
+	  || (strlen (subset) == 1
+	      && riscv_ext_order[(*subset - 'a')] == 0)
+	  || (strlen (subset) > 1
+	      && rps->check_unknown_prefixed_ext
+	      && !riscv_recognized_prefixed_ext (subset)))
+	{
+	  rps->error_handler
+	    (_("unknown ISA extension `%s' in .option arch `%s'"),
+	     subset, str);
+	  free (subset);
+	  return false;
+	}
+
+      if (removed)
+	{
+	  if (strcmp (subset, "i") == 0)
+	    {
+	      rps->error_handler
+		(_("cannot remove extension `i' in .option arch `%s'"), str);
+	      free (subset);
+	      return false;
+	    }
+	  riscv_remove_subset (rps->subset_list, subset);
+	}
+      else
+	riscv_parse_add_subset (rps, subset, major_version, minor_version, true);
+      p += end_of_version - subset;
+      free (subset);
     }
-  else
-    riscv_parse_add_subset (rps, subset,
-			    RISCV_UNKNOWN_VERSION,
-			    RISCV_UNKNOWN_VERSION, true);
+  while (*p++ == ',');
 
   riscv_parse_add_implicit_subsets (rps);
   return riscv_parse_check_conflicts (rps);
+}
+
+/* Check if the FEATURE subset is supported or not in the subset list.
+   Return true if it is supported; Otherwise, return false.  */
+
+bool
+riscv_subset_supports (riscv_parse_subset_t *rps,
+		       const char *feature)
+{
+  struct riscv_subset_t *subset;
+  return riscv_lookup_subset (rps->subset_list, feature, &subset);
+}
+
+/* Each instuction is belonged to an instruction class INSN_CLASS_*.
+   Call riscv_subset_supports to make sure if the instuction is valid.  */
+
+bool
+riscv_multi_subset_supports (riscv_parse_subset_t *rps,
+			     enum riscv_insn_class insn_class)
+{
+  switch (insn_class)
+    {
+    case INSN_CLASS_I:
+      return riscv_subset_supports (rps, "i");
+    case INSN_CLASS_ZICSR:
+      return riscv_subset_supports (rps, "zicsr");
+    case INSN_CLASS_ZIFENCEI:
+      return riscv_subset_supports (rps, "zifencei");
+    case INSN_CLASS_ZIHINTPAUSE:
+      return riscv_subset_supports (rps, "zihintpause");
+    case INSN_CLASS_M:
+      return riscv_subset_supports (rps, "m");
+    case INSN_CLASS_A:
+      return riscv_subset_supports (rps, "a");
+    case INSN_CLASS_F:
+      return riscv_subset_supports (rps, "f");
+    case INSN_CLASS_D:
+      return riscv_subset_supports (rps, "d");
+    case INSN_CLASS_Q:
+      return riscv_subset_supports (rps, "q");
+    case INSN_CLASS_C:
+      return riscv_subset_supports (rps, "c");
+    case INSN_CLASS_F_AND_C:
+      return (riscv_subset_supports (rps, "f")
+	      && riscv_subset_supports (rps, "c"));
+    case INSN_CLASS_D_AND_C:
+      return (riscv_subset_supports (rps, "d")
+	      && riscv_subset_supports (rps, "c"));
+    case INSN_CLASS_F_OR_ZFINX:
+      return (riscv_subset_supports (rps, "f")
+	      || riscv_subset_supports (rps, "zfinx"));
+    case INSN_CLASS_D_OR_ZDINX:
+      return (riscv_subset_supports (rps, "d")
+	      || riscv_subset_supports (rps, "zdinx"));
+    case INSN_CLASS_Q_OR_ZQINX:
+      return (riscv_subset_supports (rps, "q")
+	      || riscv_subset_supports (rps, "zqinx"));
+    case INSN_CLASS_ZBA:
+      return riscv_subset_supports (rps, "zba");
+    case INSN_CLASS_ZBB:
+      return riscv_subset_supports (rps, "zbb");
+    case INSN_CLASS_ZBC:
+      return riscv_subset_supports (rps, "zbc");
+    case INSN_CLASS_ZBS:
+      return riscv_subset_supports (rps, "zbs");
+    case INSN_CLASS_ZBKB:
+      return riscv_subset_supports (rps, "zbkb");
+    case INSN_CLASS_ZBKC:
+      return riscv_subset_supports (rps, "zbkc");
+    case INSN_CLASS_ZBKX:
+      return riscv_subset_supports (rps, "zbkx");
+    case INSN_CLASS_ZBB_OR_ZBKB:
+      return (riscv_subset_supports (rps, "zbb")
+	      || riscv_subset_supports (rps, "zbkb"));
+    case INSN_CLASS_ZBC_OR_ZBKC:
+      return (riscv_subset_supports (rps, "zbc")
+	      || riscv_subset_supports (rps, "zbkc"));
+    case INSN_CLASS_ZKND:
+      return riscv_subset_supports (rps, "zknd");
+    case INSN_CLASS_ZKNE:
+      return riscv_subset_supports (rps, "zkne");
+    case INSN_CLASS_ZKNH:
+      return riscv_subset_supports (rps, "zknh");
+    case INSN_CLASS_ZKND_OR_ZKNE:
+      return (riscv_subset_supports (rps, "zknd")
+	      || riscv_subset_supports (rps, "zkne"));
+    case INSN_CLASS_ZKSED:
+      return riscv_subset_supports (rps, "zksed");
+    case INSN_CLASS_ZKSH:
+      return riscv_subset_supports (rps, "zksh");
+    case INSN_CLASS_V:
+      return (riscv_subset_supports (rps, "v")
+	      || riscv_subset_supports (rps, "zve64x")
+	      || riscv_subset_supports (rps, "zve32x"));
+    case INSN_CLASS_ZVEF:
+      return (riscv_subset_supports (rps, "v")
+	      || riscv_subset_supports (rps, "zve64d")
+	      || riscv_subset_supports (rps, "zve64f")
+	      || riscv_subset_supports (rps, "zve32f"));
+    default:
+      rps->error_handler
+        (_("internal: unreachable INSN_CLASS_*"));
+      return false;
+    }
 }

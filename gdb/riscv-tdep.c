@@ -101,6 +101,9 @@ static const char *riscv_feature_name_fpu = "org.gnu.gdb.riscv.fpu";
 static const char *riscv_feature_name_virtual = "org.gnu.gdb.riscv.virtual";
 static const char *riscv_feature_name_vector = "org.gnu.gdb.riscv.vector";
 
+/* The current set of options to be passed to the disassembler.  */
+static char *riscv_disassembler_options;
+
 /* Cached information about a frame.  */
 
 struct riscv_unwind_cache
@@ -566,8 +569,8 @@ private:
     for (auto &reg : m_registers)
       {
 	int csr_num = reg.regnum - RISCV_FIRST_CSR_REGNUM;
-	const char *alias = xstrprintf ("csr%d", csr_num);
-	reg.names.push_back (alias);
+	gdb::unique_xmalloc_ptr<char> alias = xstrprintf ("csr%d", csr_num);
+	reg.names.push_back (alias.release ());
       }
   }
 };
@@ -730,7 +733,8 @@ show_riscv_debug_variable (struct ui_file *file, int from_tty,
 int
 riscv_isa_xlen (struct gdbarch *gdbarch)
 {
-  return gdbarch_tdep (gdbarch)->isa_features.xlen;
+  riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
+  return tdep->isa_features.xlen;
 }
 
 /* See riscv-tdep.h.  */
@@ -738,7 +742,8 @@ riscv_isa_xlen (struct gdbarch *gdbarch)
 int
 riscv_abi_xlen (struct gdbarch *gdbarch)
 {
-  return gdbarch_tdep (gdbarch)->abi_features.xlen;
+  riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
+  return tdep->abi_features.xlen;
 }
 
 /* See riscv-tdep.h.  */
@@ -746,7 +751,8 @@ riscv_abi_xlen (struct gdbarch *gdbarch)
 int
 riscv_isa_flen (struct gdbarch *gdbarch)
 {
-  return gdbarch_tdep (gdbarch)->isa_features.flen;
+  riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
+  return tdep->isa_features.flen;
 }
 
 /* See riscv-tdep.h.  */
@@ -754,7 +760,8 @@ riscv_isa_flen (struct gdbarch *gdbarch)
 int
 riscv_abi_flen (struct gdbarch *gdbarch)
 {
-  return gdbarch_tdep (gdbarch)->abi_features.flen;
+  riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
+  return tdep->abi_features.flen;
 }
 
 /* See riscv-tdep.h.  */
@@ -762,7 +769,8 @@ riscv_abi_flen (struct gdbarch *gdbarch)
 bool
 riscv_abi_embedded (struct gdbarch *gdbarch)
 {
-  return gdbarch_tdep (gdbarch)->abi_features.embedded;
+  riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
+  return tdep->abi_features.embedded;
 }
 
 /* Return true if the target for GDBARCH has floating point hardware.  */
@@ -778,7 +786,8 @@ riscv_has_fp_regs (struct gdbarch *gdbarch)
 static bool
 riscv_has_fp_abi (struct gdbarch *gdbarch)
 {
-  return gdbarch_tdep (gdbarch)->abi_features.flen > 0;
+  riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
+  return tdep->abi_features.flen > 0;
 }
 
 /* Return true if REGNO is a floating pointer register.  */
@@ -858,7 +867,7 @@ riscv_sw_breakpoint_from_kind (struct gdbarch *gdbarch, int kind, int *size)
     case 4:
       return ebreak;
     default:
-      gdb_assert_not_reached (_("unhandled breakpoint kind"));
+      gdb_assert_not_reached ("unhandled breakpoint kind");
     }
 }
 
@@ -901,7 +910,7 @@ riscv_register_name (struct gdbarch *gdbarch, int regnum)
      will show up in 'info register all'.  Unless, we identify the
      duplicate copies of these registers (in riscv_tdesc_unknown_reg) and
      then hide the registers here by giving them no name.  */
-  struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+  riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
   if (tdep->duplicate_fflags_regnum == regnum)
     return NULL;
   if (tdep->duplicate_frm_regnum == regnum)
@@ -929,7 +938,7 @@ riscv_register_name (struct gdbarch *gdbarch, int regnum)
 static struct type *
 riscv_fpreg_d_type (struct gdbarch *gdbarch)
 {
-  struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+  riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
 
   if (tdep->riscv_fpreg_d_type == nullptr)
     {
@@ -1251,7 +1260,7 @@ riscv_is_regnum_a_named_csr (int regnum)
 static bool
 riscv_is_unknown_csr (struct gdbarch *gdbarch, int regnum)
 {
-  struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+  riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
   return (regnum >= tdep->unknown_csrs_first_regnum
 	  && regnum < (tdep->unknown_csrs_first_regnum
 		       + tdep->unknown_csrs_count));
@@ -2871,7 +2880,7 @@ riscv_print_arg_location (ui_file *stream, struct gdbarch *gdbarch,
       break;
 
     default:
-      gdb_assert_not_reached (_("unknown argument location type"));
+      gdb_assert_not_reached ("unknown argument location type");
     }
 }
 
@@ -3033,7 +3042,7 @@ riscv_push_dummy_call (struct gdbarch *gdbarch,
 	  break;
 
 	default:
-	  gdb_assert_not_reached (_("unknown argument location type"));
+	  gdb_assert_not_reached ("unknown argument location type");
 	}
 
       if (second_arg_length > 0)
@@ -3560,7 +3569,7 @@ riscv_tdesc_unknown_reg (struct gdbarch *gdbarch, tdesc_feature *feature,
      record their register numbers here.  */
   if (strcmp (tdesc_feature_name (feature), riscv_freg_feature.name ()) == 0)
     {
-      struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+      riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
       int *regnum_ptr = nullptr;
 
       if (strcmp (reg_name, "fflags") == 0)
@@ -3591,7 +3600,7 @@ riscv_tdesc_unknown_reg (struct gdbarch *gdbarch, tdesc_feature *feature,
      about register groups in riscv_register_reggroup_p.  */
   if (strcmp (tdesc_feature_name (feature), riscv_csr_feature.name ()) == 0)
     {
-      struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+      riscv_gdbarch_tdep *tdep = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
       if (tdep->unknown_csrs_first_regnum == -1)
 	tdep->unknown_csrs_first_regnum = possible_regnum;
       gdb_assert (tdep->unknown_csrs_first_regnum
@@ -3628,7 +3637,6 @@ riscv_gdbarch_init (struct gdbarch_info info,
 		    struct gdbarch_list *arches)
 {
   struct gdbarch *gdbarch;
-  struct gdbarch_tdep *tdep;
   struct riscv_gdbarch_features features;
   const struct target_desc *tdesc = info.target_desc;
 
@@ -3693,7 +3701,8 @@ riscv_gdbarch_init (struct gdbarch_info info,
       /* Check that the feature set of the ARCHES matches the feature set
 	 we are looking for.  If it doesn't then we can't reuse this
 	 gdbarch.  */
-      struct gdbarch_tdep *other_tdep = gdbarch_tdep (arches->gdbarch);
+      riscv_gdbarch_tdep *other_tdep
+	= (riscv_gdbarch_tdep *) gdbarch_tdep (arches->gdbarch);
 
       if (other_tdep->isa_features != features
 	  || other_tdep->abi_features != abi_features)
@@ -3706,7 +3715,7 @@ riscv_gdbarch_init (struct gdbarch_info info,
     return arches->gdbarch;
 
   /* None found, so create a new architecture from the information provided.  */
-  tdep = new (struct gdbarch_tdep);
+  riscv_gdbarch_tdep *tdep = new riscv_gdbarch_tdep;
   gdbarch = gdbarch_alloc (&info, tdep);
   tdep->isa_features = features;
   tdep->abi_features = abi_features;
@@ -3797,6 +3806,11 @@ riscv_gdbarch_init (struct gdbarch_info info,
   set_gdbarch_gcc_target_options (gdbarch, riscv_gcc_target_options);
   set_gdbarch_gnu_triplet_regexp (gdbarch, riscv_gnu_triplet_regexp);
 
+  /* Disassembler options support.  */
+  set_gdbarch_valid_disassembler_options (gdbarch,
+					  disassembler_options_riscv ());
+  set_gdbarch_disassembler_options (gdbarch, &riscv_disassembler_options);
+
   /* Hook in OS ABI-specific overrides, if they have been registered.  */
   gdbarch_init_osabi (info, gdbarch);
 
@@ -3812,7 +3826,8 @@ static CORE_ADDR
 riscv_next_pc (struct regcache *regcache, CORE_ADDR pc)
 {
   struct gdbarch *gdbarch = regcache->arch ();
-  const struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+  const riscv_gdbarch_tdep *tdep
+    = (riscv_gdbarch_tdep *) gdbarch_tdep (gdbarch);
   struct riscv_insn insn;
   CORE_ADDR next_pc;
 

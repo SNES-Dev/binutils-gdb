@@ -550,7 +550,7 @@ proc test_catch_syscall_multi_arch {} {
 	set syscall2_name "write"
 	set syscall_number 1
     } elseif { [istarget "powerpc-*-linux*"] \
-		   || [istarget "powerpc64-*-linux*"] } {
+		   || [istarget "powerpc64*-linux*"] } {
 	set arch1 "powerpc:common"
 	set arch2 "powerpc:common64"
 	set syscall1_name "openat"

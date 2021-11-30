@@ -762,7 +762,7 @@ public: /* Remote specific methods.  */
 			     target_waitstatus *status);
 
   ptid_t select_thread_for_ambiguous_stop_reply
-    (const struct target_waitstatus *status);
+    (const struct target_waitstatus &status);
 
   void remote_notice_new_inferior (ptid_t currthread, bool executing);
 
@@ -1919,41 +1919,36 @@ static void
 add_packet_config_cmd (struct packet_config *config, const char *name,
 		       const char *title, int legacy)
 {
-  char *set_doc;
-  char *show_doc;
-  char *cmd_name;
-
   config->name = name;
   config->title = title;
-  set_doc = xstrprintf ("Set use of remote protocol `%s' (%s) packet.",
-			name, title);
-  show_doc = xstrprintf ("Show current use of remote "
-			 "protocol `%s' (%s) packet.",
-			 name, title);
+  gdb::unique_xmalloc_ptr<char> set_doc
+    = xstrprintf ("Set use of remote protocol `%s' (%s) packet.",
+		  name, title);
+  gdb::unique_xmalloc_ptr<char> show_doc
+    = xstrprintf ("Show current use of remote protocol `%s' (%s) packet.",
+		  name, title);
   /* set/show TITLE-packet {auto,on,off} */
-  cmd_name = xstrprintf ("%s-packet", title);
+  gdb::unique_xmalloc_ptr<char> cmd_name = xstrprintf ("%s-packet", title);
   set_show_commands cmds
-    = add_setshow_auto_boolean_cmd (cmd_name, class_obscure,
-				    &config->detect, set_doc,
-				    show_doc, NULL, /* help_doc */
+    = add_setshow_auto_boolean_cmd (cmd_name.release (), class_obscure,
+				    &config->detect, set_doc.get (),
+				    show_doc.get (), NULL, /* help_doc */
 				    NULL,
 				    show_remote_protocol_packet_cmd,
 				    &remote_set_cmdlist, &remote_show_cmdlist);
   config->show_cmd = cmds.show;
 
-  /* The command code copies the documentation strings.  */
-  xfree (set_doc);
-  xfree (show_doc);
-
   /* set/show remote NAME-packet {auto,on,off} -- legacy.  */
   if (legacy)
     {
-      char *legacy_name;
-
-      legacy_name = xstrprintf ("%s-packet", name);
-      add_alias_cmd (legacy_name, cmds.set, class_obscure, 0,
+      /* It's not clear who should take ownership of this string, so, for
+	 now, make it static, and give copies to each of the add_alias_cmd
+	 calls below.  */
+      static gdb::unique_xmalloc_ptr<char> legacy_name
+	= xstrprintf ("%s-packet", name);
+      add_alias_cmd (legacy_name.get (), cmds.set, class_obscure, 0,
 		     &remote_set_cmdlist);
-      add_alias_cmd (legacy_name, cmds.show, class_obscure, 0,
+      add_alias_cmd (legacy_name.get (), cmds.show, class_obscure, 0,
 		     &remote_show_cmdlist);
     }
 }
@@ -2222,7 +2217,7 @@ packet_config_support (struct packet_config *config)
     case AUTO_BOOLEAN_AUTO:
       return config->support;
     default:
-      gdb_assert_not_reached (_("bad switch"));
+      gdb_assert_not_reached ("bad switch");
     }
 }
 
@@ -4547,7 +4542,7 @@ remote_target::process_initial_stop_replies (int from_tty)
 
       event_ptid = target_wait (waiton_ptid, &ws, TARGET_WNOHANG);
       if (remote_debug)
-	print_target_wait_results (waiton_ptid, event_ptid, &ws);
+	print_target_wait_results (waiton_ptid, event_ptid, ws);
 
       switch (ws.kind ())
 	{
@@ -7229,11 +7224,11 @@ struct notif_client notif_client_stop =
    -1 if we want to check all threads.  */
 
 static int
-is_pending_fork_parent (const target_waitstatus *ws, int event_pid,
+is_pending_fork_parent (const target_waitstatus &ws, int event_pid,
 			ptid_t thread_ptid)
 {
-  if (ws->kind () == TARGET_WAITKIND_FORKED
-      || ws->kind () == TARGET_WAITKIND_VFORKED)
+  if (ws.kind () == TARGET_WAITKIND_FORKED
+      || ws.kind () == TARGET_WAITKIND_VFORKED)
     {
       if (event_pid == -1 || event_pid == thread_ptid.pid ())
 	return 1;
@@ -7245,13 +7240,13 @@ is_pending_fork_parent (const target_waitstatus *ws, int event_pid,
 /* Return the thread's pending status used to determine whether the
    thread is a fork parent stopped at a fork event.  */
 
-static const target_waitstatus *
+static const target_waitstatus &
 thread_pending_fork_status (struct thread_info *thread)
 {
   if (thread->has_pending_waitstatus ())
-    return &thread->pending_waitstatus ();
+    return thread->pending_waitstatus ();
   else
-    return &thread->pending_follow;
+    return thread->pending_follow;
 }
 
 /* Determine if THREAD is a pending fork parent thread.  */
@@ -7259,7 +7254,7 @@ thread_pending_fork_status (struct thread_info *thread)
 static int
 is_pending_fork_parent_thread (struct thread_info *thread)
 {
-  const target_waitstatus *ws = thread_pending_fork_status (thread);
+  const target_waitstatus &ws = thread_pending_fork_status (thread);
   int pid = -1;
 
   return is_pending_fork_parent (ws, pid, thread->ptid);
@@ -7281,10 +7276,10 @@ remote_target::remove_new_fork_children (threads_listing_context *context)
      fork child threads from the CONTEXT list.  */
   for (thread_info *thread : all_non_exited_threads (this))
     {
-      const target_waitstatus *ws = thread_pending_fork_status (thread);
+      const target_waitstatus &ws = thread_pending_fork_status (thread);
 
       if (is_pending_fork_parent (ws, pid, thread->ptid))
-	context->remove_thread (ws->child_ptid ());
+	context->remove_thread (ws.child_ptid ());
     }
 
   /* Check for any pending fork events (not reported or processed yet)
@@ -7945,15 +7940,15 @@ remote_notif_get_pending_events (remote_target *remote, notif_client *nc)
 
 ptid_t
 remote_target::select_thread_for_ambiguous_stop_reply
-  (const struct target_waitstatus *status)
+  (const target_waitstatus &status)
 {
   REMOTE_SCOPED_DEBUG_ENTER_EXIT;
 
   /* Some stop events apply to all threads in an inferior, while others
      only apply to a single thread.  */
   bool process_wide_stop
-    = (status->kind () == TARGET_WAITKIND_EXITED
-       || status->kind () == TARGET_WAITKIND_SIGNALLED);
+    = (status.kind () == TARGET_WAITKIND_EXITED
+       || status.kind () == TARGET_WAITKIND_SIGNALLED);
 
   remote_debug_printf ("process_wide_stop = %d", process_wide_stop);
 
@@ -8035,7 +8030,7 @@ remote_target::process_stop_reply (struct stop_reply *stop_reply,
   /* If no thread/process was reported by the stub then select a suitable
      thread/process.  */
   if (ptid == null_ptid)
-    ptid = select_thread_for_ambiguous_stop_reply (status);
+    ptid = select_thread_for_ambiguous_stop_reply (*status);
   gdb_assert (ptid != null_ptid);
 
   if (status->kind () != TARGET_WAITKIND_EXITED
@@ -10061,11 +10056,11 @@ remote_target::kill_new_fork_children (int pid)
      that are stopped at a fork event.  */
   for (thread_info *thread : all_non_exited_threads (this))
     {
-      struct target_waitstatus *ws = &thread->pending_follow;
+      const target_waitstatus &ws = thread->pending_follow;
 
       if (is_pending_fork_parent (ws, pid, thread->ptid))
 	{
-	  int child_pid = ws->child_ptid ().pid ();
+	  int child_pid = ws.child_ptid ().pid ();
 	  int res;
 
 	  res = remote_vkill (child_pid);
@@ -10078,7 +10073,7 @@ remote_target::kill_new_fork_children (int pid)
      in process PID and kill those fork child threads as well.  */
   remote_notif_get_pending_events (notif);
   for (auto &event : rs->stop_reply_queue)
-    if (is_pending_fork_parent (&event->ws, pid, event->ptid))
+    if (is_pending_fork_parent (event->ws, pid, event->ptid))
       {
 	int child_pid = event->ws.child_ptid ().pid ();
 	int res;
@@ -10321,7 +10316,7 @@ remote_target::extended_remote_run (const std::string &args)
 	error (_("Running \"%s\" on the remote target failed"),
 	       remote_exec_file);
     default:
-      gdb_assert_not_reached (_("bad switch"));
+      gdb_assert_not_reached ("bad switch");
     }
 }
 
@@ -14384,27 +14379,19 @@ remote_target::thread_info_to_thread_handle (struct thread_info *tp)
 bool
 remote_target::can_async_p ()
 {
+  /* This flag should be checked in the common target.c code.  */
+  gdb_assert (target_async_permitted);
+
+  /* We're async whenever the serial device can.  */
   struct remote_state *rs = get_remote_state ();
-
-  /* We don't go async if the user has explicitly prevented it with the
-     "maint set target-async" command.  */
-  if (!target_async_permitted)
-    return false;
-
-  /* We're async whenever the serial device is.  */
   return serial_can_async_p (rs->remote_desc);
 }
 
 bool
 remote_target::is_async_p ()
 {
-  struct remote_state *rs = get_remote_state ();
-
-  if (!target_async_permitted)
-    /* We only enable async when the user specifically asks for it.  */
-    return false;
-
   /* We're async whenever the serial device is.  */
+  struct remote_state *rs = get_remote_state ();
   return serial_is_async_p (rs->remote_desc);
 }
 

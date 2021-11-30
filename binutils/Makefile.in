@@ -212,7 +212,7 @@ am__objects_2 = elfcomm.$(OBJEXT)
 am_elfedit_OBJECTS = elfedit.$(OBJEXT) version.$(OBJEXT) \
 	$(am__objects_2)
 elfedit_OBJECTS = $(am_elfedit_OBJECTS)
-am_nm_new_OBJECTS = nm.$(OBJEXT) $(am__objects_1)
+am_nm_new_OBJECTS = nm.$(OBJEXT) demanguse.$(OBJEXT) $(am__objects_1)
 nm_new_OBJECTS = $(am_nm_new_OBJECTS)
 nm_new_LDADD = $(LDADD)
 am__objects_3 = rddbg.$(OBJEXT) debug.$(OBJEXT) stabs.$(OBJEXT) \
@@ -223,7 +223,8 @@ am_objcopy_OBJECTS = objcopy.$(OBJEXT) not-strip.$(OBJEXT) \
 objcopy_OBJECTS = $(am_objcopy_OBJECTS)
 objcopy_LDADD = $(LDADD)
 am_objdump_OBJECTS = objdump.$(OBJEXT) dwarf.$(OBJEXT) prdbg.$(OBJEXT) \
-	$(am__objects_3) $(am__objects_1) $(am__objects_2)
+	demanguse.$(OBJEXT) $(am__objects_3) $(am__objects_1) \
+	$(am__objects_2)
 objdump_OBJECTS = $(am_objdump_OBJECTS)
 @ENABLE_LIBCTF_TRUE@am__DEPENDENCIES_2 = ../libctf/libctf.la
 am_ranlib_OBJECTS = ar.$(OBJEXT) is-ranlib.$(OBJEXT) arparse.$(OBJEXT) \
@@ -231,7 +232,8 @@ am_ranlib_OBJECTS = ar.$(OBJEXT) is-ranlib.$(OBJEXT) arparse.$(OBJEXT) \
 	binemul.$(OBJEXT) emul_$(EMULATION).$(OBJEXT) $(am__objects_1)
 ranlib_OBJECTS = $(am_ranlib_OBJECTS)
 am_readelf_OBJECTS = readelf.$(OBJEXT) version.$(OBJEXT) \
-	unwind-ia64.$(OBJEXT) dwarf.$(OBJEXT) $(am__objects_2)
+	unwind-ia64.$(OBJEXT) dwarf.$(OBJEXT) demanguse.$(OBJEXT) \
+	$(am__objects_2)
 readelf_OBJECTS = $(am_readelf_OBJECTS)
 @ENABLE_LIBCTF_TRUE@am__DEPENDENCIES_3 = ../libctf/libctf-nobfd.la
 am_size_OBJECTS = size.$(OBJEXT) $(am__objects_1)
@@ -316,14 +318,14 @@ am__depfiles_remade = ./$(DEPDIR)/addr2line.Po ./$(DEPDIR)/ar.Po \
 	./$(DEPDIR)/coffdump.Po ./$(DEPDIR)/coffgrok.Po \
 	./$(DEPDIR)/cxxfilt.Po ./$(DEPDIR)/debug.Po \
 	./$(DEPDIR)/deflex.Po ./$(DEPDIR)/defparse.Po \
-	./$(DEPDIR)/dlltool.Po ./$(DEPDIR)/dllwrap.Po \
-	./$(DEPDIR)/dwarf.Po ./$(DEPDIR)/elfcomm.Po \
-	./$(DEPDIR)/elfedit.Po ./$(DEPDIR)/emul_$(EMULATION).Po \
-	./$(DEPDIR)/emul_aix.Po ./$(DEPDIR)/emul_vanilla.Po \
-	./$(DEPDIR)/filemode.Po ./$(DEPDIR)/is-ranlib.Po \
-	./$(DEPDIR)/is-strip.Po ./$(DEPDIR)/maybe-ranlib.Po \
-	./$(DEPDIR)/maybe-strip.Po ./$(DEPDIR)/mclex.Po \
-	./$(DEPDIR)/mcparse.Po ./$(DEPDIR)/nm.Po \
+	./$(DEPDIR)/demanguse.Po ./$(DEPDIR)/dlltool.Po \
+	./$(DEPDIR)/dllwrap.Po ./$(DEPDIR)/dwarf.Po \
+	./$(DEPDIR)/elfcomm.Po ./$(DEPDIR)/elfedit.Po \
+	./$(DEPDIR)/emul_$(EMULATION).Po ./$(DEPDIR)/emul_aix.Po \
+	./$(DEPDIR)/emul_vanilla.Po ./$(DEPDIR)/filemode.Po \
+	./$(DEPDIR)/is-ranlib.Po ./$(DEPDIR)/is-strip.Po \
+	./$(DEPDIR)/maybe-ranlib.Po ./$(DEPDIR)/maybe-strip.Po \
+	./$(DEPDIR)/mclex.Po ./$(DEPDIR)/mcparse.Po ./$(DEPDIR)/nm.Po \
 	./$(DEPDIR)/not-ranlib.Po ./$(DEPDIR)/not-strip.Po \
 	./$(DEPDIR)/objcopy.Po ./$(DEPDIR)/objdump.Po \
 	./$(DEPDIR)/od-elf32_avr.Po ./$(DEPDIR)/od-macho.Po \
@@ -664,7 +666,7 @@ AM_CPPFLAGS = -I. -I$(srcdir) -I../bfd -I$(BFDDIR) -I$(INCDIR) \
 
 HFILES = \
 	arsup.h binemul.h bucomm.h budbg.h \
-	coffgrok.h debug.h dlltool.h dwarf.h elfcomm.h \
+	coffgrok.h debug.h demanguse.h dlltool.h dwarf.h elfcomm.h \
 	objdump.h sysdep.h unwind-ia64.h windres.h winduni.h windint.h \
 	windmc.h
 
@@ -673,7 +675,7 @@ BUILT_SOURCES = $(GENERATED_HFILES)
 CFILES = \
 	addr2line.c ar.c arsup.c bin2c.c binemul.c bucomm.c \
 	coffdump.c coffgrok.c cxxfilt.c \
-	dwarf.c debug.c dlltool.c dllwrap.c \
+	dwarf.c debug.c demanguse.c dlltool.c dllwrap.c \
 	elfcomm.c emul_aix.c emul_vanilla.c filemode.c \
 	is-ranlib.c is-strip.c maybe-ranlib.c maybe-strip.c \
 	nm.c not-ranlib.c not-strip.c \
@@ -752,13 +754,13 @@ LDADD = $(BFDLIB) $(LIBIBERTY) $(LIBINTL)
 size_SOURCES = size.c $(BULIBS)
 objcopy_SOURCES = objcopy.c not-strip.c rename.c $(WRITE_DEBUG_SRCS) $(BULIBS)
 strings_SOURCES = strings.c $(BULIBS)
-readelf_SOURCES = readelf.c version.c unwind-ia64.c dwarf.c $(ELFLIBS)
+readelf_SOURCES = readelf.c version.c unwind-ia64.c dwarf.c demanguse.c $(ELFLIBS)
 readelf_LDADD = $(LIBCTF_NOBFD) $(LIBINTL) $(LIBIBERTY) $(ZLIB) $(DEBUGINFOD_LIBS)
 elfedit_SOURCES = elfedit.c version.c $(ELFLIBS)
 elfedit_LDADD = $(LIBINTL) $(LIBIBERTY)
 strip_new_SOURCES = objcopy.c is-strip.c rename.c $(WRITE_DEBUG_SRCS) $(BULIBS)
-nm_new_SOURCES = nm.c $(BULIBS)
-objdump_SOURCES = objdump.c dwarf.c prdbg.c $(DEBUG_SRCS) $(BULIBS) $(ELFLIBS)
+nm_new_SOURCES = nm.c demanguse.c $(BULIBS)
+objdump_SOURCES = objdump.c dwarf.c prdbg.c demanguse.c $(DEBUG_SRCS) $(BULIBS) $(ELFLIBS)
 EXTRA_objdump_SOURCES = od-xcoff.c
 objdump_LDADD = $(OBJDUMP_PRIVATE_OFILES) $(OPCODES) $(LIBCTF) $(BFDLIB) $(LIBIBERTY) $(LIBINTL) $(DEBUGINFOD_LIBS)
 cxxfilt_SOURCES = cxxfilt.c $(BULIBS)
@@ -1081,6 +1083,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/deflex.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/defparse.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/demanguse.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dlltool.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dllwrap.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf.Po@am__quote@ # am--include-marker
@@ -1392,6 +1395,7 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/debug.Po
 	-rm -f ./$(DEPDIR)/deflex.Po
 	-rm -f ./$(DEPDIR)/defparse.Po
+	-rm -f ./$(DEPDIR)/demanguse.Po
 	-rm -f ./$(DEPDIR)/dlltool.Po
 	-rm -f ./$(DEPDIR)/dllwrap.Po
 	-rm -f ./$(DEPDIR)/dwarf.Po
@@ -1504,6 +1508,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/debug.Po
 	-rm -f ./$(DEPDIR)/deflex.Po
 	-rm -f ./$(DEPDIR)/defparse.Po
+	-rm -f ./$(DEPDIR)/demanguse.Po
 	-rm -f ./$(DEPDIR)/dlltool.Po
 	-rm -f ./$(DEPDIR)/dllwrap.Po
 	-rm -f ./$(DEPDIR)/dwarf.Po
@@ -1689,6 +1694,13 @@ arlex.@OBJEXT@: arlex.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='arlex.c' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `test -f arlex.c || echo $(srcdir)/`arlex.c $(NO_WERROR)
+
+dwarf.@OBJEXT@: dwarf.c
+@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo $(DEBUGINFOD_CFLAGS) -c -o $@ $(srcdir)/dwarf.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='dwarf.c' object='$@' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(COMPILE) $(DEBUGINFOD_CFLAGS) -c -o $@ $(srcdir)/dwarf.c
 
 sysroff.@OBJEXT@: sysroff.c
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `test -f sysroff.c || echo $(srcdir)/`sysroff.c $(NO_WERROR)

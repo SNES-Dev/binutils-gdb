@@ -134,6 +134,9 @@ struct riscv_elf_link_hash_table
   /* The data segment phase, don't relax the section
      when it is exp_seg_relro_adjust.  */
   int *data_segment_phase;
+
+  /* Relocations for variant CC symbols may be present.  */
+  int variant_cc;
 };
 
 /* Instruction access functions. */
@@ -1172,6 +1175,11 @@ allocate_dynrelocs (struct elf_link_hash_entry *h, void *inf)
 	      h->root.u.def.section = s;
 	      h->root.u.def.value = h->plt.offset;
 	    }
+
+	  /* If the symbol has STO_RISCV_VARIANT_CC flag, then raise the
+	     variant_cc flag of riscv_elf_link_hash_table.  */
+	  if (h->other & STO_RISCV_VARIANT_CC)
+	    htab->variant_cc = 1;
 	}
       else
 	{
@@ -1555,7 +1563,18 @@ riscv_elf_size_dynamic_sections (bfd *output_bfd, struct bfd_link_info *info)
 	return false;
     }
 
-  return _bfd_elf_add_dynamic_tags (output_bfd, info, true);
+  /* Add dynamic entries.  */
+  if (elf_hash_table (info)->dynamic_sections_created)
+    {
+      if (!_bfd_elf_add_dynamic_tags (output_bfd, info, true))
+	return false;
+
+      if (htab->variant_cc
+	  && !_bfd_elf_add_dynamic_entry (info, DT_RISCV_VARIANT_CC, 0))
+       return false;
+    }
+
+  return true;
 }
 
 #define TP_OFFSET 0
@@ -3574,37 +3593,22 @@ riscv_merge_arch_attr_info (bfd *ibfd, char *in_arch, char *out_arch)
   merged_subsets.head = NULL;
   merged_subsets.tail = NULL;
 
-  riscv_parse_subset_t rpe_in;
-  riscv_parse_subset_t rpe_out;
-
-  /* Only assembler needs to check the default version of ISA, so just set
-     the rpe_in.get_default_version and rpe_out.get_default_version to NULL.  */
-  rpe_in.subset_list = &in_subsets;
-  rpe_in.error_handler = _bfd_error_handler;
-  rpe_in.xlen = &xlen_in;
-  rpe_in.isa_spec = ISA_SPEC_CLASS_NONE;
-  rpe_in.check_unknown_prefixed_ext = false;
-
-  rpe_out.subset_list = &out_subsets;
-  rpe_out.error_handler = _bfd_error_handler;
-  rpe_out.xlen = &xlen_out;
-  rpe_out.isa_spec = ISA_SPEC_CLASS_NONE;
-  rpe_out.check_unknown_prefixed_ext = false;
+  riscv_parse_subset_t riscv_rps_ld_in =
+    {&in_subsets, _bfd_error_handler, &xlen_in, NULL, false};
+  riscv_parse_subset_t riscv_rps_ld_out =
+    {&out_subsets, _bfd_error_handler, &xlen_out, NULL, false};
 
   if (in_arch == NULL && out_arch == NULL)
     return NULL;
-
   if (in_arch == NULL && out_arch != NULL)
     return out_arch;
-
   if (in_arch != NULL && out_arch == NULL)
     return in_arch;
 
   /* Parse subset from ISA string.  */
-  if (!riscv_parse_subset (&rpe_in, in_arch))
+  if (!riscv_parse_subset (&riscv_rps_ld_in, in_arch))
     return NULL;
-
-  if (!riscv_parse_subset (&rpe_out, out_arch))
+  if (!riscv_parse_subset (&riscv_rps_ld_out, out_arch))
     return NULL;
 
   /* Checking XLEN.  */
@@ -5242,6 +5246,28 @@ riscv_elf_modify_segment_map (bfd *abfd,
   return true;
 }
 
+/* Merge non-visibility st_other attributes.  */
+
+static void
+riscv_elf_merge_symbol_attribute (struct elf_link_hash_entry *h,
+				  unsigned int st_other,
+				  bool definition ATTRIBUTE_UNUSED,
+				  bool dynamic ATTRIBUTE_UNUSED)
+{
+  unsigned int isym_sto = st_other & ~ELF_ST_VISIBILITY (-1);
+  unsigned int h_sto = h->other & ~ELF_ST_VISIBILITY (-1);
+
+  if (isym_sto == h_sto)
+    return;
+
+  if (isym_sto & ~STO_RISCV_VARIANT_CC)
+    _bfd_error_handler (_("unknown attribute for symbol `%s': 0x%02x"),
+			h->root.root.string, isym_sto);
+
+  if (isym_sto & STO_RISCV_VARIANT_CC)
+    h->other |= STO_RISCV_VARIANT_CC;
+}
+
 #define TARGET_LITTLE_SYM			riscv_elfNN_vec
 #define TARGET_LITTLE_NAME			"elfNN-littleriscv"
 #define TARGET_BIG_SYM				riscv_elfNN_be_vec
@@ -5278,6 +5304,7 @@ riscv_elf_modify_segment_map (bfd *abfd,
 #define elf_backend_additional_program_headers \
   riscv_elf_additional_program_headers
 #define elf_backend_modify_segment_map		riscv_elf_modify_segment_map
+#define elf_backend_merge_symbol_attribute	riscv_elf_merge_symbol_attribute
 
 #define elf_backend_init_index_section		_bfd_elf_init_1_index_section
 

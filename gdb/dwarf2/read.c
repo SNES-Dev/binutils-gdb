@@ -19979,7 +19979,7 @@ read_attribute_reprocess (const struct die_reader_specs *reader,
 	  break;
 	}
       default:
-	gdb_assert_not_reached (_("Unexpected DWARF form."));
+	gdb_assert_not_reached ("Unexpected DWARF form.");
     }
 }
 
@@ -20300,6 +20300,18 @@ read_indirect_string (dwarf2_per_objfile *per_objfile, bfd *abfd,
   LONGEST str_offset = cu_header->read_offset (abfd, buf, bytes_read_ptr);
 
   return read_indirect_string_at_offset (per_objfile, str_offset);
+}
+
+/* See read.h.  */
+
+const char *
+dwarf2_per_objfile::read_line_string (const gdb_byte *buf,
+				      unsigned int offset_size)
+{
+  bfd *abfd = objfile->obfd;
+  ULONGEST str_offset = read_offset (abfd, buf, offset_size);
+
+  return per_bfd->line_str.read_string (objfile, str_offset, "DW_FORM_line_strp");
 }
 
 /* See read.h.  */

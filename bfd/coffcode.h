@@ -326,6 +326,10 @@ CODE_FRAGMENT
 .
 . {* Selector for the union above.  *}
 . bool is_sym;
+.
+. {* An extra pointer which can used by format based on COFF (like XCOFF)
+.    to provide extra information to their backend.  *}
+. void *extrap;
 .} combined_entry_type;
 .
 .
@@ -2221,6 +2225,12 @@ coff_set_arch_mach_hook (bfd *abfd, void * filehdr)
 	}
       break;
 #endif
+#ifdef AARCH64MAGIC
+    case AARCH64MAGIC:
+      arch = bfd_arch_aarch64;
+      machine = internal_f->f_flags & F_AARCH64_ARCHITECTURE_MASK;
+      break;
+#endif
 #ifdef Z80MAGIC
     case Z80MAGIC:
       arch = bfd_arch_z80;
@@ -2774,6 +2784,12 @@ coff_set_flags (bfd * abfd,
 	    }
 	}
       TICOFF_TARGET_MACHINE_SET (flagsp, bfd_get_mach (abfd));
+      return true;
+#endif
+
+#ifdef AARCH64MAGIC
+    case bfd_arch_aarch64:
+      * magicp = AARCH64MAGIC;
       return true;
 #endif
 
@@ -3872,7 +3888,7 @@ coff_write_object_contents (bfd * abfd)
     internal_f.f_flags |= IMAGE_FILE_LARGE_ADDRESS_AWARE;
 #endif
 
-#ifndef COFF_WITH_pex64
+#if !defined(COFF_WITH_pex64) && !defined(COFF_WITH_peAArch64)
 #ifdef COFF_WITH_PE
   internal_f.f_flags |= IMAGE_FILE_32BIT_MACHINE;
 #else
@@ -3917,6 +3933,11 @@ coff_write_object_contents (bfd * abfd)
 #endif
 
 #if defined(ARM)
+#define __A_MAGIC_SET__
+    internal_a.magic = ZMAGIC;
+#endif
+
+#if defined(AARCH64)
 #define __A_MAGIC_SET__
     internal_a.magic = ZMAGIC;
 #endif
@@ -5663,11 +5684,11 @@ coff_bigobj_swap_aux_in (bfd *abfd,
       if (numaux > 1)
 	{
 	  if (indx == 0)
-	    memcpy (in->x_file.x_fname, ext->File.Name,
+	    memcpy (in->x_file.x_n.x_fname, ext->File.Name,
 		    numaux * sizeof (AUXENT_BIGOBJ));
 	}
       else
-	memcpy (in->x_file.x_fname, ext->File.Name, sizeof (ext->File.Name));
+	memcpy (in->x_file.x_n.x_fname, ext->File.Name, sizeof (ext->File.Name));
       break;
 
     case C_STAT:
@@ -5712,7 +5733,7 @@ coff_bigobj_swap_aux_out (bfd * abfd,
   switch (in_class)
     {
     case C_FILE:
-      memcpy (ext->File.Name, in->x_file.x_fname, sizeof (ext->File.Name));
+      memcpy (ext->File.Name, in->x_file.x_n.x_fname, sizeof (ext->File.Name));
 
       return AUXESZ;
 

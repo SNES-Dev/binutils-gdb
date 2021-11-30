@@ -633,11 +633,7 @@ sim_open (SIM_OPEN_KIND kind, host_callback *cb,
     }
 
   /* check for/establish the a reference program image */
-  if (sim_analyze_program (sd,
-			   (STATE_PROG_ARGV (sd) != NULL
-			    ? *STATE_PROG_ARGV (sd)
-			    : NULL),
-			   abfd) != SIM_RC_OK)
+  if (sim_analyze_program (sd, STATE_PROG_FILE (sd), abfd) != SIM_RC_OK)
     {
       sim_module_uninstall (sd);
       return 0;
@@ -1472,14 +1468,14 @@ sim_monitor (SIM_DESC sd,
 			  sim_io_printf(sd,"<binary not supported>");
 			else
 			  {
-#define _P(c, fmt64, fmt32) \
+#define P_(c, fmt64, fmt32) \
   case c: \
     if (longlong) \
       sim_io_printf (sd, "%" fmt64, lv); \
     else \
       sim_io_printf (sd, "%" fmt32, (int)lv); \
     break;
-#define P(c, fmtc) _P(c, PRI##fmtc##64, PRI##fmtc##32)
+#define P(c, fmtc) P_(c, PRI##fmtc##64, PRI##fmtc##32)
 			    switch (c)
 			      {
 			      P('d', d)
@@ -1490,7 +1486,7 @@ sim_monitor (SIM_DESC sd,
 			      }
 			  }
 #undef P
-#undef _P
+#undef P_
 		      }
 		    else if (strchr ("eEfgG", c))
 		      {

@@ -415,9 +415,12 @@ event_location_to_string (struct event_location *location)
 	  break;
 
 	case ADDRESS_LOCATION:
-	  EL_STRING (location)
-	    = xstrprintf ("*%s",
-			  core_addr_to_string (EL_ADDRESS (location)));
+	  {
+	    const char *addr_string
+	      = core_addr_to_string (EL_ADDRESS (location));
+	    EL_STRING (location)
+	      = xstrprintf ("*%s", addr_string).release ();
+	  }
 	  break;
 
 	case EXPLICIT_LOCATION:
@@ -960,12 +963,11 @@ event_location_empty_p (const struct event_location *location)
       return 0;
 
     case EXPLICIT_LOCATION:
-      return (EL_EXPLICIT (location) == NULL
-	      || (EL_EXPLICIT (location)->source_filename == NULL
-		  && EL_EXPLICIT (location)->function_name == NULL
-		  && EL_EXPLICIT (location)->label_name == NULL
-		  && (EL_EXPLICIT (location)->line_offset.sign
-		      == LINE_OFFSET_UNKNOWN)));
+      return (EL_EXPLICIT (location)->source_filename == NULL
+	      && EL_EXPLICIT (location)->function_name == NULL
+	      && EL_EXPLICIT (location)->label_name == NULL
+	      && (EL_EXPLICIT (location)->line_offset.sign
+		  == LINE_OFFSET_UNKNOWN));
 
     case PROBE_LOCATION:
       return EL_PROBE (location) == NULL;

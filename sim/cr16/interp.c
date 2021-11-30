@@ -36,6 +36,8 @@
 #include "gdb/signals.h"
 #include "opcode/cr16.h"
 
+#include "target-newlib-syscall.h"
+
 struct _state State;
 
 int cr16_debug;
@@ -86,8 +88,7 @@ lookup_hash (SIM_DESC sd, SIM_CPU *cpu, uint64 ins, int size)
   mask = (((1 << (32 - h->mask)) -1) << h->mask);
 
  /* Adjuest mask for branch with 2 word instructions.  */
-  if ((h->ops->mnimonic != NULL) &&
-      ((streq(h->ops->mnimonic,"b") && h->size == 2)))
+  if (streq(h->ops->mnemonic,"b") && h->size == 2)
     mask = 0xff0f0000;
 
 
@@ -99,7 +100,7 @@ lookup_hash (SIM_DESC sd, SIM_CPU *cpu, uint64 ins, int size)
 
       mask = (((1 << (32 - h->mask)) -1) << h->mask);
      /* Adjuest mask for branch with 2 word instructions.  */
-     if ((streq(h->ops->mnimonic,"b")) && h->size == 2)
+     if ((streq(h->ops->mnemonic,"b")) && h->size == 2)
        mask = 0xff0f0000;
 
      }
@@ -401,6 +402,7 @@ sim_open (SIM_OPEN_KIND kind, struct host_callback_struct *cb,
 
   /* Set default options before parsing user options.  */
   current_target_byte_order = BFD_ENDIAN_LITTLE;
+  cb->syscall_map = cb_cr16_syscall_map;
 
   /* The cpu data is kept in a separately allocated chunk of memory.  */
   if (sim_cpu_alloc_all (sd, 1) != SIM_RC_OK)
@@ -423,10 +425,7 @@ sim_open (SIM_OPEN_KIND kind, struct host_callback_struct *cb,
     }
 
   /* Check for/establish the a reference program image.  */
-  if (sim_analyze_program (sd,
-			   (STATE_PROG_ARGV (sd) != NULL
-			    ? *STATE_PROG_ARGV (sd)
-			    : NULL), abfd) != SIM_RC_OK)
+  if (sim_analyze_program (sd, STATE_PROG_FILE (sd), abfd) != SIM_RC_OK)
     {
       free_state (sd);
       return 0;

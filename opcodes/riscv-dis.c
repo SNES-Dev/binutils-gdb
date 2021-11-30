@@ -27,12 +27,25 @@
 #include "opintl.h"
 #include "elf-bfd.h"
 #include "elf/riscv.h"
-#include "cpu-riscv.h"
+#include "elfxx-riscv.h"
 
 #include <stdint.h>
 #include <ctype.h>
 
+static enum riscv_spec_class default_isa_spec = ISA_SPEC_CLASS_DRAFT - 1;
 static enum riscv_spec_class default_priv_spec = PRIV_SPEC_CLASS_NONE;
+
+unsigned xlen = 0;
+
+static riscv_subset_list_t riscv_subsets;
+static riscv_parse_subset_t riscv_rps_dis =
+{
+  &riscv_subsets,	/* subset_list.  */
+  opcodes_error_handler,/* error_handler.  */
+  &xlen,		/* xlen.  */
+  &default_isa_spec,	/* isa_spec.  */
+  false,		/* check_unknown_prefixed_ext.  */
+};
 
 struct riscv_private_data
 {
@@ -278,6 +291,73 @@ print_insn_args (const char *oparg, insn_t l, bfd_vma pc, disassemble_info *info
 	    }
 	  break;
 
+	case 'V': /* RVV */
+	  switch (*++oparg)
+	    {
+	    case 'd':
+	    case 'f':
+	      print (info->stream, "%s",
+		     riscv_vecr_names_numeric[EXTRACT_OPERAND (VD, l)]);
+	      break;
+	    case 'e':
+	      if (!EXTRACT_OPERAND (VWD, l))
+		print (info->stream, "%s", riscv_gpr_names[0]);
+	      else
+		print (info->stream, "%s",
+		       riscv_vecr_names_numeric[EXTRACT_OPERAND (VD, l)]);
+	      break;
+	    case 's':
+	      print (info->stream, "%s",
+		     riscv_vecr_names_numeric[EXTRACT_OPERAND (VS1, l)]);
+	      break;
+	    case 't':
+	    case 'u': /* VS1 == VS2 already verified at this point.  */
+	    case 'v': /* VD == VS1 == VS2 already verified at this point.  */
+	      print (info->stream, "%s",
+		     riscv_vecr_names_numeric[EXTRACT_OPERAND (VS2, l)]);
+	      break;
+	    case '0':
+	      print (info->stream, "%s", riscv_vecr_names_numeric[0]);
+	      break;
+	    case 'b':
+	    case 'c':
+	      {
+		int imm = (*oparg == 'b') ? EXTRACT_RVV_VB_IMM (l)
+					  : EXTRACT_RVV_VC_IMM (l);
+		unsigned int imm_vlmul = EXTRACT_OPERAND (VLMUL, imm);
+		unsigned int imm_vsew = EXTRACT_OPERAND (VSEW, imm);
+		unsigned int imm_vta = EXTRACT_OPERAND (VTA, imm);
+		unsigned int imm_vma = EXTRACT_OPERAND (VMA, imm);
+		unsigned int imm_vtype_res = EXTRACT_OPERAND (VTYPE_RES, imm);
+
+		if (imm_vsew < ARRAY_SIZE (riscv_vsew)
+		    && imm_vlmul < ARRAY_SIZE (riscv_vlmul)
+		    && imm_vta < ARRAY_SIZE (riscv_vta)
+		    && imm_vma < ARRAY_SIZE (riscv_vma)
+		    && !imm_vtype_res)
+		  print (info->stream, "%s,%s,%s,%s", riscv_vsew[imm_vsew],
+			 riscv_vlmul[imm_vlmul], riscv_vta[imm_vta],
+			 riscv_vma[imm_vma]);
+		else
+		  print (info->stream, "%d", imm);
+	      }
+	      break;
+	    case 'i':
+	      print (info->stream, "%d", (int)EXTRACT_RVV_VI_IMM (l));
+	      break;
+	    case 'j':
+	      print (info->stream, "%d", (int)EXTRACT_RVV_VI_UIMM (l));
+	      break;
+	    case 'k':
+	      print (info->stream, "%d", (int)EXTRACT_RVV_OFFSET (l));
+	      break;
+	    case 'm':
+	      if (! EXTRACT_OPERAND (VMASK, l))
+		print (info->stream, ",%s", riscv_vecm_names_numeric[0]);
+	      break;
+	    }
+	  break;
+
 	case ',':
 	case '(':
 	case ')':
@@ -362,6 +442,10 @@ print_insn_args (const char *oparg, insn_t l, bfd_vma pc, disassemble_info *info
 	  print (info->stream, "%s", riscv_gpr_names[rd]);
 	  break;
 
+	case 'y':
+	  print (info->stream, "0x%x", (int)EXTRACT_OPERAND (BS, l));
+	  break;
+
 	case 'z':
 	  print (info->stream, "%s", riscv_gpr_names[0]);
 	  break;
@@ -426,6 +510,10 @@ print_insn_args (const char *oparg, insn_t l, bfd_vma pc, disassemble_info *info
 	      print (info->stream, "0x%x", csr);
 	    break;
 	  }
+
+	case 'Y':
+	  print (info->stream, "0x%x", (int)EXTRACT_OPERAND (RNUM, l));
+	  break;
 
 	case 'Z':
 	  print (info->stream, "%d", rs1);
@@ -502,8 +590,6 @@ riscv_disassemble_insn (bfd_vma memaddr, insn_t word, disassemble_info *info)
   op = riscv_hash[OP_HASH_IDX (word)];
   if (op != NULL)
     {
-      unsigned xlen = 0;
-
       /* If XLEN is not known, get its value from the ELF class.  */
       if (info->mach == bfd_mach_riscv64)
 	xlen = 64;
@@ -515,6 +601,10 @@ riscv_disassemble_insn (bfd_vma memaddr, insn_t word, disassemble_info *info)
 	  xlen = ehdr->e_ident[EI_CLASS] == ELFCLASS64 ? 64 : 32;
 	}
 
+      /* If arch has ZFINX flags, use gpr for disassemble.  */
+      if(riscv_subset_supports (&riscv_rps_dis, "zfinx"))
+	riscv_fpr_names = riscv_gpr_names_abi;
+
       for (; op->name; op++)
 	{
 	  /* Does the opcode match?  */
@@ -525,6 +615,9 @@ riscv_disassemble_insn (bfd_vma memaddr, insn_t word, disassemble_info *info)
 	    continue;
 	  /* Is this instruction restricted to a certain value of XLEN?  */
 	  if ((op->xlen_requirement != 0) && (op->xlen_requirement != xlen))
+	    continue;
+
+	  if (!riscv_multi_subset_supports (&riscv_rps_dis, op->insn_class))
 	    continue;
 
 	  /* It's a match.  */
@@ -852,11 +945,13 @@ print_insn_riscv (bfd_vma memaddr, struct disassemble_info *info)
 disassembler_ftype
 riscv_get_disassembler (bfd *abfd)
 {
+  const char *default_arch = "rv64gc";
+
   if (abfd)
     {
       const struct elf_backend_data *ebd = get_elf_backend_data (abfd);
       if (ebd)
-        {
+	{
 	  const char *sec_name = ebd->obj_attrs_section;
 	  if (bfd_get_section_by_name (abfd, sec_name) != NULL)
 	    {
@@ -868,10 +963,14 @@ riscv_get_disassembler (bfd *abfd)
 						      attr[Tag_b].i,
 						      attr[Tag_c].i,
 						      &default_priv_spec);
+	      default_arch = attr[Tag_RISCV_arch].s;
 	    }
-        }
+	}
     }
-   return print_insn_riscv;
+
+  riscv_release_subset_list (&riscv_subsets);
+  riscv_parse_subset (&riscv_rps_dis, default_arch);
+  return print_insn_riscv;
 }
 
 /* Prevent use of the fake labels that are generated as part of the DWARF
@@ -891,24 +990,153 @@ riscv_symbol_is_valid (asymbol * sym,
   return (strcmp (name, RISCV_FAKE_LABEL_NAME) != 0
 	  && !riscv_elf_is_mapping_symbols (name));
 }
+
+
+/* Indices into option argument vector for options accepting an argument.
+   Use RISCV_OPTION_ARG_NONE for options accepting no argument.  */
+
+typedef enum
+{
+  RISCV_OPTION_ARG_NONE = -1,
+  RISCV_OPTION_ARG_PRIV_SPEC,
+
+  RISCV_OPTION_ARG_COUNT
+} riscv_option_arg_t;
+
+/* Valid RISCV disassembler options.  */
+
+static struct
+{
+  const char *name;
+  const char *description;
+  riscv_option_arg_t arg;
+} riscv_options[] =
+{
+  { "numeric",
+    N_("Print numeric register names, rather than ABI names."),
+    RISCV_OPTION_ARG_NONE },
+  { "no-aliases",
+    N_("Disassemble only into canonical instructions."),
+    RISCV_OPTION_ARG_NONE },
+  { "priv-spec=",
+    N_("Print the CSR according to the chosen privilege spec."),
+    RISCV_OPTION_ARG_PRIV_SPEC }
+};
+
+/* Build the structure representing valid RISCV disassembler options.
+   This is done dynamically for maintenance ease purpose; a static
+   initializer would be unreadable.  */
+
+const disasm_options_and_args_t *
+disassembler_options_riscv (void)
+{
+  static disasm_options_and_args_t *opts_and_args;
+
+  if (opts_and_args == NULL)
+    {
+      size_t num_options = ARRAY_SIZE (riscv_options);
+      size_t num_args = RISCV_OPTION_ARG_COUNT;
+      disasm_option_arg_t *args;
+      disasm_options_t *opts;
+      size_t i, priv_spec_count;
+
+      args = XNEWVEC (disasm_option_arg_t, num_args + 1);
+
+      args[RISCV_OPTION_ARG_PRIV_SPEC].name = "SPEC";
+      priv_spec_count = PRIV_SPEC_CLASS_DRAFT - PRIV_SPEC_CLASS_NONE - 1;
+      args[RISCV_OPTION_ARG_PRIV_SPEC].values
+        = XNEWVEC (const char *, priv_spec_count + 1);
+      for (i = 0; i < priv_spec_count; i++)
+	args[RISCV_OPTION_ARG_PRIV_SPEC].values[i]
+          = riscv_priv_specs[i].name;
+      /* The array we return must be NULL terminated.  */
+      args[RISCV_OPTION_ARG_PRIV_SPEC].values[i] = NULL;
+
+      /* The array we return must be NULL terminated.  */
+      args[num_args].name = NULL;
+      args[num_args].values = NULL;
+
+      opts_and_args = XNEW (disasm_options_and_args_t);
+      opts_and_args->args = args;
+
+      opts = &opts_and_args->options;
+      opts->name = XNEWVEC (const char *, num_options + 1);
+      opts->description = XNEWVEC (const char *, num_options + 1);
+      opts->arg = XNEWVEC (const disasm_option_arg_t *, num_options + 1);
+      for (i = 0; i < num_options; i++)
+	{
+	  opts->name[i] = riscv_options[i].name;
+	  opts->description[i] = _(riscv_options[i].description);
+	  if (riscv_options[i].arg != RISCV_OPTION_ARG_NONE)
+	    opts->arg[i] = &args[riscv_options[i].arg];
+	  else
+	    opts->arg[i] = NULL;
+	}
+      /* The array we return must be NULL terminated.  */
+      opts->name[i] = NULL;
+      opts->description[i] = NULL;
+      opts->arg[i] = NULL;
+    }
+
+  return opts_and_args;
+}
 
 void
 print_riscv_disassembler_options (FILE *stream)
 {
+  const disasm_options_and_args_t *opts_and_args;
+  const disasm_option_arg_t *args;
+  const disasm_options_t *opts;
+  size_t max_len = 0;
+  size_t i;
+  size_t j;
+
+  opts_and_args = disassembler_options_riscv ();
+  opts = &opts_and_args->options;
+  args = opts_and_args->args;
+
   fprintf (stream, _("\n\
-The following RISC-V-specific disassembler options are supported for use\n\
+The following RISC-V specific disassembler options are supported for use\n\
 with the -M switch (multiple options should be separated by commas):\n"));
+  fprintf (stream, "\n");
 
-  fprintf (stream, _("\n\
-  numeric         Print numeric register names, rather than ABI names.\n"));
+  /* Compute the length of the longest option name.  */
+  for (i = 0; opts->name[i] != NULL; i++)
+    {
+      size_t len = strlen (opts->name[i]);
 
-  fprintf (stream, _("\n\
-  no-aliases      Disassemble only into canonical instructions, rather\n\
-                  than into pseudoinstructions.\n"));
+      if (opts->arg[i] != NULL)
+	len += strlen (opts->arg[i]->name);
+      if (max_len < len)
+	max_len = len;
+    }
 
-  fprintf (stream, _("\n\
-  priv-spec=PRIV  Print the CSR according to the chosen privilege spec\n\
-                  (1.9, 1.9.1, 1.10, 1.11).\n"));
+  for (i = 0, max_len++; opts->name[i] != NULL; i++)
+    {
+      fprintf (stream, "  %s", opts->name[i]);
+      if (opts->arg[i] != NULL)
+	fprintf (stream, "%s", opts->arg[i]->name);
+      if (opts->description[i] != NULL)
+	{
+	  size_t len = strlen (opts->name[i]);
+
+	  if (opts->arg != NULL && opts->arg[i] != NULL)
+	    len += strlen (opts->arg[i]->name);
+	  fprintf (stream, "%*c %s", (int) (max_len - len), ' ',
+                   opts->description[i]);
+	}
+      fprintf (stream, "\n");
+    }
+
+  for (i = 0; args[i].name != NULL; i++)
+    {
+      fprintf (stream, _("\n\
+  For the options above, the following values are supported for \"%s\":\n   "),
+	       args[i].name);
+      for (j = 0; args[i].values[j] != NULL; j++)
+	fprintf (stream, " %s", args[i].values[j]);
+      fprintf (stream, _("\n"));
+    }
 
   fprintf (stream, _("\n"));
 }

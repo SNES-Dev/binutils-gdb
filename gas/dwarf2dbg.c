@@ -641,11 +641,9 @@ get_directory_table_entry (const char *dirname,
 		 expected to be the same as the DW_AT_comp_dir (which
 		 is set to the current build directory).  Since we are
 		 about to create a directory entry that is not the
-		 same, allocate the current directory first.
-		 FIXME: Alternatively we could generate an error
-		 message here.  */
-	      (void) get_directory_table_entry (pwd, NULL, strlen (pwd),
-						true);
+		 same, allocate the current directory first.  */
+	      (void) get_directory_table_entry (pwd, file0_dirname,
+						strlen (pwd), true);
 	      d = 1;
 	    }
 	  else
@@ -827,7 +825,7 @@ allocate_filename_to_slot (const char *dirname,
   const char *file;
   size_t dirlen;
   unsigned int i, d;
-  const char *file0_dirname = dirname;
+  const char *file0_dirname;
 
   /* Short circuit the common case of adding the same pathname
      as last time.  */
@@ -906,20 +904,40 @@ allocate_filename_to_slot (const char *dirname,
       return false;
     }
 
-  if (dirname == NULL)
+  /* For file .0, the directory name is the current directory and the file
+     may be in another directory contained in the file name.  */
+  if (num == 0)
     {
-      dirname = filename;
+      file0_dirname = dirname;
+
       file = get_basename (filename);
-      dirlen = file - filename;
+
+      if (dirname && file == filename)
+	dirlen = strlen (dirname);
+      else
+	{
+	  dirname = filename;
+	  dirlen = file - filename;
+	}
     }
   else
     {
-      dirlen = strlen (dirname);
-      file = filename;
+      file0_dirname = NULL;
+
+      if (dirname == NULL)
+	{
+	  dirname = filename;
+	  file = get_basename (filename);
+	  dirlen = file - filename;
+	}
+      else
+	{
+	  dirlen = strlen (dirname);
+	  file = filename;
+	}
     }
 
-  d = get_directory_table_entry (dirname, file0_dirname, dirlen,
-				 num == 0);
+  d = get_directory_table_entry (dirname, file0_dirname, dirlen, num == 0);
   i = num;
 
   if (! assign_file_to_slot (i, file, d))
@@ -2105,7 +2123,7 @@ out_dir_and_file_list (segT line_seg, int sizeof_offset)
   size_t size;
   const char *dir;
   char *cp;
-  unsigned int i;
+  unsigned int i, j;
   bool emit_md5 = false;
   bool emit_timestamps = true;
   bool emit_filesize = true;
@@ -2257,7 +2275,13 @@ out_dir_and_file_list (segT line_seg, int sizeof_offset)
 	     .file 0 directive.  If that isn't used, but file 1 is,
 	     then use that as main file name.  */
 	  if (DWARF2_LINE_VERSION >= 5 && i == 0 && files_in_use >= 1 && files[0].filename == NULL)
-	    files[0].filename = files[1].filename;
+	    {
+	      files[0].filename = files[1].filename;
+	      files[0].dir = files[1].dir;
+	      if (emit_md5)
+		for (j = 0; j < NUM_MD5_BYTES; ++j)
+		  files[0].md5[j] = files[1].md5[j];
+	    }
 	  else
 	    files[i].filename = "";
 	  if (DWARF2_LINE_VERSION < 5 || i != 0)

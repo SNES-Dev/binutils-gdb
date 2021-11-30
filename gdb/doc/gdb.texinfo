@@ -1705,17 +1705,15 @@ You may want to save the output of @value{GDBN} commands to a file.
 There are several commands to control @value{GDBN}'s logging.
 
 @table @code
-@kindex set logging
-@item set logging on
-Enable logging.
-@item set logging off
-Disable logging.
+@kindex set logging enabled
+@item set logging enabled [on|off]
+Enable or disable logging.
 @cindex logging file name
 @item set logging file @var{file}
 Change the name of the current logfile.  The default logfile is @file{gdb.txt}.
 @item set logging overwrite [on|off]
 By default, @value{GDBN} will append to the logfile.  Set @code{overwrite} if
-you want @code{set logging on} to overwrite the logfile instead.
+you want @code{set logging enabled on} to overwrite the logfile instead.
 @item set logging redirect [on|off]
 By default, @value{GDBN} output will go to both the terminal and the logfile.
 Set @code{redirect} if you want output to go only to the log file.
@@ -10912,7 +10910,7 @@ words (@samp{w}) of memory above the stack pointer (here, @samp{$sp};
 
 You can also specify a negative repeat count to examine memory backward
 from the given address.  For example, @samp{x/-3uh 0x54320} prints three
-halfwords (@code{h}) at @code{0x54314}, @code{0x54328}, and @code{0x5431c}.
+halfwords (@code{h}) at @code{0x5431a}, @code{0x5431c}, and @code{0x5431e}.
 
 Since the letters indicating unit sizes are all distinct from the
 letters specifying output formats, you do not have to remember whether
@@ -47114,27 +47112,28 @@ regarding @code{debuginfod}.
 @value{GDBN} provides the following commands for configuring @code{debuginfod}.
 
 @table @code
-@kindex set debuginfod
-@anchor{set debuginfod}
-@item set debuginfod
-@itemx set debuginfod on
+@kindex set debuginfod enabled
+@anchor{set debuginfod enabled}
+@item set debuginfod enabled
+@itemx set debuginfod enabled on
 @cindex enable debuginfod
 @value{GDBN} will attempt to query @code{debuginfod} servers when missing debug
 info or source files.
 
-@item set debuginfod off
+@item set debuginfod enabled off
 @value{GDBN} will not attempt to query @code{debuginfod} servers when missing
-debug info or source files.  By default, @code{debuginfod} is set to @code{off}
-for non-interactive sessions.
+debug info or source files.  By default, @code{debuginfod enabled} is set to
+@code{off} for non-interactive sessions.
 
-@item set debuginfod ask
+@item set debuginfod enabled ask
 @value{GDBN} will prompt the user to enable or disable @code{debuginfod} before
-attempting to perform the next query.  By default, @code{debuginfod} is set to
-@code{ask} for interactive sessions.
+attempting to perform the next query.  By default, @code{debuginfod enabled}
+is set to @code{ask} for interactive sessions.
 
-@kindex show debuginfod status
-@item show debuginfod status
-Show whether @code{debuginfod} is set to @code{on}, @code{off} or @code{ask}.
+@kindex show debuginfod enabled
+@item show debuginfod enabled
+Display whether @code{debuginfod enabled} is set to @code{on}, @code{off} or
+@code{ask}.
 
 @kindex set debuginfod urls
 @cindex configure debuginfod URLs

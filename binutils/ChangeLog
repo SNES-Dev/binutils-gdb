@@ -1,3 +1,34 @@
+2021-11-24  Nick Clifton  <nickc@redhat.com>
+
+	PR 28564
+	* sysdump.c (getCHARS): Check for an out of bounds read.
+
+2021-11-16  Fangrui Song  <maskray@google.com>
+
+	* readelf.c (enum relocation_type): New.
+	(slurp_relr_relocs): New.
+	(dump_relocations): Change is_rela to rel_type.
+	Dump RELR.
+	(dynamic_relocations): Add DT_RELR.
+	(process_relocs): Check SHT_RELR and DT_RELR.
+	(process_dynamic_section): Store into dynamic_info for
+	DT_RELR/DT_RELRENT/DT_RELRSZ.
+
+2021-11-09  Nick Clifton  <nickc@redhat.com>
+
+	* nm.c: Add --unicode option to control how unicode characters are
+	handled.
+	* objdump.c: Likewise.
+	* readelf.c: Likewise.
+	* strings.c: Likewise.
+	* binutils.texi: Document the new feature.
+	* NEWS: Document the new feature.
+	* testsuite/binutils-all/unicode.exp: New file.
+	* testsuite/binutils-all/nm.hex.unicode
+	* testsuite/binutils-all/strings.escape.unicode
+	* testsuite/binutils-all/objdump.highlight.unicode
+	* testsuite/binutils-all/readelf.invalid.unicode
+
 2021-11-03  Tom Tromey  <tromey@adacore.com>
 
 	* dwarf.c (display_debug_loc): Use section name in warnings.

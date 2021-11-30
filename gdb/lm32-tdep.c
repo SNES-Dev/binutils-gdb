@@ -34,6 +34,7 @@
 #include "reggroups.h"
 #include "opcodes/lm32-desc.h"
 #include <algorithm>
+#include "gdbarch.h"
 
 /* Macros to extract fields from an instruction.  */
 #define LM32_OPCODE(insn)       ((insn >> 26) & 0x3f)
@@ -42,7 +43,7 @@
 #define LM32_REG2(insn)         ((insn >> 11) & 0x1f)
 #define LM32_IMM16(insn)        ((((long)insn & 0xffff) << 16) >> 16)
 
-struct gdbarch_tdep
+struct lm32_gdbarch_tdep : gdbarch_tdep
 {
   /* gdbarch target dependent data here.  Currently unused for LM32.  */
 };
@@ -491,7 +492,6 @@ static struct gdbarch *
 lm32_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 {
   struct gdbarch *gdbarch;
-  struct gdbarch_tdep *tdep;
 
   /* If there is already a candidate, use it.  */
   arches = gdbarch_list_lookup_by_info (arches, &info);
@@ -499,7 +499,7 @@ lm32_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
     return arches->gdbarch;
 
   /* None found, create a new architecture from the information provided.  */
-  tdep = XCNEW (struct gdbarch_tdep);
+  lm32_gdbarch_tdep *tdep = new lm32_gdbarch_tdep;
   gdbarch = gdbarch_alloc (&info, tdep);
 
   /* Type sizes.  */

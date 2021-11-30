@@ -28,6 +28,7 @@ AM_MAKEFLAGS = SIM_PRIMARY_TARGET=$(SIM_PRIMARY_TARGET)
 
 # We don't set some of these vars here, but we need to define them so they may
 # be used consistently in local.mk files we include below.
+pkginclude_HEADERS =
 check_PROGRAMS =
 noinst_LIBRARIES =
 EXTRA_PROGRAMS =
@@ -48,19 +49,18 @@ LINK_FOR_BUILD = $(CC_FOR_BUILD) $(CFLAGS_FOR_BUILD) $(LDFLAGS_FOR_BUILD) -o $@
 # into any subdirs.
 SIM_ALL_RECURSIVE_DEPS =
 
-# Generate nltvals.def for newlib/libgloss using devo and build tree.
+# Generate target constants for newlib/libgloss from its source tree.
 # This file is shipped with distributions so we build in the source dir.
 # Use `make nltvals' to rebuild.
-# Note: If gdb releases begin to contain target header files (not a good idea,
-# but if they did ...), nltvals.def coud be generated at build time.
-# An alternative is to slurp in the tables at runtime.
 .PHONY: nltvals
 nltvals:
 	$(srccom)/gennltvals.py --cpp "$(CPP)"
 
-pkginclude_HEADERS = \
+if ENABLE_SIM
+pkginclude_HEADERS += \
 	$(srcroot)/include/sim/callback.h \
 	$(srcroot)/include/sim/sim.h
+endif
 
 include common/local.mk
 if SIM_ENABLE_IGEN
@@ -68,6 +68,9 @@ include igen/local.mk
 endif
 include testsuite/local.mk
 
+if SIM_ENABLE_ARCH_arm
+include arm/local.mk
+endif
 if SIM_ENABLE_ARCH_bpf
 include bpf/local.mk
 endif
@@ -79,6 +82,9 @@ include cris/local.mk
 endif
 if SIM_ENABLE_ARCH_d10v
 include d10v/local.mk
+endif
+if SIM_ENABLE_ARCH_erc32
+include erc32/local.mk
 endif
 if SIM_ENABLE_ARCH_frv
 include frv/local.mk
@@ -103,6 +109,12 @@ include mn10300/local.mk
 endif
 if SIM_ENABLE_ARCH_or1k
 include or1k/local.mk
+endif
+if SIM_ENABLE_ARCH_ppc
+include ppc/local.mk
+endif
+if SIM_ENABLE_ARCH_rx
+include rx/local.mk
 endif
 if SIM_ENABLE_ARCH_sh
 include sh/local.mk

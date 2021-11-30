@@ -1,3 +1,45 @@
+2021-11-26  Tom de Vries  <tdevries@suse.de>
+
+	PR 28629
+	* dwarf2dbg.c (out_dir_and_file_list): When copying file 1 to file 0,
+	also copy dir and md5 fields.
+	* testsuite/gas/i386/dwarf5-line-4.d: Adjust expected output.
+
+2021-11-18  Nick Clifton  <nickc@redhat.com>
+
+	* as.c (parse_args): Add support for --multibyte-handling.
+	* as.h (multibyte_handling): Declare.
+	* app.c (scan_for_multibyte_characters): New function.
+	(do_scrub_chars): Call the new function if multibyte warning is
+	enabled.
+	* input-scrub,c (input_scrub_next_buffer): Call the multibyte
+	scanning function if multibyte warnings are enabled.
+	* symbols.c (struct symbol_flags): Add multibyte_warned bit.
+	(symbol_init): Call the multibyte scanning function if multibyte
+	symbol warnings are enabled.
+	(S_SET_SEGMENT): Likewise.
+	* NEWS: Mention the new feature.
+	* doc/as.texi: Document the new feature.
+	* testsuite/gas/all/multibyte.s: New test source file.
+	* testsuite/gas/all/multibyte1.d: New test driver file.
+	* testsuite/gas/all/multibyte1.l: New test expected output.
+	* testsuite/gas/all/multibyte2.d: New test driver file.
+	* testsuite/gas/all/multibyte2.l: New test expected output.
+	* testsuite/gas/all/gas.exp: Run the new tests.
+
+2021-11-15  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* doc/as.texi (File): Update description of .file 0 directive.
+	* dwarf2dbg.c (get_directory_table_entry): Remove obsolete comment
+	and pass file0_dirname in recursive call.
+	(allocate_filename_to_slot): Deal with a full path in the file name
+	if the index number is 0.
+	* testsuite/gas/elf/dwarf-5-file0.d: Fix pasto.
+	* testsuite/gas/elf/dwarf-5-file0-2.d: Likewise.
+	* testsuite/gas/elf/dwarf-5-file0-3.d: New file.
+	* testsuite/gas/elf/dwarf-5-file0-3.s: Likewise.
+	* testsuite/gas/elf/elf.exp: Run dwarf-5-file0-3.
+
 2021-10-28  Markus Klein  <markus.klein@sma.de>
 
 	PR 28436

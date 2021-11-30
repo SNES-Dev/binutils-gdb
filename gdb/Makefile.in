@@ -724,6 +724,7 @@ ALL_64_TARGET_OBS = \
 ALL_TARGET_OBS = \
 	aarch32-tdep.o \
 	arc-linux-tdep.o \
+	arc-newlib-tdep.o \
 	arc-tdep.o \
 	arch/aarch32.o \
 	arch/arc.o \
@@ -1417,7 +1418,6 @@ HFILES_NO_SRCDIR = \
 	riscv-ravenscar-thread.h \
 	riscv-tdep.h \
 	rs6000-aix-tdep.h \
-	rs6000-tdep.h \
 	run-on-main-thread.h \
 	s390-linux-tdep.h \
 	s390-tdep.h \
@@ -2287,8 +2287,8 @@ ALLDEPFILES = \
 	riscv-ravenscar-thread.c \
 	riscv-tdep.c \
 	rl78-tdep.c \
+	rs6000-aix-nat.c \
 	rs6000-lynx178-tdep.c \
-	rs6000-nat.c \
 	rs6000-tdep.c \
 	rx-tdep.c \
 	s390-linux-nat.c \

@@ -30,8 +30,13 @@ if { [which curl] == 0 } {
 }
 
 # Skip testing if gdb was not configured with debuginfod
+#
+# If GDB is built with ASan, it warns that some signal handlers (installed by
+# ASan) exist on startup.  That makes TCL's exec throw an error.  Disable that
+# by passing --quiet.
+
 if { [string first "with-debuginfod" \
-	 [eval exec $GDB $INTERNAL_GDBFLAGS --configuration]] == -1 } {
+	 [eval exec $GDB --quiet $INTERNAL_GDBFLAGS --configuration]] == -1 } {
     untested "gdb not configured with debuginfod"
     return -1
 }
@@ -241,7 +246,7 @@ proc local_url { } {
     clean_restart
     gdb_test "file $binfile" ".*No debugging symbols.*" \
 	"file [file tail $binfile] cmd"
-    gdb_test_no_output "set debuginfod off"
+    gdb_test_no_output "set debuginfod enabled off"
     gdb_test_no_output "set debuginfod urls http://127.0.0.1:$port"
 
     # gdb shouldn't find the debuginfo since debuginfod has been disabled
@@ -249,7 +254,7 @@ proc local_url { } {
 	"file [file tail $binfile] cmd off"
 
     # Enable debuginfod and fetch the debuginfo
-    gdb_test_no_output "set debuginfod on"
+    gdb_test_no_output "set debuginfod enabled on"
     gdb_test "file $binfile" ".*Reading symbols from.*debuginfo.*" \
 	"file [file tail $binfile] cmd on"
 }
